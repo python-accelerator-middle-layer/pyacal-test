@@ -4,7 +4,7 @@ import matplotlib.pyplot as _plt
 import scipy.stats as _scystat
 
 import pyaccel as _pyaccel
-import mathphys as _mp
+import lnls as _lnls
 
 ERRORTYPES = ('x','y','roll','excit','k_dip')
 
@@ -86,7 +86,7 @@ def generate_errors(acc, mags=None, girder=None, fam_data=None,
         errors[err] = _np.zeros((nr_mach, len(acc)))
 
 
-    # _mp.utils.save_pickle(name+'_generate_errors_input',
+    # _lnls.utils.save_pickle(name+'_generate_errors_input',
     #           config=config,nr_mach=nr_mach,cutoff=cutoff,rndtype=rndtype)
 
     if 'mags' is not None:
@@ -148,7 +148,7 @@ def apply_erros(machine, errors, increment=1.0):
 
     nr_mach = errors['x'].shape[0]
 
-    # _mp.utils.save_pickle([name,'_apply_errors_input'],
+    # _lnls.utils.save_pickle([name,'_apply_errors_input'],
     #                 errors=errors, increment=increment)
 
     machs = []
@@ -246,7 +246,7 @@ def correct_cod(machine, bpms, hcms, vcms, sext_ramp=[1.0], svs='all',tol=1e-5,
          (gcodx + bba), used in the correction.
       gcody : the same as gcodx, but for the vertical plane.
     """
-    # _mp.utils.save_pickle(name+'_correct_cod_input.mat', cor_conf=cor_conf,
+    # _lnls.utils.save_pickle(name+'_correct_cod_input.mat', cor_conf=cor_conf,
     #                         goal_codx=goal_codx, goal_cody=goal_cody)
 
     nr_mach = len(machine)
@@ -420,8 +420,8 @@ def cod_sg(acc,bpms,hcms,vcms,respm=None, nr_iters=20,svs='all',tolerance=1e-5,
     cod  = _np.zeros(2*len(bpms))
     cod[:len(bpms)], cod[len(bpms):] = _calc_cod(acc, indices=bpms)
 
-    corrs = _mp.utils.flatten(hcms)
-    corrs.extend(_mp.utils.flatten(vcms))
+    corrs = _lnls.utils.flatten(hcms)
+    corrs.extend(_lnls.utils.flatten(vcms))
     corrs = _np.unique(_np.array(corrs))
     best_fm = (cod - gcod).std(ddof=1)
     best_acc = acc[corrs]
@@ -657,7 +657,7 @@ def coup_sg(acc, bpms, hcms, vcms, scms, respm=None, svs='all', nr_iter=20,
     iS = _np.diag(invs)
     CM = - _np.dot(V.T,_np.dot(iS,U.T))
 
-    skews = _mp.utils.flatten(scms)
+    skews = _lnls.utils.flatten(scms)
     skews = _np.unique(_np.array(skews))
 
     best_coupvec = calc_residue_for_optimization(acc)
