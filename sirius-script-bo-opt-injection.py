@@ -146,7 +146,7 @@ class PSOInjection(PSO):
 
     def get_change(self, part):
         """."""
-        return self.reference * (1 + 0*self._position[part, :])
+        return self.reference * (1 + self._position[part, :])
 
     def set_change(self, change):
         """."""
