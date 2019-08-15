@@ -7,16 +7,15 @@ import numpy as np
 
 
 class PSO:
+    """."""
 
     def __init__(self, nswarm=None):
+        """."""
         # Number of particles in the swarm # (Recommended is 10 + 2 * sqrt(d)) where d is the dimension of search space
         self._nswarm = nswarm
-        # Factor of inertia of particles
-        self._c_inertia = 0.7984
-        # Factor of best position of individual particle
-        self._c_indiv = 1.49618
-        # Factor of best position ever reached by the swarm
-        self._c_coll = self.c_indiv
+        self._c_inertia = 0.7984  # Inertia
+        self._c_indiv = 1.49618  # Best position of individual particle
+        self._c_coll = self.c_indiv  # Best position ever reached by the swarm
 
         # Boundary limits of problem
         self._upper_limits = np.array([])
@@ -24,7 +23,6 @@ class PSO:
         self.initialization()
         # The dimension is obtained by the definition of boundary limits
         self._ndim = len(self._upper_limits)
-        self._check_initialization()
         # Elements of PSO
         self._position = np.array([])
         self._velocity = np.array([])
@@ -63,7 +61,22 @@ class PSO:
     def ndim(self, value):
         self._ndim = value
 
+    def initialization(self):
+        pass
+
+    def _check_initialization(self):
+        """."""
+        if len(self._upper_limits) != len(self._lower_limits):
+            print('Warning: Upper and Lower Limits has different lengths')
+
+        if self._ndim != len(self._upper_limits):
+            print('Warning: Dimension incompatible with limits!')
+
+        if self._nswarm < int(10 + 2 * np.sqrt(self._ndim)):
+            print('Warning: Swarm population lower than recommended!')
+
     def _create_swarm(self):
+        """."""
         self._best_particle = np.zeros((self._nswarm, self._ndim))
         self._best_global = np.zeros(self._ndim)
         # Random initialization of swarm position inside the bounday limits
@@ -75,32 +88,8 @@ class PSO:
         # Initializing with zero velocity
         self._velocity = np.zeros((self._nswarm, self._ndim))
 
-    def _set_lim(self):
-        # If particle position exceeds the boundary, set the boundary value
-        for i in range(self._upper_limits.size):
-            over = self._position[:, i] > self._upper_limits[i]
-            under = self._position[:, i] < self._lower_limits[i]
-            self._position[over, i] = self._upper_limits[i]
-            self._position[under, i] = self._lower_limits[i]
-
-    def initialization(self):
-        pass
-
-    def _check_initialization(self):
-        if len(self._upper_limits) != len(self._lower_limits):
-            print('Warning: Upper and Lower Limits has different lengths')
-
-        if self._ndim != len(self._upper_limits):
-            print('Warning: Dimension incompatible with limits!')
-
-        if self._nswarm < int(10 + 2 * np.sqrt(self._ndim)):
-            print('Warning: Swarm population lower than recommended!')
-
-    def calc_merit_function(self):
-        # Merit function must be a vector with the value for each particle
-        return np.zeros(self._nswarm)
-
     def _update_position(self):
+        """."""
         r_indiv = self._c_indiv * np.random.rand()
         r_coll = self._c_coll * np.random.rand()
         # Inertial velocity
@@ -113,7 +102,28 @@ class PSO:
         self._position = self._position + self._velocity
         self._set_lim()
 
-    def _start_optimization(self, niter):
+    def _set_lim(self):
+        """."""
+        # If particle position exceeds the boundary, set the boundary value
+        for i in range(self._upper_limits.size):
+            over = self._position[:, i] > self._upper_limits[i]
+            under = self._position[:, i] < self._lower_limits[i]
+            self._position[over, i] = self._upper_limits[i]
+            self._position[under, i] = self._lower_limits[i]
+
+    def get_change(self):
+        pass
+
+    def set_change(self):
+        pass
+
+    def calc_merit_function(self):
+        """."""
+        # Merit function must be a vector with the value for each particle
+        return np.zeros(self._nswarm)
+
+    def start_optimization(self, niter):
+        """."""
         self._create_swarm()
 
         f_old = np.zeros(self._nswarm)
@@ -132,11 +142,11 @@ class PSO:
             self._update_position()
             f_new = self.calc_merit_function()
             improve = f_new < f_old
-            # Update best individual position and merit function for comparison only if the merit function is lower
-            self._best_particle[improve, :] = self._position[improve, :]
-            f_old[improve] = f_new[improve]
-            self._best_global = self._best_particle[np.argmin(f_old), :]
             if improve.any():
+                # Update best individual position and merit function for comparison only if the merit function is lower
+                self._best_particle[improve, :] = self._position[improve, :]
+                f_old[improve] = f_new[improve]
+                self._best_global = self._best_particle[np.argmin(f_old), :]
                 print('Global best updated:' + str(self._best_global))
                 print('Figure of merit updated:' + str(np.min(f_old)))
             # Storing history of best global position and best figure of merit
