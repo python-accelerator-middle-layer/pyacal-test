@@ -86,6 +86,7 @@ class PSOInjection(PSO):
         self.nswarm = nr_swarm
         self.nr_turns = nr_turns
         self.nr_bpm = nr_bpm
+        self.bpm_idx = self.nr_bpm + 50 * (self.nr_turns - 1)
         self._wait_change = 1
 
         self.get_pvs()
@@ -114,7 +115,7 @@ class PSOInjection(PSO):
 
         self.reference = _np.array([h.value for h in self.hands])
         self.reset_wait_buffer()
-        self.f_init = _np.sum(self.eyes.value[:self.nr_turns*self.nr_bpm])
+        self.f_init = _np.sum(self.eyes.value[:self.bpm_idx])
         print('Initial Objective Function {:.5f}'.format(self.f_init))
         print('========================================================')
 
@@ -175,7 +176,7 @@ class PSOInjection(PSO):
 
     def get_change(self, part):
         """."""
-        return self.reference + 0*self.position[part, :]
+        return self.reference + self.position[part, :]
 
     def set_change(self, change):
         """."""
@@ -200,7 +201,7 @@ class PSOInjection(PSO):
             self.set_change(chg)
             # _time.sleep(self._wait_change)
             self.reset_wait_buffer()
-            f_out[i] = _np.sum(self.eyes.value[:self.nr_turns*self.nr_bpm])
+            f_out[i] = _np.sum(self.eyes.value[:self.bpm_idx])
             print(
                 'Particle {:02d}/{:d} | Obj. Func. : {:f}'.format(
                     i+1, self.nswarm, f_out[i]))
@@ -213,7 +214,7 @@ class PSOInjection(PSO):
         plt.plot(fig, '-o')
         plt.xlabel('Number of Iteractions')
         plt.ylabel('Objective Function')
-        plt.savefig('obj_fun.png')
+        plt.savefig('obj_fun_PSO.png')
         plt.show()
         print(
             'The Objective Function changed from {:.5f} to {:.5f}'.format(
@@ -224,7 +225,7 @@ class PSOInjection(PSO):
             set_opt = input(
                 'Do you want to set the best configuration found? (y or n):  ')
             if set_opt == 'y':
-                best_setting = self.reference * (1 + pos[-1, :])
+                best_setting = self.reference + pos[-1, :]
                 self.set_change(best_setting)
                 print('Best configuration found was set to the machine!')
             else:
@@ -264,7 +265,7 @@ class SAInjection(SimulAnneal):
         d_corr = input(
             'Set TB Corrs Kick Max Delta (Default = 500 [urad]): ')
         d_kckr = input('Set Inj Kicker Max Delta (Default = 1 [mrad]): ')
-        temp = input('Set Temperature (Default = 0): ')
+        temp = input('Set initial temperature (Default = 0): ')
         print('==============================================================')
         nr_iter = input('Set Number of Iteractions (Default = 100): ')
         nr_pts = input('Set Buffer Size (SOFB) (Default = 10): ')
@@ -309,6 +310,7 @@ class SAInjection(SimulAnneal):
         self.niter = nr_iter
         self.nr_turns = nr_turns
         self.nr_bpm = nr_bpm
+        self.bpm_idx = self.nr_bpm + 50 * (self.nr_turns - 1)
         self.temperature = temp
         self._wait_change = 1
 
@@ -337,7 +339,8 @@ class SAInjection(SimulAnneal):
         self.reference = _np.array([h.value for h in self.hands])
         self.position = self.reference
         self.reset_wait_buffer()
-        self.f_init = _np.sum(self.eyes.value[:self.nr_turns*self.nr_bpm])
+        self.f_init = _np.sum(self.eyes.value[:self.bpm_idx])
+
         print('Initial Objective Function {:.5f}'.format(self.f_init))
         print('========================================================')
 
@@ -397,7 +400,7 @@ class SAInjection(SimulAnneal):
 
     def get_change(self):
         """."""
-        return self.reference + 0*self.position
+        return self.position
 
     def set_change(self, change):
         """."""
@@ -420,7 +423,7 @@ class SAInjection(SimulAnneal):
         self.set_change(chg)
         # _time.sleep(self._wait_change)
         self.reset_wait_buffer()
-        f_out = _np.sum(self.eyes.value[:self.nr_turns*self.nr_bpm])
+        f_out = _np.sum(self.eyes.value[:self.bpm_idx])
         return - f_out
 
     def run(self):
@@ -429,7 +432,7 @@ class SAInjection(SimulAnneal):
         plt.plot(fig, '-o')
         plt.xlabel('Number of Iteractions')
         plt.ylabel('Objective Function')
-        plt.savefig('obj_fun.png')
+        plt.savefig('obj_fun_SA.png')
         plt.show()
         if n_acc:
             print(
