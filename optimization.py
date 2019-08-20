@@ -102,7 +102,8 @@ class PSO:
         self._position = value
 
     def initialization(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def _check_initialization(self):
         """."""
@@ -163,10 +164,12 @@ class PSO:
             self.nswarm = int(10 + 2 * np.sqrt(self.ndim))
 
     def get_change(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def set_change(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def _save_data(self, k, f, fbest):
         """."""
@@ -184,9 +187,8 @@ class PSO:
             np.savetxt(f_figh, np.array([fbest]), fmt='%+.8e')
 
     def calc_merit_function(self):
-        """."""
-        # Merit function must return a vector for every particle evaluation
-        return np.zeros(self._nswarm)
+        """Return a vector for every particle evaluation."""
+        raise NotImplementedError
 
     def start_optimization(self):
         """."""
@@ -295,13 +297,10 @@ class SimulAnneal:
         # Initial temperature of annealing
         self._temperature = 0
         self.initialization()
-        self._check_initialization()
 
     def initialization(self):
-        pass
-
-    def _check_initialization(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def _check_lim(self):
         # If particle position exceeds the boundary, set the boundary value
@@ -322,14 +321,16 @@ class SimulAnneal:
         self._max_delta = dmax
 
     def get_change(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def set_change(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def calc_merit_function(self):
-        """."""
-        return 0
+        """Return a number."""
+        raise NotImplementedError
 
     def _random_change(self):
         # Random change applied in the current position
@@ -442,6 +443,7 @@ class SimulAnneal:
 class SimpleScan:
 
     def __init__(self):
+        """."""
         self._lower_limits = np.array([])
         self._upper_limits = np.array([])
         self._position = np.array([])
@@ -449,18 +451,17 @@ class SimpleScan:
         self._curr_dim = 0
         self.initialization()
         self._ndim = len(self._upper_limits)
-        self._check_initialization()
 
     def initialization(self):
-        pass
-
-    def _check_initialization(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def calc_merit_function(self):
-        return np.zeros(self._ndim), np.zeros(self._ndim)
+        """Return arrays with dimension of search space."""
+        raise NotImplementedError
 
-    def _start_optimization(self, npoints):
+    def start_optimization(self, npoints):
+        """."""
         self._delta = np.zeros(npoints)
         f = np.zeros(self._ndim)
         best = np.zeros(self._ndim)
@@ -499,14 +500,12 @@ class GA:
         self._mutrate = mutrate
 
     def initialization(self):
-        pass
-
-    def _check_initialization(self):
-        pass
+        """."""
+        raise NotImplementedError
 
     def calc_merit_function(self):
-        """."""
-        return np.zeros(self._npop)
+        """Return array with size equal to the population size."""
+        raise NotImplementedError
 
     def _create_pop(self):
         """."""
