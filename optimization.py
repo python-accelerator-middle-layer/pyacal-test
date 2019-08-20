@@ -9,20 +9,22 @@ import numpy as np
 class PSO:
     """."""
 
-    def __init__(self, nswarm=None):
+    def __init__(self):
         """."""
-        # Number of particles in the swarm # (Recommended is 10 + 2 * sqrt(d)) where d is the dimension of search space
-        self._nswarm = nswarm
-        self._c_inertia = 0.7984  # Inertia
-        self._c_indiv = 1.49618  # Best position of individual particle
-        self._c_coll = self.c_indiv  # Best position ever reached by the swarm
+        # Number of particles in the swarm # (Recommended is 10 + 2 * sqrt(d))
+        # where d is the dimension of search space
+        self._nswarm = []
+        self._niter = []
+        self._coeff_inertia = 0.7984  # Inertia
+        self._coeff_indiv = 1.49618  # Best position of individual particle
+        self._coeff_coll = self._coeff_indiv  # Best position ever reached by
+        # the swarm
 
         # Boundary limits of problem
         self._upper_limits = np.array([])
         self._lower_limits = np.array([])
         self.initialization()
-        # The dimension is obtained by the definition of boundary limits
-        self._ndim = len(self._upper_limits)
+        self._check_initialization()
         # Elements of PSO
         self._position = np.array([])
         self._velocity = np.array([])
@@ -30,36 +32,74 @@ class PSO:
         self._best_global = np.array([])
 
     @property
-    def c_inertia(self):
-        return self._c_inertia
+    def coeff_inertia(self):
+        """."""
+        return self._coeff_inertia
 
-    @c_inertia.setter
-    def c_inertia(self, value):
-        self._c_inertia = value
-
-    @property
-    def c_indiv(self):
-        return self._c_indiv
-
-    @c_indiv.setter
-    def c_indiv(self, value):
-        self._c_indiv = value
+    @coeff_inertia.setter
+    def coeff_inertia(self, value):
+        """."""
+        self._coeff_inertia = value
 
     @property
-    def c_coll(self):
-        return self._c_coll
+    def coeff_indiv(self):
+        """."""
+        return self._coeff_indiv
 
-    @c_coll.setter
-    def c_coll(self, value):
-        self._c_coll = value
+    @coeff_indiv.setter
+    def coeff_indiv(self, value):
+        """."""
+        self._coeff_indiv = value
+
+    @property
+    def coeff_coll(self):
+        """."""
+        return self._coeff_coll
+
+    @coeff_coll.setter
+    def coeff_coll(self, value):
+        """."""
+        self._coeff_coll = value
 
     @property
     def ndim(self):
+        """."""
         return self._ndim
 
     @ndim.setter
     def ndim(self, value):
+        """."""
         self._ndim = value
+
+    @property
+    def nswarm(self):
+        """."""
+        return self._nswarm
+
+    @nswarm.setter
+    def nswarm(self, value):
+        """."""
+        self._nswarm = value
+
+    @property
+    def niter(self):
+        """."""
+        return self._niter
+
+    @niter.setter
+    def niter(self, value):
+        """."""
+        self._niter = value
+
+    @property
+    def position(self):
+        """."""
+        return self._position
+
+    @position.setter
+    def position(self, value):
+        """."""
+        self._position = value
 
     def initialization(self):
         pass
@@ -67,13 +107,16 @@ class PSO:
     def _check_initialization(self):
         """."""
         if len(self._upper_limits) != len(self._lower_limits):
-            print('Warning: Upper and Lower Limits has different lengths')
+            raise Exception(
+                'Warning: Upper and Lower Limits has different lengths')
 
         if self._ndim != len(self._upper_limits):
-            print('Warning: Dimension incompatible with limits!')
+            raise Exception(
+                'Warning: Dimension incompatible with limits!')
 
         if self._nswarm < int(10 + 2 * np.sqrt(self._ndim)):
-            print('Warning: Swarm population lower than recommended!')
+            raise Warning(
+                'Swarm population lower than recommended!')
 
     def _create_swarm(self):
         """."""
@@ -90,19 +133,19 @@ class PSO:
 
     def _update_position(self):
         """."""
-        r_indiv = self._c_indiv * np.random.rand()
-        r_coll = self._c_coll * np.random.rand()
+        r_indiv = self._coeff_indiv * np.random.rand()
+        r_coll = self._coeff_coll * np.random.rand()
         # Inertial velocity
-        self._velocity = self._c_inertia * self._velocity
+        self._velocity = self._coeff_inertia * self._velocity
         # Velocity dependent to distance from best individual position
         self._velocity += r_indiv * (self._best_particle - self._position)
         # Velocity dependent to distance from best global position
         self._velocity += r_coll * (self._best_global - self._position)
         # Update position and check boundary limits
         self._position = self._position + self._velocity
-        self._set_lim()
+        self._check_lim()
 
-    def _set_lim(self):
+    def _check_lim(self):
         """."""
         # If particle position exceeds the boundary, set the boundary value
         for i in range(self._upper_limits.size):
@@ -111,18 +154,41 @@ class PSO:
             self._position[over, i] = self._upper_limits[i]
             self._position[under, i] = self._lower_limits[i]
 
+    def set_limits(self, upper=None, lower=None):
+        """."""
+        self._upper_limits = upper
+        self._lower_limits = lower
+        self.ndim = len(upper)
+        if not self.nswarm:
+            self.nswarm = int(10 + 2 * np.sqrt(self.ndim))
+
     def get_change(self):
         pass
 
     def set_change(self):
         pass
 
+    def _save_data(self, k, f, fbest):
+        """."""
+        with open('pos_PSO.txt', 'a') as f_pos:
+            f_pos.write('Step ' + str(k+1) + ' \n')
+            np.savetxt(f_pos, self._position, fmt='%+.8e')
+        with open('fig_PSO.txt', 'a') as f_fig:
+            f_fig.write('Step ' + str(k+1) + ' \n')
+            np.savetxt(f_fig, f, fmt='%+.8e')
+        with open('best_pos_history_PSO.txt', 'a') as f_posh:
+            f_posh.write('Step ' + str(k+1) + ' \n')
+            np.savetxt(f_posh, self._best_global, fmt='%+.8e')
+        with open('best_fig_history_PSO.txt', 'a') as f_figh:
+            f_figh.write('Step ' + str(k+1) + ' \n')
+            np.savetxt(f_figh, np.array([fbest]), fmt='%+.8e')
+
     def calc_merit_function(self):
         """."""
-        # Merit function must be a vector with the value for each particle
+        # Merit function must return a vector for every particle evaluation
         return np.zeros(self._nswarm)
 
-    def start_optimization(self, niter):
+    def start_optimization(self):
         """."""
         self._create_swarm()
 
@@ -130,37 +196,40 @@ class PSO:
         f_new = np.zeros(self._nswarm)
 
         # History of best position and merit function over iteractions
-        best_pos_hstry = np.zeros([niter, self._ndim])
-        best_fig_hstry = np.zeros(niter)
+        best_pos_hstry = np.zeros([self.niter, self._ndim])
+        best_fig_hstry = np.zeros(self.niter)
 
+        print('>>> Iteraction Number:1')
         f_old = self.calc_merit_function()
         self._best_global = self._best_particle[np.argmin(f_old), :]
+        best_pos_hstry[0, :] = self._best_global
+        best_fig_hstry[0] = np.min(f_old)
+        self._save_data(k=0, f=f_old, fbest=best_fig_hstry[0])
 
-        k = 0
-        while k < niter:
+        k = 1
+        while k < self.niter:
             print('>>> Iteraction Number:' + str(k+1))
             self._update_position()
             f_new = self.calc_merit_function()
             improve = f_new < f_old
             if improve.any():
-                # Update best individual position and merit function for comparison only if the merit function is lower
+                # Update best individual position and merit function for
+                # comparison only if the merit function is lower
                 self._best_particle[improve, :] = self._position[improve, :]
                 f_old[improve] = f_new[improve]
                 self._best_global = self._best_particle[np.argmin(f_old), :]
                 print('Global best updated:' + str(self._best_global))
                 print('Figure of merit updated:' + str(np.min(f_old)))
-            # Storing history of best global position and best figure of merit
+
             best_pos_hstry[k, :] = self._best_global
             best_fig_hstry[k] = np.min(f_old)
-            with open('pos_swarm.txt', 'a') as f_pos:
-                f_pos.write('Step ' + str(k+1) + ' \n')
-                np.savetxt(f_pos, self._position, fmt='%+.8e')
+            self._save_data(k=k, f=f_new, fbest=best_fig_hstry[k])
             k += 1
 
         print('Best Position Found:' + str(self._best_global))
         print('Best Figure of Merit Found:' + str(np.min(f_old)))
-        np.savetxt('best_pos_history.txt', best_pos_hstry)
-        np.savetxt('best_fig_history.txt', best_fig_hstry)
+        # np.savetxt('best_pos_history.txt', best_pos_hstry)
+        # np.savetxt('best_fig_history.txt', best_fig_hstry)
         return best_pos_hstry, best_fig_hstry
 
 
@@ -168,9 +237,53 @@ class PSO:
 
 
 class SimulAnneal:
+    """."""
+
+    @property
+    def ndim(self):
+        """."""
+        return self._ndim
+
+    @ndim.setter
+    def ndim(self, value):
+        """."""
+        self._ndim = value
+
+    @property
+    def position(self):
+        """."""
+        return self._position
+
+    @position.setter
+    def position(self, value):
+        """."""
+        self._position = value
+
+    @property
+    def niter(self):
+        """."""
+        return self._niter
+
+    @niter.setter
+    def niter(self, value):
+        """."""
+        self._niter = value
+
+    @property
+    def temperature(self):
+        """."""
+        return self._temperature
+
+    @temperature.setter
+    def temperature(self, value):
+        """."""
+        self._temperature = value
 
     def __init__(self):
+        """."""
         # Boundary Limits
+        self._ndim = []
+        self._niter = []
         self._lower_limits = np.array([])
         self._upper_limits = np.array([])
         # Maximum variation to be applied
@@ -182,8 +295,6 @@ class SimulAnneal:
         # Initial temperature of annealing
         self._temperature = 0
         self.initialization()
-        # Dimension of search space is obtained by boundary limits
-        self._ndim = len(self._lower_limits)
         self._check_initialization()
 
     def initialization(self):
@@ -192,54 +303,87 @@ class SimulAnneal:
     def _check_initialization(self):
         pass
 
-    def _set_lim(self):
+    def _check_lim(self):
         # If particle position exceeds the boundary, set the boundary value
         over = self._position > self._upper_limits
         under = self._position < self._lower_limits
         self._position[over] = self._upper_limits[over]
         self._position[under] = self._lower_limits[under]
 
-    def calc_merit_function(self):
-        return 0
+    def set_limits(self, upper=None, lower=None):
+        """."""
+        self._upper_limits = upper
+        self._lower_limits = lower
+        self.ndim = len(upper)
 
-    def _init_pos(self):
-        # Random initialization position inside the bounday limits
-        dlim = self._upper_limits - self._lower_limits
-        rarray = np.random.rand(self._ndim)
-        self._position = dlim * rarray + self._lower_limits
+    def set_deltas(self, dmax=None):
+        """."""
+        self.ndim = len(dmax)
+        self._max_delta = dmax
+
+    def get_change(self):
+        pass
+
+    def set_change(self):
+        pass
+
+    def calc_merit_function(self):
+        """."""
+        return 0
 
     def _random_change(self):
         # Random change applied in the current position
         dlim = self._max_delta
-        rarray = np.random.rand(self._ndim)
+        rarray = 2 * np.random.rand(self.ndim) - 1  # [-1,1]
         self._delta = dlim * rarray
         self._position = self._position + self._delta
-        self._set_lim()
+        # self._check_lim()
 
-    def _start_optimization(self, niter):
-        self._init_pos()
+    def _save_data(self, k, f, acc=False, nacc=None, bp=None, bf=None):
+        """."""
+        with open('pos_SA.txt', 'a') as f_pos:
+            f_pos.write('Step ' + str(k+1) + ' \n')
+            np.savetxt(f_pos, self._position, fmt='%+.8e')
+        with open('fig_SA.txt', 'a') as f_fig:
+            f_fig.write('Step ' + str(k+1) + ' \n')
+            np.savetxt(f_fig, np.array([f]), fmt='%+.8e')
+        if acc:
+            with open('best_pos_history_SA.txt', 'a') as f_posh:
+                f_posh.write('Accep. Solution ' + str(nacc+1) + ' \n')
+                np.savetxt(f_posh, bp[nacc, :], fmt='%+.8e')
+            with open('best_fig_history_SA.txt', 'a') as f_figh:
+                f_figh.write('Accep. Solution ' + str(nacc+1) + ' \n')
+                np.savetxt(f_figh, np.array([bf[nacc]]), fmt='%+.8e')
+
+    def start_optimization(self):
+        """."""
+        bpos_hstry = np.zeros([self.niter, self.ndim])
+        bfig_hstry = np.zeros([self.niter])
 
         f_old = self.calc_merit_function()
-        best = self._position
+        bfig_hstry[0] = f_old
+        bpos_hstry[0, :] = self._position
         # Number of accepted solutions
         n_acc = 0
         # Number of iteraction without accepting solutions
         nu = 0
 
-        for k in range(niter):
+        self._save_data(k=0, f=f_old, acc=False)
+
+        for k in range(self.niter):
             # Flag that a solution was accepted
             flag_acc = False
             self._random_change()
+            print('>>> Iteraction Number:' + str(k+1))
             f_new = self.calc_merit_function()
 
             if f_new < f_old:
                 # Accepting solution if it reduces the merit function
                 flag_acc = True
-                best = self._position
-                print('Better solution found! ' + str(best))
                 nu = 0
             elif f_new > f_old and self._temperature != 0:
-                # If solution increases the merit function there is a chance to accept it
+                # If solution increases the merit function there is a chance
+                # to accept it
                 df = f_new - f_old
                 if np.random.rand() < np.exp(- df / self._temperature):
                     flag_acc = True
@@ -248,27 +392,48 @@ class SimulAnneal:
                 else:
                     flag_acc = False
             else:
-                # If temperature is zero the algorithm only accepts good solutions
+                # If temperature is zero the algorithm only accepts good
+                # solutions
                 flag_acc = False
 
             if flag_acc:
                 # Stores the number of accepted solutions
                 f_old = f_new
                 n_acc += 1
+                bpos_hstry[n_acc, :] = self._position
+                bfig_hstry[n_acc] = f_old
+                print('Better solution found! Obj. Func: {:5f}'.format(f_old))
                 print('Number of accepted solutions: ' + str(n_acc))
             else:
                 self._position = self._position - self._delta
                 nu += 1
 
+            self._save_data(
+                k=k+1, f=f_old, acc=flag_acc, nacc=n_acc, bp=bpos_hstry,
+                bf=bfig_hstry)
+
             if self._temperature != 0:
-                # Reduces the temperature based on number of iteractions without accepting solutions
-                # Ref: An Optimal Cooling Schedule Using a Simulated Annealing Based Approach - A. Peprah, S. Appiah, S. Amponsah
+                # Reduces the temperature based on number of iteractions
+                # without accepting solutions
+                # Ref: An Optimal Cooling Schedule Using a Simulated Annealing
+                # Based Approach - A. Peprah, S. Appiah, S. Amponsah
                 phi = 1 / (1 + 1 / np.sqrt((k+1) * (nu + 1) + nu))
                 self._temperature = phi * self._temperature
+        if n_acc:
+            bpos_hstry = bpos_hstry[bpos_hstry != 0]
+            bfig_hstry = bfig_hstry[bfig_hstry != 0]
 
-        print('Best solution is: ' + str(best))
-        print('Best figure of merit is: ' + str(f_old))
-        print('Number of accepted solutions: ' + str(n_acc))
+            print('Best solution found: {:5f}'.format(bpos_hstry[n_acc, :]))
+            print(
+                'Best figure of merit found: {:5f}'.format(
+                    bfig_hstry[n_acc, :]))
+            print('Number of accepted solutions: {:i}'.format(n_acc))
+        else:
+            bpos_hstry = bpos_hstry[0, :]
+            bfig_hstry = bfig_hstry[0]
+            print('It was not possible to find a better solution...')
+
+        return bpos_hstry, bfig_hstry, n_acc
 
 
 '''Multidimensional Simple Scan method for Minimization'''
@@ -314,8 +479,10 @@ class SimpleScan:
 
 
 class GA:
+    """."""
 
     def __init__(self, npop, nparents, mutrate=0.01):
+        """."""
         self._lower_limits = np.array([])
         self._upper_limits = np.array([])
         self._indiv = np.array([])
@@ -338,20 +505,24 @@ class GA:
         pass
 
     def calc_merit_function(self):
+        """."""
         return np.zeros(self._npop)
 
     def _create_pop(self):
+        """."""
         # Random initialization of elements inside the bounday limits
         dlim = self._upper_limits - self._lower_limits
         rarray = np.random.rand(self._npop, self._ndim)
         self._indiv = dlim * rarray + self._lower_limits
 
     def _select_parents(self, f):
+        """."""
         # Select parents based on best ranked ones
         ind_sort = np.argsort(f)
         return self._indiv[ind_sort[:self._nparents], :]
 
     def _crossover(self, parents):
+        """."""
         child = np.zeros([self._nchildren, self._ndim])
         # Create list of random pairs to produce children
         par_rand = np.random.randint(0, self._nparents, [self._nchildren, 2])
@@ -359,14 +530,17 @@ class GA:
         equal_par = par_rand[:, 0] == par_rand[:, 1]
 
         while equal_par.any():
-            # While there is two parents that are the same, randomly choose another first parent
+            # While there is two parents that are the same, randomly choose
+            # another first parent
             par_rand[equal_par, 0] = np.random.randint(
                 0, self._nparents, np.sum(equal_par))
             equal_par = par_rand[:, 0] == par_rand[:, 1]
 
         for i in range(self._nchildren):
             for j in range(self._ndim):
-                # For each child and for each gene, choose which gene will be inherited from parent 1 or parent 2 (each parent has 50% of chance)
+                # For each child and for each gene, choose which gene will be
+                # inherited from parent 1 or parent 2 (each parent has 50% of
+                # chance)
                 if np.random.rand(1) < 0.5:
                     child[i, j] = parents[par_rand[i, 0], j]
                 else:
@@ -374,10 +548,12 @@ class GA:
         return child
 
     def _mutation(self, child):
+        """."""
         for i in range(self._nchildren):
             # For each child, with MutRate of chance a mutation can occur
             if np.random.rand(1) < self._mutrate:
-                # Choose the number of genes to perform mutation (min is 1 and max is the maximum number of genes)
+                # Choose the number of genes to perform mutation (min is 1 and
+                # max is the maximum number of genes)
                 num_mut = np.random.randint(1, self._ndim)
                 # Choose which genes are going to be changed
                 gen_mut = np.random.randint(0, self._ndim, num_mut)
@@ -388,7 +564,8 @@ class GA:
                 child[i, gen_mut] = change
         return child
 
-    def _start_optimization(self, niter):
+    def start_optimization(self, niter):
+        """."""
         self._create_pop()
 
         for k in range(niter):
@@ -402,65 +579,3 @@ class GA:
             children_mut = self._mutation(children)
             self._indiv[:self._nparents, :] = parents
             self._indiv[self._nparents:, :] = children_mut
-
-
-''' Powell Conjugated Direction Search Method for Minimization
-
-
-class Powell():
-
-    GOLDEN = (np.sqrt(5) - 1)/2
-
-    def __init__(self):
-        self._lower_limits = np.array([])
-        self._upper_limits = np.array([])
-        self._position = np.array([])
-        self._delta = np.array([])
-        self.initialization()
-        self._ndim = len(self._upper_limits)
-        self._check_initialization()
-
-    def initialization(self):
-        pass
-
-    def _check_initialization(self):
-        pass
-
-
-
-    def calc_merit_function(self):
-        return np.zeros(self._ndim)
-
-    def golden_search(self):
-        k = 0
-        x = self._position
-        x_upper = x[1]
-        x_lower = x[0]
-        d = GOLDEN * (x_upper - x_lower)
-        x1 = x_lower + d
-        x2 = x_upper - d
-        f1 = self.calc_merit_func(x1)
-        f2 = self.calc_merit_func(x2)
-
-        while k < self._nint:
-            if f1 > f2:
-                x_lower = x2
-                x2 = x1
-                f2 = f1
-                x1 = x_lower + GOLDEN * (x_upper - x_lower)
-                f1 = self.calc_merit_func(x1)
-            elif f2 > f1:
-                x_upper = x1
-                x1 = x2
-                f1 = f2
-                x2 = x_upper - GOLDEN * (x_upper - x_lower)
-                f2 = self.calc_merit_func(x2)
-            k += 1
-        return x_lower, x_upper
-
-    def line_scan(self):
-        pass
-
-    def _start_optimization(self, niter):
-        pass
-        '''
