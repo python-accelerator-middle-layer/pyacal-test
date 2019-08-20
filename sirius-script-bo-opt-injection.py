@@ -166,12 +166,12 @@ class PSOInjection(PSO):
 
     def check_connect(self):
         """."""
-        con = [h.connected for h in self.hands]
-        if sum(con) < len(con):
-            con = False
-        else:
+        conh = [h.connected for h in self.hands]
+        cone = self.eyes.connected
+        if cone and sum(conh) == len(conh):
             con = True
-        con = True
+        else:
+            con = False
         return con
 
     def get_change(self, part):
@@ -229,7 +229,12 @@ class PSOInjection(PSO):
                 self.set_change(best_setting)
                 print('Best configuration found was set to the machine!')
             else:
-                print('Ok... Bye!')
+                print('Ok... Setting initial reference!')
+                self.set_change(self.reference)
+        else:
+            print('It was not possible to improve the system...')
+            print('Setting initial reference.')
+            self.set_change(self.reference)
         return pos, fig
 
 
@@ -405,7 +410,7 @@ class SAInjection(SimulAnneal):
     def set_change(self, change):
         """."""
         for k in range(len(self.hands)):
-            self.hands[k].value = change[k]
+           self.hands[k].value = change[k]
 
     def reset_wait_buffer(self):
         """."""
@@ -437,18 +442,19 @@ class SAInjection(SimulAnneal):
         if n_acc:
             print(
                 'The Objective Function changed from {:.5f} to {:.5f}'.format(
-                    self.f_init, _np.abs(fig[-1])))
-            if _np.abs(self.f_init) < _np.abs(fig[-1]):
-                imp = (_np.abs(fig[-1]/self.f_init) - 1) * 100
+                    self.f_init, _np.abs(fig[n_acc])))
+            if _np.abs(self.f_init) < _np.abs(fig[n_acc]):
+                imp = (_np.abs(fig[n_acc]/self.f_init) - 1) * 100
                 print(
                     'The script improved the system in {:.3f} %!'.format(imp))
                 set_opt = input(
                     'Set the best configuration found? (y or n): ')
                 if set_opt == 'y':
-                    self.set_change(pos[-1, :])
+                    self.set_change(pos[n_acc, :])
                     print('Best configuration found was set to the machine!')
                 else:
-                    print('Ok... Bye!')
+                    print('Ok... Setting initial reference!')
+                    self.set_change(self.reference)
         return pos, fig
 
 

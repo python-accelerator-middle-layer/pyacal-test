@@ -421,8 +421,8 @@ class SimulAnneal:
                 phi = 1 / (1 + 1 / np.sqrt((k+1) * (nu + 1) + nu))
                 self._temperature = phi * self._temperature
         if n_acc:
-            bpos_hstry = bpos_hstry[bpos_hstry != 0]
-            bfig_hstry = bfig_hstry[bfig_hstry != 0]
+            # bpos_hstry = bpos_hstry[bpos_hstry != 0]
+            # bfig_hstry = bfig_hstry[bfig_hstry != 0]
 
             print('Best solution found: {:5f}'.format(bpos_hstry[n_acc, :]))
             print(
