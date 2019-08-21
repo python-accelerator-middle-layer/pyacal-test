@@ -211,7 +211,7 @@ class PSOInjection(PSO):
     def run(self):
         """."""
         pos, fig = self.start_optimization()
-        plt.plot(fig, '-o')
+        plt.plot(-fig, '-o')
         plt.xlabel('Number of Iteractions')
         plt.ylabel('Objective Function')
         plt.savefig('obj_fun_PSO.png')
@@ -396,8 +396,9 @@ class SAInjection(SimulAnneal):
 
     def check_connect(self):
         """."""
-        con = [h.connected for h in self.hands]
-        if sum(con) < len(con):
+        conh = [h.connected for h in self.hands]
+        cone = self.eyes.connected
+        if cone and sum(conh) == len(conh):
             con = False
         else:
             con = True
@@ -410,7 +411,7 @@ class SAInjection(SimulAnneal):
     def set_change(self, change):
         """."""
         for k in range(len(self.hands)):
-           self.hands[k].value = change[k]
+            self.hands[k].value = change[k]
 
     def reset_wait_buffer(self):
         """."""
@@ -433,28 +434,27 @@ class SAInjection(SimulAnneal):
 
     def run(self):
         """."""
-        pos, fig, n_acc = self.start_optimization()
-        plt.plot(fig, '-o')
+        pos, fig = self.start_optimization()
+        plt.plot(-fig, '-o')
         plt.xlabel('Number of Iteractions')
         plt.ylabel('Objective Function')
         plt.savefig('obj_fun_SA.png')
         plt.show()
-        if n_acc:
+        print(
+            'The Objective Function changed from {:.5f} to {:.5f}'.format(
+                self.f_init, _np.abs(fig[-1])))
+        if _np.abs(self.f_init) < _np.abs(fig[-1]):
+            imp = (_np.abs(fig[-1]/self.f_init) - 1) * 100
             print(
-                'The Objective Function changed from {:.5f} to {:.5f}'.format(
-                    self.f_init, _np.abs(fig[n_acc])))
-            if _np.abs(self.f_init) < _np.abs(fig[n_acc]):
-                imp = (_np.abs(fig[n_acc]/self.f_init) - 1) * 100
-                print(
-                    'The script improved the system in {:.3f} %!'.format(imp))
-                set_opt = input(
-                    'Set the best configuration found? (y or n): ')
-                if set_opt == 'y':
-                    self.set_change(pos[n_acc, :])
-                    print('Best configuration found was set to the machine!')
-                else:
-                    print('Ok... Setting initial reference!')
-                    self.set_change(self.reference)
+                'The script improved the system in {:.3f} %!'.format(imp))
+            set_opt = input(
+                'Set the best configuration found? (y or n): ')
+            if set_opt == 'y':
+                self.set_change(pos[-1, :])
+                print('Best configuration found was set to the machine!')
+            else:
+                print('Ok... Setting initial reference!')
+                self.set_change(self.reference)
         return pos, fig
 
 

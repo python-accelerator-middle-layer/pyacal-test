@@ -174,15 +174,23 @@ class PSO:
     def _save_data(self, k, f, fbest):
         """."""
         with open('pos_PSO.txt', 'a') as f_pos:
+            if k == 0:
+                f_pos.write('==============NEW RUN==========\n')
             f_pos.write('Step ' + str(k+1) + ' \n')
             np.savetxt(f_pos, self._position, fmt='%+.8e')
         with open('fig_PSO.txt', 'a') as f_fig:
+            if k == 0:
+                f_fig.write('==============NEW RUN==========\n')
             f_fig.write('Step ' + str(k+1) + ' \n')
             np.savetxt(f_fig, f, fmt='%+.8e')
         with open('best_pos_history_PSO.txt', 'a') as f_posh:
+            if k == 0:
+                f_posh.write('==============NEW RUN==========\n')
             f_posh.write('Step ' + str(k+1) + ' \n')
             np.savetxt(f_posh, self._best_global, fmt='%+.8e')
         with open('best_fig_history_PSO.txt', 'a') as f_figh:
+            if k == 0:
+                f_figh.write('==============NEW RUN==========\n')
             f_figh.write('Step ' + str(k+1) + ' \n')
             np.savetxt(f_figh, np.array([fbest]), fmt='%+.8e')
 
@@ -207,6 +215,8 @@ class PSO:
         best_pos_hstry[0, :] = self._best_global
         best_fig_hstry[0] = np.min(f_old)
         self._save_data(k=0, f=f_old, fbest=best_fig_hstry[0])
+        print('Best particle: ' + str(np.argmin(f_old)+1))
+        print('Obj. Func.:' + str(np.min(f_old)))
 
         k = 1
         while k < self.niter:
@@ -218,10 +228,18 @@ class PSO:
                 # Update best individual position and merit function for
                 # comparison only if the merit function is lower
                 self._best_particle[improve, :] = self._position[improve, :]
-                f_old[improve] = f_new[improve]
-                self._best_global = self._best_particle[np.argmin(f_old), :]
-                print('Global best updated:' + str(self._best_global))
-                print('Figure of merit updated:' + str(np.min(f_old)))
+                if np.min(f_new) < np.min(f_old):
+                    self._best_global = self._best_particle[
+                        np.argmin(f_new), :]
+                    # print('Global best updated:' + str(self._best_global))
+                    print('Update global best!')
+                    print(
+                        'Best particle: ' + str(np.argmin(f_new)+1))
+                    print('Obj. Func.:' + str(np.min(f_new)))
+                    f_old[improve] = f_new[improve]
+                else:
+                    print('Best particle: ' + str(np.argmin(f_new)+1))
+                    print('Obj. Func.:' + str(np.min(f_new)))
 
             best_pos_hstry[k, :] = self._best_global
             best_fig_hstry[k] = np.min(f_old)
@@ -229,7 +247,7 @@ class PSO:
             k += 1
 
         print('Best Position Found:' + str(self._best_global))
-        print('Best Figure of Merit Found:' + str(np.min(f_old)))
+        print('Best Obj. Func. Found:' + str(np.min(f_old)))
         # np.savetxt('best_pos_history.txt', best_pos_hstry)
         # np.savetxt('best_fig_history.txt', best_fig_hstry)
         return best_pos_hstry, best_fig_hstry
@@ -343,16 +361,24 @@ class SimulAnneal:
     def _save_data(self, k, f, acc=False, nacc=None, bp=None, bf=None):
         """."""
         with open('pos_SA.txt', 'a') as f_pos:
+            if k == 0:
+                f_pos.write('==============NEW RUN==========\n')
             f_pos.write('Step ' + str(k+1) + ' \n')
             np.savetxt(f_pos, self._position, fmt='%+.8e')
         with open('fig_SA.txt', 'a') as f_fig:
+            if k == 0:
+                f_fig.write('==============NEW RUN==========\n')
             f_fig.write('Step ' + str(k+1) + ' \n')
             np.savetxt(f_fig, np.array([f]), fmt='%+.8e')
         if acc:
             with open('best_pos_history_SA.txt', 'a') as f_posh:
+                if nacc == 1:
+                    f_posh.write('==============NEW RUN==========\n')
                 f_posh.write('Accep. Solution ' + str(nacc+1) + ' \n')
                 np.savetxt(f_posh, bp[nacc, :], fmt='%+.8e')
             with open('best_fig_history_SA.txt', 'a') as f_figh:
+                if nacc == 1:
+                    f_figh.write('==============NEW RUN==========\n')
                 f_figh.write('Accep. Solution ' + str(nacc+1) + ' \n')
                 np.savetxt(f_figh, np.array([bf[nacc]]), fmt='%+.8e')
 
@@ -421,20 +447,19 @@ class SimulAnneal:
                 phi = 1 / (1 + 1 / np.sqrt((k+1) * (nu + 1) + nu))
                 self._temperature = phi * self._temperature
         if n_acc:
-            # bpos_hstry = bpos_hstry[bpos_hstry != 0]
-            # bfig_hstry = bfig_hstry[bfig_hstry != 0]
+            bpos_hstry = bpos_hstry[:n_acc, :]
+            bfig_hstry = bfig_hstry[:n_acc]
 
-            print('Best solution found: {:5f}'.format(bpos_hstry[n_acc, :]))
+            print('Best solution found: ' + str(bpos_hstry[-1, :]))
             print(
-                'Best figure of merit found: {:5f}'.format(
-                    bfig_hstry[n_acc, :]))
-            print('Number of accepted solutions: {:i}'.format(n_acc))
+                'Best Obj. Func. found: ' + str(bfig_hstry[-1]))
+            print('Number of accepted solutions: ' + str(n_acc))
         else:
             bpos_hstry = bpos_hstry[0, :]
             bfig_hstry = bfig_hstry[0]
             print('It was not possible to find a better solution...')
 
-        return bpos_hstry, bfig_hstry, n_acc
+        return bpos_hstry, bfig_hstry
 
 
 '''Multidimensional Simple Scan method for Minimization'''
