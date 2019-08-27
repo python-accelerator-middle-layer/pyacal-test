@@ -11,7 +11,7 @@ from optimization import PSO, SimulAnneal
 class PSOInjection(PSO):
     """."""
 
-    def __init__(self):
+    def __init__(self, save=False):
         """."""
         self.reference = []
         self.niter = []
@@ -29,8 +29,7 @@ class PSOInjection(PSO):
         self.pv_buffer_reset = []
         self.pv_nr_sample = []
         self._wait_change = []
-        self.f_init = 0
-        PSO.__init__(self)
+        PSO.__init__(self, save=save)
 
     def initialization(self):
         """."""
@@ -115,7 +114,7 @@ class PSOInjection(PSO):
 
         self.reference = _np.array([h.value for h in self.hands])
         self.reset_wait_buffer()
-        self.f_init = _np.sum(self.eyes.value[:self.bpm_idx])
+        self.init_obj_func()
         print('Initial Objective Function {:.5f}'.format(self.f_init))
         print('========================================================')
 
@@ -134,8 +133,8 @@ class PSOInjection(PSO):
 
         self._name_quads = [
             # 'TB-01:MA-QF1', 'TB-01:MA-QD1',
-            # 'TB-02:MA-QF2A', 'TB-02:MA-QD2A',
-            # 'TB-02:MA-QF2B', 'TB-02:MA-QD2B',
+            'TB-02:MA-QF2A', 'TB-02:MA-QD2A',
+            'TB-02:MA-QF2B', 'TB-02:MA-QD2B',
             'TB-03:MA-QF3', 'TB-03:MA-QD3',
             'TB-04:MA-QF4', 'TB-04:MA-QD4',
         ]
@@ -176,7 +175,7 @@ class PSOInjection(PSO):
 
     def get_change(self, part):
         """."""
-        return self.reference + self.position[part, :]
+        return self.reference + 0*self.position[part, :]
 
     def set_change(self, change):
         """."""
@@ -192,7 +191,17 @@ class PSOInjection(PSO):
             if self.pv_buffer_mon.value == self.pv_nr_pts_rb.value:
                 break
 
-    def calc_merit_function(self):
+    def save_bpms_sum(self):
+        """."""
+        with open('BPM_Sum.txt', 'a') as sbpm:
+            sbpm.write('================================================')
+            _np.savetxt(sbpm, self.eyes.value[:self.bpm_idx], fmt='%+.8e')
+
+    def init_obj_func(self):
+        """."""
+        self.f_init = -_np.sum(self.eyes.value[:self.bpm_idx])
+
+    def calc_obj_fun(self):
         """."""
         f_out = _np.zeros(self.nswarm)
 
@@ -201,11 +210,13 @@ class PSOInjection(PSO):
             self.set_change(chg)
             # _time.sleep(self._wait_change)
             self.reset_wait_buffer()
+            self.save_bpms_sum()
             f_out[i] = _np.sum(self.eyes.value[:self.bpm_idx])
             print(
                 'Particle {:02d}/{:d} | Obj. Func. : {:f}'.format(
                     i+1, self.nswarm, f_out[i]))
         print('========================================================')
+
         return - f_out
 
     def run(self):
@@ -241,7 +252,7 @@ class PSOInjection(PSO):
 class SAInjection(SimulAnneal):
     """."""
 
-    def __init__(self):
+    def __init__(self, save=False):
         """."""
         self.reference = []
         self.niter = []
@@ -259,8 +270,7 @@ class SAInjection(SimulAnneal):
         self.pv_buffer_reset = []
         self.pv_nr_sample = []
         self._wait_change = []
-        self.f_init = 0
-        SimulAnneal.__init__(self)
+        SimulAnneal.__init__(self, save=save)
 
     def initialization(self):
         """."""
@@ -344,7 +354,7 @@ class SAInjection(SimulAnneal):
         self.reference = _np.array([h.value for h in self.hands])
         self.position = self.reference
         self.reset_wait_buffer()
-        self.f_init = _np.sum(self.eyes.value[:self.bpm_idx])
+        self.init_obj_fun()
 
         print('Initial Objective Function {:.5f}'.format(self.f_init))
         print('========================================================')
@@ -364,8 +374,8 @@ class SAInjection(SimulAnneal):
 
         self._name_quads = [
             # 'TB-01:MA-QF1', 'TB-01:MA-QD1',
-            # 'TB-02:MA-QF2A', 'TB-02:MA-QD2A',
-            # 'TB-02:MA-QF2B', 'TB-02:MA-QD2B',
+            'TB-02:MA-QF2A', 'TB-02:MA-QD2A',
+            'TB-02:MA-QF2B', 'TB-02:MA-QD2B',
             'TB-03:MA-QF3', 'TB-03:MA-QD3',
             'TB-04:MA-QF4', 'TB-04:MA-QD4',
         ]
@@ -422,13 +432,24 @@ class SAInjection(SimulAnneal):
             if self.pv_buffer_mon.value == self.pv_nr_pts_rb.value:
                 break
 
-    def calc_merit_function(self):
+    def init_obj_fun(self):
+        """."""
+        self.f_init = -_np.sum(self.eyes.value[:self.bpm_idx])
+
+    def save_bpms_sum(self):
+        """."""
+        with open('BPM_Sum.txt', 'a') as sbpm:
+            sbpm.write('================================================')
+            _np.savetxt(sbpm, self.eyes.value[:self.bpm_idx], fmt='%+.8e')
+
+    def calc_obj_fun(self):
         """."""
         f_out = []
         chg = self.get_change()
         self.set_change(chg)
         # _time.sleep(self._wait_change)
         self.reset_wait_buffer()
+        self.save_bpms_sum()
         f_out = _np.sum(self.eyes.value[:self.bpm_idx])
         return - f_out
 
@@ -459,12 +480,26 @@ class SAInjection(SimulAnneal):
 
 
 if __name__ == "__main__":
-    mode = input('Choose the optimization method (PSO or SA): ')
-    if mode == 'PSO':
-        opt_inj = PSOInjection()
-        opt_inj.run()
-    elif mode == 'SA':
-        opt_inj = SAInjection()
-        opt_inj.run()
+    import os
+    print('=================================================')
+    print('OPTIMIZATION SCRIPT FOR BOOSTER INJECTION')
+    print('=================================================')
+    for f in os.listdir('.'):
+        if f.endswith('.txt'):
+            os.system('rm *.txt')
+        if f.endswith('.png'):
+            os.system('rm *.png')
+    FOLDER = input('Enter the folder name to save the data: ')
+    MODE = input('Choose the optimization method (PSO or SA): ')
+    if MODE == 'PSO':
+        INJBO = PSOInjection(save=True)
+        INJBO.run()
+    elif MODE == 'SA':
+        INJBO = SAInjection(save=True)
+        INJBO.run()
     else:
         raise Exception('Invalid method!')
+    CMD1 = 'mkdir ' + FOLDER
+    os.system(CMD1)
+    CMD2 = 'mv *.txt *.png ' + FOLDER
+    os.system(CMD2)
