@@ -33,13 +33,13 @@ class PSOInjection(PSO):
 
     def initialization(self):
         """."""
-        print('==============================================================')
+        print('='*50)
         d_quad = input(
             'Set TB Quads KL Variation (Default = 1 [1/m]): ')
         d_corr = input(
             'Set TB Corrs Kick Variation (Default = 1000 [urad]): ')
         d_kckr = input('Set Inj Kicker Variation (Default = 1 [mrad]): ')
-        print('==============================================================')
+        print('='*50)
         nr_iter = input('Set Number of Iteractions (Default = 10): ')
         nr_swarm = input('Set Swarm Size (Default = 10 + 2 * sqrt(D)): ')
         nr_pts = input('Set Buffer Size (SOFB) (Default = 10): ')
@@ -48,7 +48,7 @@ class PSOInjection(PSO):
         nr_bpm = input(
             'Set the last BPM to consider the measurement ' +
             '(Default = 50, Range = [1,50]): ')
-        print('==============================================================')
+        print('='*50)
 
         if not nr_iter:
             nr_iter = 10
@@ -91,7 +91,7 @@ class PSOInjection(PSO):
         self.get_pvs()
 
         print('Waiting for PVs connection...')
-        print('========================================================')
+        print('='*50)
         while True:
             if self.check_connect():
                 break
@@ -110,13 +110,13 @@ class PSOInjection(PSO):
             'The script will take {:.2f} minutes to be finished'.format(
                 (nr_pts*0.5 + self._wait_change) *
                 self.nswarm * self.niter / 60))
-        print('========================================================')
+        print('='*50)
 
         self.reference = _np.array([h.value for h in self.hands])
         self.reset_wait_buffer()
         self.init_obj_func()
         print('Initial Objective Function {:.5f}'.format(self.f_init))
-        print('========================================================')
+        print('='*50)
 
     def get_pvs(self):
         """."""
@@ -194,7 +194,7 @@ class PSOInjection(PSO):
     def save_bpms_sum(self):
         """."""
         with open('BPM_Sum.txt', 'a') as sbpm:
-            sbpm.write('================================================')
+            sbpm.write('='*50)
             _np.savetxt(sbpm, self.eyes.value[:self.bpm_idx], fmt='%+.8e')
 
     def init_obj_func(self):
@@ -215,7 +215,7 @@ class PSOInjection(PSO):
             print(
                 'Particle {:02d}/{:d} | Obj. Func. : {:f}'.format(
                     i+1, self.nswarm, f_out[i]))
-        print('========================================================')
+        print('='*50)
 
         return - f_out
 
@@ -274,14 +274,14 @@ class SAInjection(SimulAnneal):
 
     def initialization(self):
         """."""
-        print('==============================================================')
+        print('='*50)
         d_quad = input(
             'Set TB Quads KL Max Delta (Default = 0.5 [1/m]): ')
         d_corr = input(
             'Set TB Corrs Kick Max Delta (Default = 500 [urad]): ')
         d_kckr = input('Set Inj Kicker Max Delta (Default = 1 [mrad]): ')
         temp = input('Set initial temperature (Default = 0): ')
-        print('==============================================================')
+        print('='*50)
         nr_iter = input('Set Number of Iteractions (Default = 100): ')
         nr_pts = input('Set Buffer Size (SOFB) (Default = 10): ')
         nr_turns = input(
@@ -289,7 +289,7 @@ class SAInjection(SimulAnneal):
         nr_bpm = input(
             'Set the last BPM to consider the measurement ' +
             '(Default = 50, Range = [1,50]): ')
-        print('==============================================================')
+        print('='*50)
 
         if not nr_iter:
             nr_iter = 100
@@ -332,7 +332,7 @@ class SAInjection(SimulAnneal):
         self.get_pvs()
 
         print('Waiting for PVs connection...')
-        print('========================================================')
+        print('='*50)
         while True:
             if self.check_connect():
                 break
@@ -349,7 +349,7 @@ class SAInjection(SimulAnneal):
         print(
             'The script will take {:.2f} minutes to be finished'.format(
                 (nr_pts*0.5 + self._wait_change) * self.niter / 60))
-        print('========================================================')
+        print('='*50)
 
         self.reference = _np.array([h.value for h in self.hands])
         self.position = self.reference
@@ -357,7 +357,7 @@ class SAInjection(SimulAnneal):
         self.init_obj_fun()
 
         print('Initial Objective Function {:.5f}'.format(self.f_init))
-        print('========================================================')
+        print('='*50)
 
     def get_pvs(self):
         """."""
@@ -439,7 +439,7 @@ class SAInjection(SimulAnneal):
     def save_bpms_sum(self):
         """."""
         with open('BPM_Sum.txt', 'a') as sbpm:
-            sbpm.write('================================================')
+            sbpm.write(print('='*50))
             _np.savetxt(sbpm, self.eyes.value[:self.bpm_idx], fmt='%+.8e')
 
     def calc_obj_fun(self):
@@ -481,9 +481,9 @@ class SAInjection(SimulAnneal):
 
 if __name__ == "__main__":
     import os
-    print('=================================================')
+    print('='*50)
     print('OPTIMIZATION SCRIPT FOR BOOSTER INJECTION')
-    print('=================================================')
+    print('='*50)
     for f in os.listdir('.'):
         if f.endswith('.txt'):
             os.system('rm *.txt')
