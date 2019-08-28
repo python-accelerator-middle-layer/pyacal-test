@@ -5,7 +5,7 @@ import time as _time
 from epics import PV as _PV
 import numpy as _np
 import matplotlib.pyplot as plt
-from optimization import PSO, SimulAnneal
+from apsuite.optimization import PSO, SimulAnneal
 
 
 class PSOInjection(PSO):

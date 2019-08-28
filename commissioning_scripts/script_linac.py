@@ -4,7 +4,7 @@
 import time as _time
 from epics import PV as _PV
 import numpy as np
-from optimization import PSO
+from apsuite.optimization import PSO
 
 
 class PSOLinac(PSO):

@@ -2,7 +2,7 @@
 """."""
 
 import numpy as np
-from optimization import PSO, SimulAnneal, GA
+from apsuite.optimization import PSO, SimulAnneal, GA
 
 
 class SHBPSO(PSO):
