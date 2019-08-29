@@ -80,10 +80,10 @@ class Screen:
 class Params:
 
     def __init__(self):
-        self.deltas = {'InjSept': 5, 'InjKckr': 1}  # delay in [us]
+        self.deltas = {'InjSept': 3, 'InjKckr': 2}  # delay in [us]
         self.num_points = 10
-        self.wait_time = 2
-        self.num_mean_scrn = 10
+        self.wait_time = 10
+        self.num_mean_scrn = 20
         self.wait_mean_scrn = 0.5
 
 
@@ -96,7 +96,10 @@ class FindMaxPulsedMagnets:
         self.screen = Screen()
         self._all_corrs = {_PVName(n): v for n, v in dic.items()}
         self._corrs_to_measure = []
-        self._data = []
+        self._datax = []
+        self._datay = []
+        self._datasx = []
+        self._datasy = []
         self.params = Params()
         self._thread = _Thread(target=self._findmax_thread)
         self._stoped = _Event()
@@ -106,8 +109,20 @@ class FindMaxPulsedMagnets:
         return sorted(self._all_corrs.keys())
 
     @property
-    def data(self):
-        return self._data
+    def datax(self):
+        return self._datax
+
+    @property
+    def datay(self):
+        return self._datay
+
+    @property
+    def datasx(self):
+        return self._datasx
+
+    @property
+    def datasy(self):
+        return self._datasy
 
     def start(self):
         if not self._thread.is_alive():
@@ -115,6 +130,10 @@ class FindMaxPulsedMagnets:
                 target=self._findmax_thread, daemon=True)
             self._stoped.clear()
             self._thread.start()
+
+    @property
+    def measuring(self):
+        return self._thread.is_alive()
 
     def stop(self):
         self._stoped.set()
@@ -124,15 +143,21 @@ class FindMaxPulsedMagnets:
         for cor in corrs:
             delta = self.params.deltas[cor.dev]
             origdelay = self._all_corrs[cor].delay
-            rangedelay = np.linspace(-delta, delta, self.params.num_points)
+            rangedelay = np.linspace(-delta/2, delta/2, self.params.num_points)
             for dly in rangedelay:
                 self._all_corrs[cor].delay = origdelay + dly
                 _time.sleep(self.params.wait_time)
-                self._data.append(self._all_corrs[cor].delay)
+                self._datax.append(self._all_corrs[cor].delay)
+                self._datay.append(self._all_corrs[cor].delay)
+                self._datasx.append(self._all_corrs[cor].delay)
+                self._datasy.append(self._all_corrs[cor].delay)
 
                 for _ in range(self.params.num_mean_scrn):
-                    self._data.append(self.screen.centerx)
                     _time.sleep(self.params.wait_mean_scrn)
+                    self._datax.append(self.screen.centerx)
+                    self._datay.append(self.screen.centery)
+                    self._datasx.append(self.screen.sigmax)
+                    self._datasy.append(self.screen.sigmay)
 
                 if self._stoped.is_set():
                     break
