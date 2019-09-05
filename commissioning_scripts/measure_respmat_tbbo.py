@@ -110,7 +110,11 @@ class MeasureRespMatTBBO:
 
     @property
     def corr_names(self):
-        return sorted(self._all_corrs.keys())
+        corrs = sorted([
+            c for c in self._all_corrs if not c.dev.startswith('CV')])
+        corrs.extend(sorted([
+            c for c in self._all_corrs if c.dev.startswith('CV')]))
+        return corrs
 
     @property
     def corrs_to_measure(self):
