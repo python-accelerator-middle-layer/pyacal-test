@@ -257,31 +257,6 @@ def calc_model_dispersionTBBO(model, bpms):
     return np.hstack([dispx, dispy])
 
 
-# def calc_model_dispmatTBBO(tb_mod, bo_mod, corr_names, data, nturns=3,
-#                            dKL=None):
-#     dKL = 0.0001 if dKL is None else dKL
-
-#     model = tb_mod + nturns*bo_mod
-#     bpms = pyaccel.lattice.find_indices(model, 'fam_name', 'BPM')
-
-#     disp0 = calc_model_dispersionTBBO(model, bpms)
-#     matrix = np.zeros((len(corr_names), len(disp0)))
-#     for idx, corr in enumerate(corr_names):
-#         indcs = np.array(data[corr]['index'])
-#         if corr.sec == 'BO':
-#             print('Booster ', corr)
-#             indcs += len(tb_mod)
-#         leng = sum([model[i].length for i in indcs])
-#         dK = dKL/leng
-#         orig = np.array(pyaccel.lattice.get_attribute(model, 'K', indcs))
-#         pyaccel.lattice.set_attribute(model, 'K', indcs, orig + dK)
-#         disp = calc_model_dispersionTBBO(model, bpms)
-
-#         pyaccel.lattice.set_attribute(model, 'K', indcs, orig)
-#         matrix[idx, :] = (disp-disp0)/dKL
-#     return matrix
-
-
 def calc_model_dispmatTBBO(tb_mod, bo_mod, corr_names, elems, nturns=3,
                            dKL=None):
     dKL = 0.0001 if dKL is None else dKL
