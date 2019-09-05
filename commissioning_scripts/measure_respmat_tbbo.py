@@ -2,10 +2,13 @@ import time as _time
 from threading import Thread as _Thread, Event as _Event
 import numpy as np
 
+import pyaccel
+
 from siriuspy.epics import PV
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.csdevice.orbitcorr import SOFBFactory
 
+from apsuite.optimization import SimulAnneal
 
 
 class SOFB:
@@ -176,3 +179,95 @@ class MeasureRespMatTBBO:
             self._all_corrs[cor].strength = origkick
             if self._stopped.is_set():
                 break
+
+
+def calc_model_respmatTBBO(tb_mod, bo_mod, corr_names, data, nturns=3,
+                           meth='middle'):
+    model = tb_mod + nturns*bo_mod
+    bpms = pyaccel.lattice.find_indices(model, 'fam_name', 'BPM')[1:]
+    _, cumulmat = pyaccel.tracking.find_m44(model)
+
+    matrix = np.zeros((len(corr_names), 2*len(bpms)))
+    for idx, corr in enumerate(corr_names):
+        indcs = np.array(data[corr]['index'])
+        if corr.sec == 'BO':
+            print('Booster ', corr)
+            indcs += len(tb_mod)
+        leng = sum([model[i].length for i in indcs])
+        ksl = sum([model[i].KsL for i in indcs])
+        kl = sum([model[i].KL for i in indcs])
+        matrix[idx, :] = _get_respmat_line(
+            cumulmat, indcs, bpms, length=leng, kl=kl, ksl=ksl,
+            cortype=data[corr]['magnet_type'],
+            meth=meth)
+    return matrix
+
+
+def _get_respmat_line(cumul_mat, indcs, bpms, length, kl=0, ksl=0,
+                      cortype='vertical', meth='middle'):
+
+    idx = 3 if cortype.startswith('vertical') else 1
+    cor = indcs[-1]+1
+    if meth.lower().startswith('begin'):
+        cor = indcs[0]
+    elif meth.lower().startswith('mid'):
+        drift = np.eye(4, dtype=float)
+        drift[0, 1] = length/2
+        drift[2, 3] = length/2
+        # quadrupoles do not affect the response matrix in first order.
+        # I kept this here only to demonstrate this:
+        quads = np.eye(4, dtype=float)
+        quads[1, 0] = -kl/2
+        quads[3, 2] = kl/2
+        quads[1, 2] = -ksl/2
+        quads[3, 0] = -ksl/2
+        half_cor = np.dot(drift, quads)
+
+    m0c = cumul_mat[cor]
+    respx = []
+    respy = []
+    for bpm in bpms:
+        if bpm < indcs[0]:
+            respx.append(0)
+            respy.append(0)
+            continue
+        bpm_mat = cumul_mat[bpm]
+        mat = np.linalg.solve(m0c.T, bpm_mat.T).T
+        if meth.lower().startswith('mid'):
+            mat = np.dot(mat, half_cor)
+        respx.append(mat[0, idx])
+        respy.append(mat[2, idx])
+
+    return np.hstack([respx, respy])
+
+
+class FindSeptQuad(SimulAnneal):
+
+    def __init__(self, tb_model, bo_model, corr_names, data,
+                 respmat, nturns=5, save=False, in_sept=True):
+        super().__init__(save=save)
+        self.tb_model = tb_model
+        self.bo_model = bo_model
+        self.corr_names = corr_names
+        self.data = data
+        self.nturns = nturns
+        self.respmat = respmat
+        self.in_sept = in_sept
+
+    def initialization(self):
+        return
+
+    def calc_obj_fun(self):
+        if self.in_sept:
+            sept_idx = pyaccel.lattice.find_indices(
+                self.tb_model, 'fam_name', 'InjSept')
+        else:
+            sept_idx = self.elems['TB-04:MA-CV-2'].model_indices
+        k, ks = self._position
+        pyaccel.lattice.set_attribute(self.tb_model, 'K', sept_idx, k)
+        pyaccel.lattice.set_attribute(self.tb_model, 'Ks', sept_idx, ks)
+        respmat = calc_model_respmatTBBO(
+            self.tb_model, self.bo_model, self.corr_names, self.data,
+            nturns=self.nturns)
+        respmat -= self.respmat
+        return np.sqrt(np.mean(respmat*respmat))

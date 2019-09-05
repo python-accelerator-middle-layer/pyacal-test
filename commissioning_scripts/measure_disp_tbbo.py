@@ -2,10 +2,12 @@ import time as _time
 from threading import Thread as _Thread, Event as _Event
 import numpy as np
 
+import pyaccel
 from siriuspy.epics import PV
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.csdevice.orbitcorr import SOFBFactory
 
+from apsuite.optimization import SimulAnneal
 
 
 class SOFB:
@@ -241,3 +243,92 @@ class MeasureDispMatTBBO:
                 return v
         print('ERR: delta not found!')
         return 0.0
+
+
+def calc_model_dispersionTBBO(model, bpms):
+    dene = 0.0001
+    rout, *_ = pyaccel.tracking.line_pass(
+        model,
+        [[0, 0, 0, 0, dene/2, 0],
+         [0, 0, 0, 0, -dene/2, 0]],
+        bpms)
+    dispx = (rout[0, 0, :] - rout[1, 0, :]) / dene
+    dispy = (rout[0, 2, :] - rout[1, 2, :]) / dene
+    return np.hstack([dispx, dispy])
+
+
+# def calc_model_dispmatTBBO(tb_mod, bo_mod, corr_names, data, nturns=3,
+#                            dKL=None):
+#     dKL = 0.0001 if dKL is None else dKL
+
+#     model = tb_mod + nturns*bo_mod
+#     bpms = pyaccel.lattice.find_indices(model, 'fam_name', 'BPM')
+
+#     disp0 = calc_model_dispersionTBBO(model, bpms)
+#     matrix = np.zeros((len(corr_names), len(disp0)))
+#     for idx, corr in enumerate(corr_names):
+#         indcs = np.array(data[corr]['index'])
+#         if corr.sec == 'BO':
+#             print('Booster ', corr)
+#             indcs += len(tb_mod)
+#         leng = sum([model[i].length for i in indcs])
+#         dK = dKL/leng
+#         orig = np.array(pyaccel.lattice.get_attribute(model, 'K', indcs))
+#         pyaccel.lattice.set_attribute(model, 'K', indcs, orig + dK)
+#         disp = calc_model_dispersionTBBO(model, bpms)
+
+#         pyaccel.lattice.set_attribute(model, 'K', indcs, orig)
+#         matrix[idx, :] = (disp-disp0)/dKL
+#     return matrix
+
+
+def calc_model_dispmatTBBO(tb_mod, bo_mod, corr_names, elems, nturns=3,
+                           dKL=None):
+    dKL = 0.0001 if dKL is None else dKL
+
+    model = tb_mod + nturns*bo_mod
+    bpms = pyaccel.lattice.find_indices(model, 'fam_name', 'BPM')
+
+    matrix = np.zeros((len(corr_names), 2*len(bpms)))
+    for idx, corr in enumerate(corr_names):
+        elem = elems[corr]
+        model = tb_mod + nturns*bo_mod
+        disp0 = calc_model_dispersionTBBO(model, bpms)
+        elem.model_strength += dKL
+        model = tb_mod + nturns*bo_mod
+        disp = calc_model_dispersionTBBO(model, bpms)
+        elem.model_strength -= dKL
+        matrix[idx, :] = (disp-disp0)/dKL
+    return matrix
+
+
+class FindSeptQuad(SimulAnneal):
+
+    def __init__(self, tb_model, bo_model, corr_names, elems,
+                 respmat, nturns=5, save=False, in_sept=True):
+        super().__init__(save=save)
+        self.tb_model = tb_model
+        self.bo_model = bo_model
+        self.corr_names = corr_names
+        self.elems = elems
+        self.nturns = nturns
+        self.respmat = respmat
+        self.in_sept = in_sept
+
+    def initialization(self):
+        return
+
+    def calc_obj_fun(self):
+        if self.in_sept:
+            sept_idx = pyaccel.lattice.find_indices(
+                self.tb_model, 'fam_name', 'InjSept')
+        else:
+            sept_idx = self.elems['TB-04:MA-CV-2'].model_indices
+        k, ks = self._position
+        pyaccel.lattice.set_attribute(self.tb_model, 'K', sept_idx, k)
+        pyaccel.lattice.set_attribute(self.tb_model, 'Ks', sept_idx, ks)
+        respmat = calc_model_dispmatTBBO(
+            self.tb_model, self.bo_model, self.corr_names, self.elems,
+            nturns=self.nturns)
+        respmat -= self.respmat
+        return np.sqrt(np.mean(respmat*respmat))
