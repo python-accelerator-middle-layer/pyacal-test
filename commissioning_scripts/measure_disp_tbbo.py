@@ -4,65 +4,8 @@ import numpy as np
 
 from siriuspy.epics import PV
 from siriuspy.namesys import SiriusPVName as _PVName
-from siriuspy.search import MASearch
 from siriuspy.csdevice.orbitcorr import SOFBFactory
 
-
-class Quad:
-
-    def __init__(self, name):
-        self._sp = PV(name+':KL-SP')
-        self._rb = PV(name+':KL-Mon')
-
-    @property
-    def kl(self):
-        return self._rb.value
-
-    @kl.setter
-    def kl(self, value):
-        self._sp.value = value
-
-    @property
-    def connected(self):
-        return self._sp.connected & self._rb.connected
-
-
-class Kicker:
-
-    def __init__(self):
-        self._sp = PV('BO-01D:PM-InjKckr:Kick-SP')
-        self._rb = PV('BO-01D:PM-InjKckr:Kick-RB')
-
-    @property
-    def kl(self):
-        return self._rb.value * 1000  # from mrad to urad
-
-    @kl.setter
-    def kl(self, value):
-        self._sp.value = value / 1000  # from urad to mrad
-
-    @property
-    def connected(self):
-        return self._sp.connected & self._rb.connected
-
-
-class Septum:
-
-    def __init__(self):
-        self._sp = PV('TB-04:PM-InjSept:Kick-SP')
-        self._rb = PV('TB-04:PM-InjSept:Kick-RB')
-
-    @property
-    def kl(self):
-        return self._rb.value * 1000  # from mrad to urad
-
-    @kl.setter
-    def kl(self, value):
-        self._sp.value = value / 1000  # from urad to mrad
-
-    @property
-    def connected(self):
-        return self._sp.connected & self._rb.connected
 
 
 class SOFB:
@@ -215,23 +158,21 @@ class MeasureDispTBBO:
 class ParamsDispMat:
 
     def __init__(self):
-        self.deltas = {'QF': 0.1, 'QD': 0.1, 'InjSept': 300, 'InjKckr': 300}
+        self.deltas = {'QF': 0.1, 'QD': 0.1}
 
 
 class MeasureDispMatTBBO:
 
-    def __init__(self):
-        quads = MASearch.get_manames(filters={'sec': 'TB', 'dev': 'Q'})
-        dic = {n: Quad(n) for n in quads}
-        dic['TB-04:PM-InjSept'] = Septum()
-        dic['BO-01D:PM-InjKckr'] = Kicker()
-        self._all_corrs = {_PVName(n): v for n, v in dic.items()}
+    def __init__(self, quads):
+        # quads = MASearch.get_manames(filters={'sec': 'TB', 'dev': 'Q'})
+        # self._all_corrs = {_PVName(n): Quad(_PVName(n)) for n in quads}
+        self._all_corrs = quads
         self.measdisp = MeasureDispTBBO()
         self.params = ParamsDispMat()
         self._matrix = dict()
         self._corrs_to_measure = []
         self._thread = _Thread(target=self._measure_matrix_thread)
-        self._stoped = _Event()
+        self._stopped = _Event()
 
     @property
     def connected(self):
@@ -271,27 +212,27 @@ class MeasureDispMatTBBO:
         if not self._thread.is_alive():
             self._thread = _Thread(
                 target=self._measure_matrix_thread, daemon=True)
-            self._stoped.clear()
+            self._stopped.clear()
             self._thread.start()
 
     def stop(self):
-        self._stoped.set()
+        self._stopped.set()
 
     def _measure_matrix_thread(self):
         corrs = self.corrs_to_measure
         for cor in corrs:
             orb = []
             delta = self._get_delta(cor)
-            origkl = self._all_corrs[cor].kl
+            origkl = self._all_corrs[cor].strength
             for sig in (1, -1):
-                self._all_corrs[cor].kl = origkl + sig * delta / 2
+                self._all_corrs[cor].strength = origkl + sig * delta / 2
                 orb.append(sig*self.measdisp.measure_dispersion())
-                if self._stoped.is_set():
+                if self._stopped.is_set():
                     break
             else:
                 self._matrix[cor] = np.array(orb).sum(axis=0)/delta
-            self._all_corrs[cor].kl = origkl
-            if self._stoped.is_set():
+            self._all_corrs[cor].strength = origkl
+            if self._stopped.is_set():
                 break
 
     def _get_delta(self, cor):

@@ -7,62 +7,6 @@ from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.csdevice.orbitcorr import SOFBFactory
 
 
-class CHCV:
-
-    def __init__(self, name):
-        self._sp = PV(name+':Kick-SP')
-        self._rb = PV(name+':KickRef-Mon')
-
-    @property
-    def kick(self):
-        return self._rb.value
-
-    @kick.setter
-    def kick(self, value):
-        self._sp.value = value
-
-    @property
-    def connected(self):
-        return self._sp.connected & self._rb.connected
-
-
-class Kicker:
-
-    def __init__(self):
-        self._sp = PV('BO-01D:PM-InjKckr:Kick-SP')
-        self._rb = PV('BO-01D:PM-InjKckr:Kick-RB')
-
-    @property
-    def kick(self):
-        return self._rb.value * 1000  # from mrad to urad
-
-    @kick.setter
-    def kick(self, value):
-        self._sp.value = value / 1000  # from urad to mrad
-
-    @property
-    def connected(self):
-        return self._sp.connected & self._rb.connected
-
-
-class Septum:
-
-    def __init__(self):
-        self._sp = PV('TB-04:PM-InjSept:Kick-SP')
-        self._rb = PV('TB-04:PM-InjSept:Kick-RB')
-
-    @property
-    def kick(self):
-        return self._rb.value * 1000  # from mrad to urad
-
-    @kick.setter
-    def kick(self, value):
-        self._sp.value = value / 1000  # from urad to mrad
-
-    @property
-    def connected(self):
-        return self._sp.connected & self._rb.connected
-
 
 class SOFB:
 
@@ -117,7 +61,8 @@ class SOFB:
 class Params:
 
     def __init__(self):
-        self.deltas = {'CH': 300, 'CV': 150, 'InjSept': 300, 'InjKckr': 300}
+        self.deltas = {
+            'CH': 0.3e-3, 'CV': 0.15e-3, 'InjSept': 0.3e-3, 'InjKckr': 0.3e-3}
         self.wait_time = 2
         self.timeout_orb = 10
         self.num_points = 10
@@ -125,19 +70,15 @@ class Params:
 
 class MeasureRespMatTBBO:
 
-    def __init__(self):
+    def __init__(self, all_corrs):
         self.bo_sofb = SOFB('BO')
         self.tb_sofb = SOFB('TB')
-        dic = {n: CHCV(n) for n in self.tb_sofb.data.CH_NAMES}
-        dic.update({n: CHCV(n) for n in self.tb_sofb.data.CV_NAMES})
-        dic['TB-04:PM-InjSept'] = Septum()
-        dic['BO-01D:PM-InjKckr'] = Kicker()
-        self._all_corrs = {_PVName(n): v for n, v in dic.items()}
+        self._all_corrs = all_corrs
         self.params = Params()
         self._matrix = dict()
         self._corrs_to_measure = []
         self._thread = _Thread(target=self._measure_matrix_thread)
-        self._stoped = _Event()
+        self._stopped = _Event()
 
     @property
     def connected(self):
@@ -159,11 +100,11 @@ class MeasureRespMatTBBO:
         self.bo_sofb.wait(timeout=timeout)
 
     def reset(self, wait=0):
-        if self._stoped.wait(wait):
+        if self._stopped.wait(wait):
             return False
         self.tb_sofb.reset()
         self.bo_sofb.reset()
-        if self._stoped.wait(wait):
+        if self._stopped.wait(wait):
             return False
         return True
 
@@ -207,11 +148,11 @@ class MeasureRespMatTBBO:
         if not self._thread.is_alive():
             self._thread = _Thread(
                 target=self._measure_matrix_thread, daemon=True)
-            self._stoped.clear()
+            self._stopped.clear()
             self._thread.start()
 
     def stop(self):
-        self._stoped.set()
+        self._stopped.set()
 
     def _measure_matrix_thread(self):
         self.nr_points = self.params.num_points
@@ -219,15 +160,15 @@ class MeasureRespMatTBBO:
         for cor in corrs:
             orb = []
             delta = self.params.deltas[cor.dev]
-            origkick = self._all_corrs[cor].kick
+            origkick = self._all_corrs[cor].strength
             for sig in (1, -1):
-                self._all_corrs[cor].kick = origkick + sig * delta / 2
+                self._all_corrs[cor].strength = origkick + sig * delta / 2
                 if not self.reset(self.params.wait_time):
                     break
                 self.wait(self.params.timeout_orb)
                 orb.append(sig*np.hstack([self.trajx, self.trajy]))
             else:
                 self._matrix[cor] = np.array(orb).sum(axis=0)/delta
-            self._all_corrs[cor].kick = origkick
-            if self._stoped.is_set():
+            self._all_corrs[cor].strength = origkick
+            if self._stopped.is_set():
                 break
