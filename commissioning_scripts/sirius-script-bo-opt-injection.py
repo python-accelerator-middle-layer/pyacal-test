@@ -14,9 +14,9 @@ class PSOInjection(PSO):
     def __init__(self, save=False):
         """."""
         self.reference = []
-        self.niter = []
-        self.nr_turns = []
-        self.nr_bpm = []
+        self.niter = 0
+        self.nr_turns = 0
+        self.nr_bpm = 0
         self._name_hands = []
         self._name_quads = []
         self._name_corrs = []
@@ -28,7 +28,8 @@ class PSOInjection(PSO):
         self.pv_buffer_mon = []
         self.pv_buffer_reset = []
         self.pv_nr_sample = []
-        self._wait_change = []
+        self._wait_change = 0
+        self.f_init = 0
         PSO.__init__(self, save=save)
 
     def initialization(self):
@@ -175,7 +176,7 @@ class PSOInjection(PSO):
 
     def get_change(self, part):
         """."""
-        return self.reference + 0*self.position[part, :]
+        return self.reference + self.position[part, :]
 
     def set_change(self, change):
         """."""
@@ -221,7 +222,9 @@ class PSOInjection(PSO):
 
     def run(self):
         """."""
-        pos, fig = self.start_optimization()
+        self.start()
+        pos = self.best_positions_history
+        fig = self.best_figures_history
         plt.plot(-fig, '-o')
         plt.xlabel('Number of Iteractions')
         plt.ylabel('Objective Function')
@@ -270,6 +273,7 @@ class SAInjection(SimulAnneal):
         self.pv_buffer_reset = []
         self.pv_nr_sample = []
         self._wait_change = []
+        self.f_init = 0
         SimulAnneal.__init__(self, save=save)
 
     def initialization(self):
@@ -455,7 +459,9 @@ class SAInjection(SimulAnneal):
 
     def run(self):
         """."""
-        pos, fig = self.start_optimization()
+        self.start()
+        pos = self.best_positions_history
+        fig = self.best_figures_history
         plt.plot(-fig, '-o')
         plt.xlabel('Number of Iteractions')
         plt.ylabel('Objective Function')
