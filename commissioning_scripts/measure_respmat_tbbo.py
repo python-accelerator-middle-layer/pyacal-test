@@ -107,7 +107,7 @@ class MeasureRespMatTBBO:
             return False
         self.tb_sofb.reset()
         self.bo_sofb.reset()
-        if self._stopped.wait(wait):
+        if self._stopped.wait(1):
             return False
         return True
 
@@ -164,11 +164,14 @@ class MeasureRespMatTBBO:
     def _measure_matrix_thread(self):
         self.nr_points = self.params.num_points
         corrs = self.corrs_to_measure
-        for cor in corrs:
+        print('Starting...')
+        for i, cor in enumerate(corrs):
+            print('{0:2d}|{1:2d}: {2:20s}'.format(i, len(corrs), cor), end='')
             orb = []
             delta = self.params.deltas[cor.dev]
             origkick = self._all_corrs[cor].strength
             for sig in (1, -1):
+                print('  pos' if sig>0 else '  neg\n', end='')
                 self._all_corrs[cor].strength = origkick + sig * delta / 2
                 if not self.reset(self.params.wait_time):
                     break
@@ -178,7 +181,10 @@ class MeasureRespMatTBBO:
                 self._matrix[cor] = np.array(orb).sum(axis=0)/delta
             self._all_corrs[cor].strength = origkick
             if self._stopped.is_set():
+                print('Stopped!')
                 break
+        else:
+            print('Finished!')
 
 
 def calc_model_respmatTBBO(tb_mod, bo_mod, corr_names, elems, nturns=3,

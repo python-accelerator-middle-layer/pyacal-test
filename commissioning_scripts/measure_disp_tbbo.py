@@ -82,11 +82,11 @@ class Klystron:
 class ParamsDisp:
 
     def __init__(self):
-        self.klystron_delta = -0.05
-        self.wait_time = 2
+        self.klystron_delta = -2
+        self.wait_time = 40
         self.timeout_orb = 10
         self.num_points = 10
-        self.klystron_excit_coefs = [0.01, 0.2]
+        self.klystron_excit_coefs = [1.098, 66.669]
 
 
 class MeasureDispTBBO:
@@ -132,7 +132,7 @@ class MeasureDispTBBO:
         _time.sleep(wait)
         self.tb_sofb.reset()
         self.bo_sofb.reset()
-        _time.sleep(wait)
+        _time.sleep(1)
 
     def measure_dispersion(self):
         self.nr_points = self.params.num_points
@@ -166,8 +166,6 @@ class ParamsDispMat:
 class MeasureDispMatTBBO:
 
     def __init__(self, quads):
-        # quads = MASearch.get_manames(filters={'sec': 'TB', 'dev': 'Q'})
-        # self._all_corrs = {_PVName(n): Quad(_PVName(n)) for n in quads}
         self._all_corrs = quads
         self.measdisp = MeasureDispTBBO()
         self.params = ParamsDispMat()
@@ -222,11 +220,14 @@ class MeasureDispMatTBBO:
 
     def _measure_matrix_thread(self):
         corrs = self.corrs_to_measure
-        for cor in corrs:
+        print('Starting...')
+        for i, cor in enumerate(corrs):
+            print('{0:2d}|{1:2d}: {20:s}'.format(i, len(corrs), cor), end='')
             orb = []
             delta = self._get_delta(cor)
             origkl = self._all_corrs[cor].strength
             for sig in (1, -1):
+                print('  pos' if sig>0 else '  neg\n', end='')
                 self._all_corrs[cor].strength = origkl + sig * delta / 2
                 orb.append(sig*self.measdisp.measure_dispersion())
                 if self._stopped.is_set():
@@ -235,7 +236,10 @@ class MeasureDispMatTBBO:
                 self._matrix[cor] = np.array(orb).sum(axis=0)/delta
             self._all_corrs[cor].strength = origkl
             if self._stopped.is_set():
+                print('Stopped!')
                 break
+        else:
+            print('Finished!')
 
     def _get_delta(self, cor):
         for k, v in self.params.deltas.items():
