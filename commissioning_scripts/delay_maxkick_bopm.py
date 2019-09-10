@@ -160,5 +160,7 @@ class FindMaxPulsedMagnets:
                     self._datasy.append(self.screen.sigmay)
 
                 if self._stoped.is_set():
+                    for cor2 in corrs:
+                        self._all_corrs[cor2].delay = origdelay
                     break
             self._all_corrs[cor].delay = origdelay
