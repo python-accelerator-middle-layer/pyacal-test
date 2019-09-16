@@ -235,6 +235,7 @@ class PSOInjection(PSO):
     def run(self):
         """."""
         self.start()
+        self.join()
         pos = self.best_positions_history
         fig = self.best_figures_history
         plt.plot(-fig, '-o')
@@ -251,8 +252,6 @@ class PSOInjection(PSO):
             set_opt = input(
                 'Do you want to set the best configuration found? (y or n):  ')
             if set_opt == 'y':
-                _np.savetxt('initial_reference.txt', self.reference)
-                _np.savetxt('initial_obj_fun.txt', self.f_init)
                 best_setting = self.reference + pos[-1, :]
                 self.set_change(best_setting)
                 print('Best configuration found was set to the machine!')
@@ -400,8 +399,8 @@ class SAInjection(SimulAnneal):
 
         self._name_quads = [
             # 'TB-01:MA-QF1', 'TB-01:MA-QD1',
-            'TB-02:MA-QF2A', 'TB-02:MA-QD2A',
-            'TB-02:MA-QF2B', 'TB-02:MA-QD2B',
+            # 'TB-02:MA-QF2A', 'TB-02:MA-QD2A',
+            # 'TB-02:MA-QF2B', 'TB-02:MA-QD2B',
             'TB-03:MA-QF3', 'TB-03:MA-QD3',
             'TB-04:MA-QF4', 'TB-04:MA-QD4',
         ]
@@ -504,7 +503,7 @@ class SAInjection(SimulAnneal):
                 'Set the best configuration found? (y or n): ')
             if set_opt == 'y':
                 _np.savetxt('initial_reference.txt', self.reference)
-                _np.savetxt('initial_obj_fun.txt', self.f_init)
+                # _np.savetxt('initial_obj_fun.txt', self.f_init)
                 self.set_change(pos[-1, :])
                 print('Best configuration found was set to the machine!')
             else:
