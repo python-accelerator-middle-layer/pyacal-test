@@ -207,7 +207,7 @@ class PSOInjection(PSO):
     def save_bpms_sum(self):
         """."""
         with open('BPM_Sum.txt', 'a') as sbpm:
-            sbpm.write('='*50)
+            sbpm.write('='*50 + '\n')
             _np.savetxt(sbpm, self.eyes.value[:self.bpm_idx], fmt='%+.8e')
 
     def init_obj_func(self):
