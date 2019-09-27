@@ -303,9 +303,11 @@ class FindSeptQuad(SimulAnneal):
                 self.tb_model, 'fam_name', 'InjSept')
         else:
             sept_idx = self.elems['TB-04:MA-CV-2'].model_indices
-        k, ks = self._position
-        pyaccel.lattice.set_attribute(self.tb_model, 'K', sept_idx, k)
-        pyaccel.lattice.set_attribute(self.tb_model, 'Ks', sept_idx, ks)
+        kxl, kyl, ksxl, ksyl = self._position
+        pyaccel.lattice.set_attribute(self.tb_model, 'KxL', sept_idx, kxl)
+        pyaccel.lattice.set_attribute(self.tb_model, 'KyL', sept_idx, kyl)
+        pyaccel.lattice.set_attribute(self.tb_model, 'KsxL', sept_idx, ksxl)
+        pyaccel.lattice.set_attribute(self.tb_model, 'KsyL', sept_idx, ksyl)
         respmat = calc_model_dispmatTBBO(
             self.tb_model, self.bo_model, self.corr_names, self.elems,
             nturns=self.nturns)

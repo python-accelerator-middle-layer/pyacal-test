@@ -170,26 +170,32 @@ class MeasureRespMatTBBO:
             orb = []
             delta = self.params.deltas[cor.dev]
             origkick = self._all_corrs[cor].strength
-            for sig in (1, -1):
-                print('  pos' if sig>0 else '  neg\n', end='')
-                self._all_corrs[cor].strength = origkick + sig * delta / 2
-                if not self.reset(self.params.wait_time):
-                    break
-                self.wait(self.params.timeout_orb)
-                orb.append(sig*np.hstack([self.trajx, self.trajy]))
-            else:
-                self._matrix[cor] = np.array(orb).sum(axis=0)/delta
+            print('orig ', end='')
+            if not self.reset(self.params.wait_time):
+                break
+            self.wait(self.params.timeout_orb)
+            orb.append(-np.hstack([self.trajx, self.trajy]))
+
+            sig = -2*int(origkick > 0) + 1
+            print('pos' if sig > 0 else 'neg')
+            self._all_corrs[cor].strength = origkick + sig*delta
+            if not self.reset(self.params.wait_time):
+                break
+            self.wait(self.params.timeout_orb)
+            orb.append(np.hstack([self.trajx, self.trajy]))
+
             self._all_corrs[cor].strength = origkick
             if self._stopped.is_set():
                 print('Stopped!')
                 break
+            else:
+                self._matrix[cor] = np.array(orb).sum(axis=0)/(sig*delta)
         else:
             print('Finished!')
 
 
-def calc_model_respmatTBBO(tb_mod, bo_mod, corr_names, elems, nturns=3,
-                           meth='middle'):
-    model = tb_mod + nturns*bo_mod
+def calc_model_respmatTBBO(tb_mod, model, corr_names, elems, meth='middle',
+                           ishor=True):
     bpms = np.array(pyaccel.lattice.find_indices(model, 'fam_name', 'BPM'))[1:]
     _, cumulmat = pyaccel.tracking.find_m44(
         model, indices='open', closed_orbit=[0, 0, 0, 0])
@@ -201,20 +207,30 @@ def calc_model_respmatTBBO(tb_mod, bo_mod, corr_names, elems, nturns=3,
         if corr.sec == 'BO':
             print('Booster ', corr)
             indcs += len(tb_mod)
+        cortype = elem.magnet_type
+        kxl = kyl = ksxl = ksyl = 0
+        if corr.dev == 'InjSept':
+            kxl = tb_mod[indcs[0][1]].KxL
+            kyl = tb_mod[indcs[0][1]].KyL
+            ksxl = tb_mod[indcs[0][1]].KsxL
+            ksyl = tb_mod[indcs[0][1]].KsyL
+        if not ishor and corr.dev in {'InjSept', 'InjKckr'}:
+            cortype = 'vertical'
         matrix[idx, :] = _get_respmat_line(
             cumulmat, indcs, bpms, length=elem.model_length,
-            kl=elem.model_KL, ksl=elem.model_KsL,
-            cortype=elem.magnet_type, meth=meth)
+            kxl=kxl, kyl=kyl, ksxl=ksxl, ksyl=ksyl,
+            cortype=cortype, meth=meth)
     return matrix
 
 
-def _get_respmat_line(cumul_mat, indcs, bpms, length, kl=0, ksl=0,
+def _get_respmat_line(cumul_mat, indcs, bpms, length,
+                      kxl=0, kyl=0, ksxl=0, ksyl=0,
                       cortype='vertical', meth='middle'):
 
     idx = 3 if cortype.startswith('vertical') else 1
-    cor = indcs[-1]+1
-    if meth.lower().startswith('begin'):
-        cor = indcs[0]
+    cor = indcs[0]
+    if meth.lower().startswith('end'):
+        cor = indcs[-1]+1
     elif meth.lower().startswith('mid'):
         # create a symplectic integrator of second order
         # for the last half of the element:
@@ -222,17 +238,19 @@ def _get_respmat_line(cumul_mat, indcs, bpms, length, kl=0, ksl=0,
         drift[0, 1] = length/2 / 2
         drift[2, 3] = length/2 / 2
         quad = np.eye(4, dtype=float)
-        quad[1, 0] = -kl/2
-        quad[3, 2] = kl/2
-        quad[1, 2] = ksl/2
-        quad[3, 0] = ksl/2
+        quad[1, 0] = -kxl/2
+        quad[3, 2] = -kyl/2
+        quad[1, 2] = -ksxl/2
+        quad[3, 0] = -ksyl/2
         half_cor = np.dot(np.dot(drift, quad), drift)
 
     m0c = cumul_mat[cor]
+    if meth.lower().startswith('mid'):
+        m0c = np.linalg.solve(half_cor, m0c)
     mat = np.linalg.solve(m0c.T, cumul_mat[bpms].transpose((0, 2, 1)))
     mat = mat.transpose(0, 2, 1)
-    if meth.lower().startswith('mid'):
-        mat = np.dot(mat, half_cor)
+    # if meth.lower().startswith('mid'):
+    #     mat = np.dot(mat, half_cor)
     respx = mat[:, 0, idx]
     respy = mat[:, 2, idx]
     respx[bpms < indcs[0]] = 0
