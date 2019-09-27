@@ -97,8 +97,7 @@ class PSOInjection(PSO):
 
         self.pv_nr_pts_sp.value = self.params.nbuffer
 
-        corrs = Corrs()
-        corr_lim = np.ones(len(corrs.sp)) * self.params.deltas['Corrs']
+        corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
         sept_lim = np.array([self.params.deltas['InjSept']])
         kckr_lim = np.array([self.params.deltas['InjKckr']])
 
