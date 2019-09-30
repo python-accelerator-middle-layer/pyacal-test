@@ -4,7 +4,7 @@
 import time as _time
 import numpy as np
 from siriuspy.epics import PV
-from apsuite.optimization import PSO
+from apsuite.optimization import PSO, SimulAnneal
 
 
 class Septum:
@@ -148,8 +148,6 @@ class PSOInjection(PSO):
     def reset_wait_buffer(self):
         """."""
         self.pv_buffer_reset.value = 1
-        _time.sleep(self.params.wait_change)
-
         while True:
             if self.pv_buffer_mon.value == self.pv_nr_pts_rb.value:
                 break
@@ -170,4 +168,109 @@ class PSOInjection(PSO):
             print(
                 'Particle {:02d}/{:d} | Obj. Func. : {:f}'.format(
                     i+1, self.nswarm, f_out[i]))
+        return - f_out
+
+
+class SAInjection(SimulAnneal):
+    """."""
+
+    def __init__(self, save=False):
+        """."""
+        self.reference = []
+        self.eyes = []
+        self.hands = []
+        self.pv_nr_pts_sp = []
+        self.pv_nr_pts_rb = []
+        self.pv_buffer_mon = []
+        self.pv_buffer_reset = []
+        self.pv_nr_sample = []
+        self.f_init = 0
+        self.params = Params()
+        self.sofb = SOFB()
+        self.corrs = Corrs()
+        self.kckr = Kicker()
+        self.sept = Septum()
+        SimulAnneal.__init__(self, save=save)
+
+    def initialization(self):
+        """."""
+        self.niter = self.params.niter
+        self.nr_turns = self.params.nturns
+        self.nr_bpm = self.params.nbpm
+        self.bpm_idx = self.nr_bpm + 50 * (self.nr_turns - 1)
+
+        self.get_pvs()
+
+        while True:
+            if self.check_connect():
+                break
+
+        self.pv_nr_pts_sp.value = self.params.nbuffer
+
+        corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
+        sept_lim = np.array([self.params.deltas['InjSept']])
+        kckr_lim = np.array([self.params.deltas['InjKckr']])
+
+        up = np.concatenate((corr_lim, sept_lim, kckr_lim))
+        down = -1 * up
+        self.set_limits(upper=up, lower=down)
+
+        self.reference = np.array([h.value for h in self.hands])
+        self.reset_wait_buffer()
+        self.init_obj_func()
+
+    def get_pvs(self):
+        """."""
+        self.pv_nr_sample = PV(self.sofb.nsample)
+        _time.sleep(self.params.wait_change)
+        self.pv_nr_sample.value = self.params.nturns
+
+        self.eyes = PV(self.sofb.sumsignal, auto_monitor=True)
+
+        self.hands = [PV(c) for c in self.corrs.sp]
+        self.hands.append(PV(self.kckr.sp))
+        self.hands.append(PV(self.sept.sp))
+
+        self.pv_nr_pts_sp = PV(self.sofb.nbuffer_sp)
+        self.pv_nr_pts_rb = PV(self.sofb.nbuffer_rb)
+        self.pv_buffer_mon = PV(self.sofb.nbuffer_mon)
+        self.pv_buffer_reset = PV(self.sofb.nbuffer_reset)
+
+    def check_connect(self):
+        """."""
+        conh = [h.connected for h in self.hands]
+        cone = self.eyes.connected
+        if cone and sum(conh) == len(conh):
+            con = True
+        else:
+            con = False
+        return con
+
+    def get_change(self):
+        """."""
+        return self.position
+
+    def set_change(self, change):
+        """."""
+        for k in range(len(self.hands)):
+            self.hands[k].value = change[k]
+
+    def reset_wait_buffer(self):
+        """."""
+        self.pv_buffer_reset.value = 1
+        while True:
+            if self.pv_buffer_mon.value == self.pv_nr_pts_rb.value:
+                break
+
+    def init_obj_func(self):
+        """."""
+        self.f_init = -np.sum(self.eyes.value[:self.bpm_idx])
+
+    def calc_obj_fun(self):
+        """."""
+        f_out = []
+        self.set_change(self.get_change())
+        _time.sleep(self.params.wait_change)
+        self.reset_wait_buffer()
+        f_out = np.sum(self.eyes.value[:self.bpm_idx])
         return - f_out
