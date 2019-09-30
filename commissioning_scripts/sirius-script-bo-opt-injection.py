@@ -485,6 +485,7 @@ class SAInjection(SimulAnneal):
     def run(self):
         """."""
         self.start()
+        self.join()
         pos = self.best_positions_history
         fig = self.best_figures_history
         plt.plot(-fig, '-o')
