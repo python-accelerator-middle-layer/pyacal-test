@@ -310,6 +310,7 @@ class SAInjection(SimulAnneal):
         self.set_deltas(dmax=up)
 
         self.reference = np.array([h.value for h in self.hands])
+        self.position = self.reference
         # self.reset_wait_buffer()
         self.init_obj_func()
 
