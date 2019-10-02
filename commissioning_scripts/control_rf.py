@@ -80,6 +80,12 @@ class DCCT:
     @property
     def connected(self):
         conn = self._current.connected
+        conn &= self._meas_per_sp
+        conn &= self._meas_per_rb
+        conn &= self._nr_samples_sp
+        conn &= self._nr_samples_rb
+        conn &= self._acq_ctrl_sp
+        conn &= self._acq_ctrl_rb
         return conn
 
     @property
@@ -143,7 +149,7 @@ class RF:
     @property
     def connected(self):
         conn = self._phase_rb.connected
-        conn += self._phase_sp.connected
+        conn &= self._phase_sp.connected
         return conn
 
     @property
@@ -182,17 +188,18 @@ class Params:
         self.rf_timeout = 10
 
     def __str__(self):
-        st = '{0:30s}= {1:9.3f}'.format('initial phase [°]', self.phase_ini)
-        st += '{0:30s}= {1:9.3f}'.format('final phase [°]', self.phase_fin)
-        st += '{0:30s}= {1:9.3f}'.format('delta phase [°]', self.phase_delta)
-        st += '{0:30s}= {1:9d}'.format('number of pulses', self.nrpulses)
-        st += '{0:30s}= {1:9.3f}'.format('pulses freq [Hz]', self.freq_pulses)
-        st += '{0:30s}= {1:9d}'.format(
+        st = '{0:30s}= {1:9.3f}\n'.format('initial phase [°]', self.phase_ini)
+        st += '{0:30s}= {1:9.3f}\n'.format('final phase [°]', self.phase_fin)
+        st += '{0:30s}= {1:9.3f}\n'.format('delta phase [°]', self.phase_delta)
+        st += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
+        st += '{0:30s}= {1:9.3f}\n'.format(
+            'pulses freq [Hz]', self.freq_pulses)
+        st += '{0:30s}= {1:9d}\n'.format(
             'DCCT number of samples', self.dcct_nrsamples)
-        st += '{0:30s}= {1:9d}'.format('DCCT period', self.dcct_period)
-        st += '{0:30s}= {1:9d}'.format('SOFB timeout', self.sofb_timeout)
-        st += '{0:30s}= {1:9d}'.format('DCCT timeout', self.dcct_timeout)
-        st += '{0:30s}= {1:9d}'.format('RF timeout', self.rf_timeout)
+        st += '{0:30s}= {1:9.3f}\n'.format('DCCT period', self.dcct_period)
+        st += '{0:30s}= {1:9.3f}\n'.format('SOFB timeout', self.sofb_timeout)
+        st += '{0:30s}= {1:9.3f}\n'.format('DCCT timeout', self.dcct_timeout)
+        st += '{0:30s}= {1:9.3f}\n'.format('RF timeout', self.rf_timeout)
         return st
 
 
@@ -211,8 +218,8 @@ class ControlRF:
     @property
     def connected(self):
         conn = self.dcct.connected
-        conn += self.rf.connected
-        conn += self.sofb.connected
+        conn &= self.rf.connected
+        conn &= self.sofb.connected
         return conn
 
     @property
@@ -220,17 +227,21 @@ class ControlRF:
         pha_ini = self.params.phase_ini
         pha_fin = self.params.phase_fin
         dpha = self.params.phase_delta
-        npts = int((pha_fin - pha_ini)/dpha) + 1
+        npts = abs(int((pha_fin - pha_ini)/dpha)) + 1
         return np.linspace(pha_ini, pha_fin, npts)
 
-    def do_scan_phase(self):
+    def do_phase_scan(self):
         nrpul = self.params.nrpulses
         freq = self.params.freq_pulses
 
         self.sofb.nr_points = nrpul
+        print('Turning DCCT Off')
         self.dcct.turn_off(self.params.dcct_timeout)
+        print('Setting DCCT params')
         self.dcct.nrsamples = self.params.dcct_nrsamples
         self.dcct.period = self.params.dcct_period
+        _time.sleep(2)
+        print('Turning DCCT On')
         self.dcct.turn_on(self.params.dcct_timeout)
 
         phase_spam = self.phase_spam
@@ -239,8 +250,9 @@ class ControlRF:
         self.data_sum = []
         self.data_orbx = []
         self.data_orby = []
+        print('Starting Loop')
         for pha in phase_spam:
-            # self.rf.set_phase(pha, timeout=self.params.rf_timeout)
+            self.rf.set_phase(pha, timeout=self.params.rf_timeout)
             dcct_data = np.zeros(nrpul)
             phase_data = np.zeros(nrpul)
             self.sofb.reset()
@@ -256,3 +268,4 @@ class ControlRF:
             self.data_orby.append(self.sofb.trajy)
             print('Phase [°]: {0:0.4f} -> Current [uA]: {1:0.4f}\n'.format(
                 self.rf.phase, np.mean(dcct_data)*1e3))
+        print('Finished!')
