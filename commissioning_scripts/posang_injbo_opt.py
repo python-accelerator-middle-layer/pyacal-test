@@ -35,6 +35,19 @@ class Corrs:
         self.rb = [c + ':Kick-RB' for c in names]
 
 
+class Quads:
+    """."""
+
+    def __init__(self):
+        """."""
+        names = [
+            'TB-02:MA-QF2A', 'TB-02:MA-QF2B',
+            'TB-02:MA-QD2A', 'TB-02:MA-QD2B'
+        ]
+        self.sp = [c + ':KL-SP' for c in names]
+        self.rb = [c + ':KL-RB' for c in names]
+
+
 class SOFB:
     """."""
 
@@ -53,7 +66,7 @@ class Params:
 
     def __init__(self):
         """."""
-        self.deltas = {'Corrs': 1000, 'InjSept': 2, 'InjKckr': 2}
+        self.deltas = {'Quads': 1, 'Corrs': 1000, 'InjSept': 2, 'InjKckr': 2}
         self.niter = 10
         self.nbuffer = 10
         self.nturns = 1
@@ -152,6 +165,7 @@ class PSOInjection(PSO):
         self.params = Params()
         self.sofb = SOFB()
         self.dcct = DCCT()
+        self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()
         self.sept = Septum()
@@ -172,11 +186,12 @@ class PSOInjection(PSO):
 
         self.pv_nr_pts_sp.value = self.params.nbuffer
 
+        quad_lim = np.ones(len(self.quads.sp)) * self.params.deltas['Quads']
         corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
         sept_lim = np.array([self.params.deltas['InjSept']])
         kckr_lim = np.array([self.params.deltas['InjKckr']])
 
-        up = np.concatenate((corr_lim, sept_lim, kckr_lim))
+        up = np.concatenate((quad_lim, corr_lim, sept_lim, kckr_lim))
         down = -1 * up
         self.set_limits(upper=up, lower=down)
 
@@ -278,6 +293,7 @@ class SAInjection(SimulAnneal):
         self.params = Params()
         self.dcct = DCCT()
         self.sofb = SOFB()
+        self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()
         self.sept = Septum()
@@ -298,12 +314,12 @@ class SAInjection(SimulAnneal):
 
         self.pv_nr_pts_sp.value = self.params.nbuffer
 
-        corr_lim = np.ones(len(self.corrs.sp)) * \
-            self.params.deltas['Corrs']
+        quad_lim = np.ones(len(self.quads.sp)) * self.params.deltas['Quads']
+        corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
         sept_lim = np.array([self.params.deltas['InjSept']])
         kckr_lim = np.array([self.params.deltas['InjKckr']])
 
-        up = np.concatenate((corr_lim, sept_lim, kckr_lim))
+        up = np.concatenate((quad_lim, corr_lim, sept_lim, kckr_lim))
         down = -1 * up
         # 1e6 added to emulate Inf limits
         self.set_limits(upper=up*1e6, lower=down*1e6)
