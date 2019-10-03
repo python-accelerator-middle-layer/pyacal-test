@@ -8,7 +8,7 @@ from siriuspy.epics import PV
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.csdevice.orbitcorr import SOFBFactory
 
-from apsuite.devices import SOFB
+from pymodels.middlelayer.devices import SOFB
 from apsuite.optimization import SimulAnneal
 
 

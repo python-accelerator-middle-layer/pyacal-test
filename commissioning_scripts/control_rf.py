@@ -2,7 +2,7 @@ import time as _time
 import pickle as _pickle
 import numpy as np
 
-from apsuite.devices import DCCT, RF, SOFB
+from pymodels.middlelayer.devices import DCCT, RF, SOFB
 
 
 class Params:
