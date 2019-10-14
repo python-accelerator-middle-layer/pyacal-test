@@ -10,6 +10,7 @@ from apsuite.optimization.simulated_annealing import SimulAnneal
 from apsuite.commissioning_scripts.measure_respmat_tbbo import calc_model_respmatTBBO
 from apsuite.commissioning_scripts.measure_disp_tbbo import calc_model_dispersionTBBO
 
+
 class FitQuads():
 
     def __init__(self):
@@ -150,12 +151,12 @@ class FindSeptQuad(SimulAnneal):
 
     def calc_obj_fun_respmat(self):
         ksqs, kxl, kyl, ksxl, ksyl = self._position
-        # tbmod = self.set_knorm_septum(self.tb_model, kl=kl, ksl=ksl)
         tbmod = self.set_ks_qs(self.tb_model, ksqs)
         tbmod = self.set_k_septum(
             tbmod, kxl, kyl, ksxl, ksyl)
         respmat = calc_model_respmatTBBO(
-            tbmod, tbmod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+            tbmod, tbmod + self.bo_model, self.corr_names, self.elems,
+            meth='middle', ishor=True)
         respmat -= self.respmat
         return np.sqrt(np.mean(respmat*respmat))
 
@@ -171,7 +172,9 @@ class FindSeptQuad(SimulAnneal):
     def calc_obj_fun(self):
         fun_respmat = self.calc_obj_fun_respmat()
         fun_disp = self.calc_obj_fun_disp()
-        return (fun_respmat + 2 * fun_disp)/3
+        wrespm = 1
+        wdisp = 1
+        return (wrespm*fun_respmat + wdisp*fun_disp) / (wrespm+wdisp)
 
     def set_k_septum(self, tbmodel, kxl, kyl, ksxl, ksyl):
         tbmod = _dcopy(tbmodel)
@@ -189,7 +192,6 @@ class FindSeptQuad(SimulAnneal):
         tbmod = _dcopy(tbmodel)
         sept_idx = pyaccel.lattice.find_indices(
                 tbmod, 'fam_name', 'InjSeptM66')
-        # nmat = len(sept_idx)
         kxl, kyl, ksxl, ksyl = 0, 0, 0, 0
         for idx in sept_idx:
             kxl += tbmod[idx].KxL
@@ -222,59 +224,81 @@ class FindSeptQuad(SimulAnneal):
         disp = calc_model_dispersionTBBO(mod, bpms)
         return disp
 
-    def calc_Ksept_matrix(self):
-        delta = 1e-3
-        deltaks = np.eye(4) * delta
-        # tb_mod = self.set_ks_qs(self.tb_model, ksqs=0)
-        K = np.zeros(4)
-        K[0], K[1], K[2], K[3] = self.get_k_septum(self.tb_model)
-        # tb_mod = self.set_k_septum(self.tb_model, kxl=0, kyl=0, ksxl=0, ksyl=0)
-        tb_mod = _dcopy(self.tb_model)
-        respmat = calc_model_respmatTBBO(
-                tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
-        v0 = respmat.flatten()
-        Krespm = np.zeros((len(v0), 4))
-
-        # tb_mod = self.set_ks_qs(tb_mod, ksqs=delta)
-        # respmat_delta = calc_model_respmatTBBO(
-        #         tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
-        # vdelta = respmat_delta.flatten()
-        # Krespm[:, 0] = (vdelta - v0)/delta
-        # tb_mod = self.set_ks_qs(tb_mod, ksqs=0)
-
-        for k in range(4):
-            kxl, kyl, ksxl, ksyl = deltaks[k, :]
-            tb_mod = self.set_k_septum(
-                tb_mod, K[0] + kxl, K[1] + kyl, K[2] + ksxl, K[3] + ksyl)
-            respmat_delta = calc_model_respmatTBBO(
-                tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
-            vdelta = respmat_delta.flatten()
-            Krespm[:, k] = (vdelta - v0)/delta
-        return Krespm
+    def merge_disp_respm(self, respm, disp):
+        newrespm = np.zeros((respm.shape[0]+1, respm.shape[1]))
+        newrespm[:-1, :] = respm
+        newrespm[-1, :] = disp
+        return newrespm
 
     def chi2(self, M1, M2):
         return np.sqrt(np.mean((M1-M2)**2))
 
-    def fit_matrices(self, tb_mod, Krespm, Mmeas, Mmodel, niter=10, nsv=None):
+    def calc_Ksept_matrix(self):
+        tb_mod = _dcopy(self.tb_model)
+        delta = 1e-3
+        deltak = np.eye(4) * delta
+        K = np.zeros(4)
+        K[0], K[1], K[2], K[3] = self.get_k_septum(tb_mod)
+        respmat0 = calc_model_respmatTBBO(
+                tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems,
+                meth='middle', ishor=True)
+        disp0 = self.calc_disp(tb_mod, self.bo_model)
+        respm0 = self.merge_disp_respm(respmat0, disp0)
+        v0 = respm0.flatten()
+        Krespm = np.zeros((len(v0), 4))
+
+        for k in range(4):
+            kxl, kyl, ksxl, ksyl = deltak[k, :]
+            tb_mod = self.set_k_septum(
+                tb_mod, K[0] + kxl, K[1] + kyl, K[2] + ksxl, K[3] + ksyl)
+            respmat_delta = calc_model_respmatTBBO(
+                tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems,
+                meth='middle', ishor=True)
+            disp_delta = self.calc_disp(tb_mod, self.bo_model)
+            respm_delta = self.merge_disp_respm(respmat_delta, disp_delta)
+            vdelta = respm_delta.flatten()
+            Krespm[:, k] = (vdelta - v0)/delta
+        return Krespm
+
+    def calc_dispsept_matrix(self):
+        tb_mod = _dcopy(self.tb_model)
+        delta = 1e-3
+        deltak = np.eye(4) * delta
+        K = np.zeros(4)
+        K[0], K[1], K[2], K[3] = self.get_k_septum(tb_mod)
+        disp0 = self.calc_disp(tb_mod, self.bo_model)
+        DispM = np.zeros((len(disp0), 4))
+
+        for k in range(4):
+            kxl, kyl, ksxl, ksyl = deltak[k, :]
+            tb_mod = self.set_k_septum(
+                tb_mod, K[0] + kxl, K[1] + kyl, K[2] + ksxl, K[3] + ksyl)
+            disp_delta = self.calc_disp(tb_mod, self.bo_model)
+            DispM[:, k] = (disp_delta - disp0)/delta
+        return DispM
+
+    def fit_matrices(self, tb_mod, Krespm, Mmeas, Mmodel=None, niter=10, nsv=None):
         tbmodel = _dcopy(tb_mod)
-        # tbmodel = self.set_k_septum(tbmodel, 0, 0, 0, 0)
-        Mmodel = calc_model_respmatTBBO(
-                tbmodel, tbmodel + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
-        dM  = Mmeas - Mmodel
+        if Mmodel is None:
+            Mmodel = calc_model_respmatTBBO(
+                    tbmodel, tbmodel + self.bo_model, self.corr_names,  self.elems, meth='middle', ishor=True)
+            DispModel = self.calc_disp(tbmodel, self.bo_model)
+            Mmodel = self.merge_disp_respm(Mmodel, DispModel)
+        dM = Mmeas - Mmodel
         chi2_old = self.chi2(Mmeas, Mmodel)
         print('Initial Matrix Deviation: {:.6f}'.format(chi2_old))
-        u, s, v = np.linalg.svd(Krespm, full_matrices=False)
+        U, s, V = np.linalg.svd(Krespm, full_matrices=False)
         inv_s = 1/s
         inv_s[np.isnan(inv_s)] = 0
         inv_s[np.isinf(inv_s)] = 0
         if nsv is not None:
             inv_s[nsv:] = 0
         Inv_S = np.diag(inv_s)
-        Mkinv = np.dot(np.dot(v.T, Inv_S), u.T)
+        Mkinv = np.dot(np.dot(V.T, Inv_S), U.T)
         K = np.zeros(4)
         K[0], K[1], K[2], K[3] = self.get_k_septum(tbmodel)
         dK = np.zeros(4)
-        tol = 1e-6
+        tol = 1e-8
 
         for n in range(niter):
             dK += np.dot(Mkinv, dM.flatten())
@@ -283,7 +307,10 @@ class FindSeptQuad(SimulAnneal):
                 tbmodel, (K+dK)[0], (K+dK)[1], (K+dK)[2], (K+dK)[3])
 
             new_respm = calc_model_respmatTBBO(
-                newmod, newmod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+                newmod, newmod + self.bo_model, self.corr_names, self.elems,
+                meth='middle', ishor=True)
+            new_disp = self.calc_disp(newmod, self.bo_model)
+            new_respm = self.merge_disp_respm(new_respm, new_disp)
             dM = Mmeas - new_respm
             print('Iter {:.1f}'.format(n+1))
             chi2_new = self.chi2(Mmeas, new_respm)
@@ -292,11 +319,57 @@ class FindSeptQuad(SimulAnneal):
                 print('Limit Reached!')
                 dK -= np.dot(Mkinv, dM.flatten())
                 newmod = self.set_k_septum(
-                tbmodel, (K+dK)[0], (K+dK)[1], (K+dK)[2], (K+dK)[3])
+                    tbmodel, (K+dK)[0], (K+dK)[1], (K+dK)[2], (K+dK)[3])
 
                 new_respm = calc_model_respmatTBBO(
-                    newmod, newmod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+                    newmod, newmod + self.bo_model, self.corr_names,
+                    self.elems, meth='middle', ishor=True)
+                new_disp = self.calc_disp(newmod, self.bo_model)
+                new_respm = self.merge_disp_respm(new_respm, new_disp)
                 break
             else:
                 chi2_old = chi2_new
         return new_respm, K+dK
+
+
+    def fit_matrices2(self, tb_mod, DispM, dispmeas, dispmodel, niter=10,                    nsv=None):
+        tbmodel = _dcopy(tb_mod)
+        if dispmodel is None:
+            dispmodel = self.calc_disp(tbmodel, self.bo_model)
+        deta = dispmeas - dispmodel
+        chi2_old = self.chi2(dispmeas, dispmodel)
+        print('Initial Matrix Deviation: {:.6f}'.format(chi2_old))
+        U, s, V = np.linalg.svd(DispM, full_matrices=False)
+        inv_s = 1/s
+        inv_s[np.isnan(inv_s)] = 0
+        inv_s[np.isinf(inv_s)] = 0
+        if nsv is not None:
+            inv_s[nsv:] = 0
+        Inv_S = np.diag(inv_s)
+        Mdispinv = np.dot(np.dot(V.T, Inv_S), U.T)
+        K = np.zeros(4)
+        K[0], K[1], K[2], K[3] = self.get_k_septum(tbmodel)
+        dK = np.zeros(4)
+        tol = 1e-16
+
+        for n in range(niter):
+            dK += np.dot(Mdispinv, deta)
+
+            newmod = self.set_k_septum(
+                tbmodel, (K+dK)[0], (K+dK)[1], (K+dK)[2], (K+dK)[3])
+
+            newdisp = self.calc_disp(newmod, self.bo_model)
+            deta = dispmeas - newdisp
+            print('Iter {:.1f}'.format(n+1))
+            chi2_new = self.chi2(dispmeas, newdisp)
+            print('Matrix Deviation: {:.6f}'.format(chi2_new))
+            if abs(chi2_new - chi2_old) < tol:
+                print('Limit Reached!')
+                dK -= np.dot(Mdispinv, deta)
+                newmod = self.set_k_septum(
+                    tbmodel, (K+dK)[0], (K+dK)[1], (K+dK)[2], (K+dK)[3])
+                newdisp = self.calc_disp(newmod, self.bo_model)
+                break
+            else:
+                chi2_old = chi2_new
+        return newdisp, K+dK
