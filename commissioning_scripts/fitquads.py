@@ -4,10 +4,11 @@
 import numpy as np
 import pymodels
 import pyaccel
+from copy import deepcopy as _dcopy
 from apsuite.commissioning_scripts.calcrespm import CalcRespm
 from apsuite.optimization.simulated_annealing import SimulAnneal
-from apsuite.commissioning_scripts.measure_respmat_tbbo import MeasureRespMatTBBO, calc_model_respmatTBBO
-
+from apsuite.commissioning_scripts.measure_respmat_tbbo import calc_model_respmatTBBO
+from apsuite.commissioning_scripts.measure_disp_tbbo import calc_model_dispersionTBBO
 
 class FitQuads():
 
@@ -133,7 +134,7 @@ class FitQuads():
 class FindSeptQuad(SimulAnneal):
 
     def __init__(self, tb_model, bo_model, corr_names, elems,
-                 respmat, nturns=1, save=False, in_sept=True):
+                 respmat, disp=None, nturns=1, save=False, in_sept=True):
         super().__init__(save=save)
         self.tb_model = tb_model
         self.bo_model = bo_model
@@ -141,28 +142,161 @@ class FindSeptQuad(SimulAnneal):
         self.elems = elems
         self.nturns = nturns
         self.respmat = respmat
+        self.disp = disp
         self.in_sept = in_sept
 
     def initialization(self):
         return
 
-    def calc_obj_fun(self):
-        if self.in_sept:
-            sept_idx = pyaccel.lattice.find_indices(
-                self.tb_model, 'fam_name', 'InjSept')
-        else:
-            sept_idx = self.elems['TB-04:MA-CV-2'].model_indices
-        kxl, kyl, ksxl, ksyl = self._position
-        self.set_k_septum(kxl=kxl, kyl=kyl, ksxl=ksxl, ksyl=ksyl)
+    def calc_obj_fun_respmat(self):
+        ksqs, kxl, kyl, ksxl, ksyl = self._position
+        # tbmod = self.set_knorm_septum(self.tb_model, kl=kl, ksl=ksl)
+        tbmod = self.set_ks_qs(self.tb_model, ksqs)
+        tbmod = self.set_k_septum(
+            tbmod, kxl, kyl, ksxl, ksyl)
         respmat = calc_model_respmatTBBO(
-            self.tb_model, self.tb_model + self.bo_model, self.corr_names,self.elems, meth='middle', ishor=True)
+            tbmod, tbmod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
         respmat -= self.respmat
         return np.sqrt(np.mean(respmat*respmat))
 
-    def set_k_septum(self, kxl, kyl, ksxl, ksyl):
+    def calc_obj_fun_disp(self):
+        ksqs, kxl, kyl, ksxl, ksyl = self._position
+        tbmod = self.set_ks_qs(self.tb_model, ksqs)
+        tbmod = self.set_k_septum(
+            tbmod, kxl, kyl, ksxl, ksyl)
+        disp = self.calc_disp(tbmod, self.bo_model)
+        disp -= self.disp
+        return np.sqrt(np.mean(disp*disp))
+
+    def calc_obj_fun(self):
+        fun_respmat = self.calc_obj_fun_respmat()
+        fun_disp = self.calc_obj_fun_disp()
+        return (fun_respmat + 2 * fun_disp)/3
+
+    def set_k_septum(self, tbmodel, kxl, kyl, ksxl, ksyl):
+        tbmod = _dcopy(tbmodel)
         sept_idx = pyaccel.lattice.find_indices(
-                self.tb_model, 'fam_name', 'InjSept')
-        pyaccel.lattice.set_attribute(self.tb_model, 'KxL', sept_idx, kxl)
-        pyaccel.lattice.set_attribute(self.tb_model, 'KyL', sept_idx, kyl)
-        pyaccel.lattice.set_attribute(self.tb_model, 'KsxL', sept_idx, ksxl)
-        pyaccel.lattice.set_attribute(self.tb_model, 'KsyL', sept_idx, ksyl)
+                tbmod, 'fam_name', 'InjSeptM66')
+        nmat = len(sept_idx)
+        for idx in sept_idx:
+            tbmod[idx].KxL = kxl / nmat
+            tbmod[idx].KyL = kyl / nmat
+            tbmod[idx].KsxL = ksxl / nmat
+            tbmod[idx].KsyL = ksyl / nmat
+        return tbmod
+
+    def get_k_septum(self, tbmodel):
+        tbmod = _dcopy(tbmodel)
+        sept_idx = pyaccel.lattice.find_indices(
+                tbmod, 'fam_name', 'InjSeptM66')
+        # nmat = len(sept_idx)
+        kxl, kyl, ksxl, ksyl = 0, 0, 0, 0
+        for idx in sept_idx:
+            kxl += tbmod[idx].KxL
+            kyl += tbmod[idx].KyL
+            ksxl += tbmod[idx].KsxL
+            ksyl += tbmod[idx].KsyL
+        return kxl, kyl, ksxl, ksyl
+
+    def set_ks_qs(self, tbmodel, ksqs):
+        tbmod = _dcopy(tbmodel)
+        qs_idx = pyaccel.lattice.find_indices(
+                tbmod, 'fam_name', 'QS')
+        segqs = len(qs_idx)
+        for idx in qs_idx:
+            tbmod[idx].Ks = ksqs / segqs
+        return tbmod
+
+    def set_knorm_septum(self, tbmod, kl, ksl):
+        sept_idx = pyaccel.lattice.find_indices(
+                tbmod, 'fam_name', 'InjSept')
+        tbmod[sept_idx[0]].KL = kl
+        tbmod[sept_idx[0]].KsL = ksl
+        return tbmod
+
+    def calc_disp(self, tb_mod, bo_mod):
+        mod = tb_mod + bo_mod
+        ind = pyaccel.lattice.find_indices(mod, 'fam_name', 'InjKckr')[0]
+        pyaccel.lattice.set_attribute(mod, 'angle', ind, 22e-3)
+        bpms = pyaccel.lattice.find_indices(mod, 'fam_name', 'BPM')[1:]
+        disp = calc_model_dispersionTBBO(mod, bpms)
+        return disp
+
+    def calc_Ksept_matrix(self):
+        delta = 1e-3
+        deltaks = np.eye(4) * delta
+        # tb_mod = self.set_ks_qs(self.tb_model, ksqs=0)
+        K = np.zeros(4)
+        K[0], K[1], K[2], K[3] = self.get_k_septum(self.tb_model)
+        # tb_mod = self.set_k_septum(self.tb_model, kxl=0, kyl=0, ksxl=0, ksyl=0)
+        tb_mod = _dcopy(self.tb_model)
+        respmat = calc_model_respmatTBBO(
+                tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+        v0 = respmat.flatten()
+        Krespm = np.zeros((len(v0), 4))
+
+        # tb_mod = self.set_ks_qs(tb_mod, ksqs=delta)
+        # respmat_delta = calc_model_respmatTBBO(
+        #         tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+        # vdelta = respmat_delta.flatten()
+        # Krespm[:, 0] = (vdelta - v0)/delta
+        # tb_mod = self.set_ks_qs(tb_mod, ksqs=0)
+
+        for k in range(4):
+            kxl, kyl, ksxl, ksyl = deltaks[k, :]
+            tb_mod = self.set_k_septum(
+                tb_mod, K[0] + kxl, K[1] + kyl, K[2] + ksxl, K[3] + ksyl)
+            respmat_delta = calc_model_respmatTBBO(
+                tb_mod, tb_mod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+            vdelta = respmat_delta.flatten()
+            Krespm[:, k] = (vdelta - v0)/delta
+        return Krespm
+
+    def chi2(self, M1, M2):
+        return np.sqrt(np.mean((M1-M2)**2))
+
+    def fit_matrices(self, tb_mod, Krespm, Mmeas, Mmodel, niter=10, nsv=None):
+        tbmodel = _dcopy(tb_mod)
+        # tbmodel = self.set_k_septum(tbmodel, 0, 0, 0, 0)
+        Mmodel = calc_model_respmatTBBO(
+                tbmodel, tbmodel + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+        dM  = Mmeas - Mmodel
+        chi2_old = self.chi2(Mmeas, Mmodel)
+        print('Initial Matrix Deviation: {:.6f}'.format(chi2_old))
+        u, s, v = np.linalg.svd(Krespm, full_matrices=False)
+        inv_s = 1/s
+        inv_s[np.isnan(inv_s)] = 0
+        inv_s[np.isinf(inv_s)] = 0
+        if nsv is not None:
+            inv_s[nsv:] = 0
+        Inv_S = np.diag(inv_s)
+        Mkinv = np.dot(np.dot(v.T, Inv_S), u.T)
+        K = np.zeros(4)
+        K[0], K[1], K[2], K[3] = self.get_k_septum(tbmodel)
+        dK = np.zeros(4)
+        tol = 1e-6
+
+        for n in range(niter):
+            dK += np.dot(Mkinv, dM.flatten())
+
+            newmod = self.set_k_septum(
+                tbmodel, (K+dK)[0], (K+dK)[1], (K+dK)[2], (K+dK)[3])
+
+            new_respm = calc_model_respmatTBBO(
+                newmod, newmod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+            dM = Mmeas - new_respm
+            print('Iter {:.1f}'.format(n+1))
+            chi2_new = self.chi2(Mmeas, new_respm)
+            print('Matrix Deviation: {:.6f}'.format(chi2_old))
+            if abs(chi2_new - chi2_old) < tol:
+                print('Limit Reached!')
+                dK -= np.dot(Mkinv, dM.flatten())
+                newmod = self.set_k_septum(
+                tbmodel, (K+dK)[0], (K+dK)[1], (K+dK)[2], (K+dK)[3])
+
+                new_respm = calc_model_respmatTBBO(
+                    newmod, newmod + self.bo_model, self.corr_names, self.elems, meth='middle', ishor=True)
+                break
+            else:
+                chi2_old = chi2_new
+        return new_respm, K+dK

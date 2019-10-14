@@ -210,10 +210,16 @@ def calc_model_respmatTBBO(tb_mod, model, corr_names, elems, meth='middle',
         cortype = elem.magnet_type
         kxl = kyl = ksxl = ksyl = 0
         if corr.dev == 'InjSept':
-            kxl = tb_mod[indcs[0][1]].KxL
-            kyl = tb_mod[indcs[0][1]].KyL
-            ksxl = tb_mod[indcs[0][1]].KsxL
-            ksyl = tb_mod[indcs[0][1]].KsyL
+            # kxl = tb_mod[indcs[0][1]].KxL
+            # kyl = tb_mod[indcs[0][1]].KyL
+            # ksxl = tb_mod[indcs[0][1]].KsxL
+            # ksyl = tb_mod[indcs[0][1]].KsyL
+            midx = pyaccel.lattice.find_indices(tb_mod, 'fam_name', 'InjSeptM66')
+            for m in midx:
+                kxl += tb_mod[m].KxL
+                kyl += tb_mod[m].KyL
+                ksxl += tb_mod[m].KsxL
+                ksyl += tb_mod[m].KsyL
         if not ishor and corr.dev in {'InjSept', 'InjKckr'}:
             cortype = 'vertical'
         matrix[idx, :] = _get_respmat_line(
