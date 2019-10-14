@@ -35,6 +35,19 @@ class Corrs:
         self.rb = [c + ':Kick-RB' for c in names]
 
 
+class Quads:
+    """."""
+
+    def __init__(self):
+        """."""
+        names = [
+            'TB-02:MA-QF2A', 'TB-02:MA-QF2B',
+            'TB-02:MA-QD2A', 'TB-02:MA-QD2B'
+        ]
+        self.sp = [c + ':KL-SP' for c in names]
+        self.rb = [c + ':KL-RB' for c in names]
+
+
 class SOFB:
     """."""
 
@@ -53,12 +66,86 @@ class Params:
 
     def __init__(self):
         """."""
-        self.deltas = {'Corrs': 1000, 'InjSept': 2, 'InjKckr': 2}
+        self.deltas = {'Quads': 1, 'Corrs': 1000, 'InjSept': 2, 'InjKckr': 2}
         self.niter = 10
         self.nbuffer = 10
         self.nturns = 1
         self.nbpm = 50
         self.wait_change = 5
+        self.dcct_nrsamples = 50
+        self.dcct_period = 0.05
+        self.dcct_timeout = 10
+        self.freq = 2
+
+
+class DCCT:
+
+    def __init__(self):
+        self._current = PV('BO-35D:DI-DCCT:RawReadings-Mon')
+        self._meas_per_sp = PV('BO-35D:DI-DCCT:FastMeasPeriod-SP')
+        self._meas_per_rb = PV('BO-35D:DI-DCCT:FastMeasPeriod-RB')
+        self._nr_samples_sp = PV('BO-35D:DI-DCCT:FastSampleCnt-SP')
+        self._nr_samples_rb = PV('BO-35D:DI-DCCT:FastSampleCnt-RB')
+        self._acq_ctrl_sp = PV('BO-35D:DI-DCCT:MeasTrg-Sel')
+        self._acq_ctrl_rb = PV('BO-35D:DI-DCCT:MeasTrg-Sts')
+        self._on_state = 1
+        self._off_state = 0
+
+    @property
+    def connected(self):
+        conn = self._current.connected
+        return conn
+
+    @property
+    def nrsamples(self):
+        return self._nr_samples_rb.value
+
+    @nrsamples.setter
+    def nrsamples(self, value):
+        self._nr_samples_sp.value = value
+
+    @property
+    def period(self):
+        return self._meas_per_rb.value
+
+    @period.setter
+    def period(self, value):
+        self._meas_per_sp.value = value
+
+    @property
+    def acq_ctrl(self):
+        return self._acq_ctrl_rb.value
+
+    @acq_ctrl.setter
+    def acq_ctrl(self, value):
+        self._acq_ctrl_sp.value = self._on_state if value else self._off_state
+
+    @property
+    def current(self):
+        return self._current.get()
+
+    def wait(self, timeout=10):
+        nrp = int(timeout/0.1)
+        for _ in range(nrp):
+            _time.sleep(0.1)
+            if self._isok():
+                break
+        else:
+            print('timed out waiting DCCT.')
+
+    def _isok(self):
+        if self._acq_ctrl_sp.value:
+            return self.acq_ctrl == self._on_state
+        else:
+            return self.acq_ctrl != self._on_state
+
+    def turn_on(self, timeout=10):
+        self.acq_ctrl = self._on_state
+        self.wait(timeout)
+
+    def turn_off(self, timeout=10):
+        self.acq_ctrl = self._off_state
+        self.wait(timeout)
 
 
 class PSOInjection(PSO):
@@ -77,6 +164,8 @@ class PSOInjection(PSO):
         self.f_init = 0
         self.params = Params()
         self.sofb = SOFB()
+        self.dcct = DCCT()
+        self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()
         self.sept = Septum()
@@ -97,16 +186,22 @@ class PSOInjection(PSO):
 
         self.pv_nr_pts_sp.value = self.params.nbuffer
 
+        quad_lim = np.ones(len(self.quads.sp)) * self.params.deltas['Quads']
         corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
         sept_lim = np.array([self.params.deltas['InjSept']])
         kckr_lim = np.array([self.params.deltas['InjKckr']])
 
-        up = np.concatenate((corr_lim, sept_lim, kckr_lim))
+        up = np.concatenate((quad_lim, corr_lim, sept_lim, kckr_lim))
         down = -1 * up
         self.set_limits(upper=up, lower=down)
 
+        self.dcct.turn_off(self.params.dcct_timeout)
+        self.dcct.nrsamples = self.params.dcct_nrsamples
+        self.dcct.period = self.params.dcct_period
+        self.dcct.turn_on(self.params.dcct_timeout)
+
         self.reference = np.array([h.value for h in self.hands])
-        self.reset_wait_buffer()
+        # self.reset_wait_buffer()
         self.init_obj_func()
 
     def get_pvs(self):
@@ -115,7 +210,8 @@ class PSOInjection(PSO):
         _time.sleep(self.params.wait_change)
         self.pv_nr_sample.value = self.params.nturns
 
-        self.eyes = PV(self.sofb.sumsignal, auto_monitor=True)
+        # self.eyes = PV(self.sofb.sumsignal, auto_monitor=True)
+        self.eyes = self.dcct.current
 
         self.hands = [PV(c) for c in self.corrs.sp]
         self.hands.append(PV(self.kckr.sp))
@@ -149,22 +245,31 @@ class PSOInjection(PSO):
         """."""
         self.pv_buffer_reset.value = 1
         while True:
-            if self.pv_buffer_mon.value == self.pv_nr_pts_rb.value:
+            if self.pv_buffer_mon.value == self.pv_nr_pts_sp.value:
                 break
 
     def init_obj_func(self):
         """."""
-        self.f_init = -np.sum(self.eyes.value[:self.bpm_idx])
+        # self.f_init = -np.sum(self.eyes.value[:self.bpm_idx])
+        pulse_cnt = []
+        for _ in range(self.params.nbuffer):
+            pulse_cnt.append(np.mean(self.eyes))
+            _time.sleep(1/self.params.freq)
+        self.f_init = -np.mean(pulse_cnt)
 
     def calc_obj_fun(self):
         """."""
         f_out = np.zeros(self.nswarm)
-
         for i in range(self.nswarm):
+            pulse_cnt = []
             self.set_change(self.get_change(i))
             _time.sleep(self.params.wait_change)
-            self.reset_wait_buffer()
-            f_out[i] = np.sum(self.eyes.value[:self.bpm_idx])
+            for _ in range(self.params.nbuffer):
+                pulse_cnt.append(np.mean(self.eyes))
+                _time.sleep(1/self.params.freq)
+            # self.reset_wait_buffer()
+            # f_out[i] = np.sum(self.eyes.value[:self.bpm_idx])
+            f_out[i] = np.mean(pulse_cnt)
             print(
                 'Particle {:02d}/{:d} | Obj. Func. : {:f}'.format(
                     i+1, self.nswarm, f_out[i]))
@@ -186,7 +291,9 @@ class SAInjection(SimulAnneal):
         self.pv_nr_sample = []
         self.f_init = 0
         self.params = Params()
+        self.dcct = DCCT()
         self.sofb = SOFB()
+        self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()
         self.sept = Septum()
@@ -207,16 +314,20 @@ class SAInjection(SimulAnneal):
 
         self.pv_nr_pts_sp.value = self.params.nbuffer
 
+        quad_lim = np.ones(len(self.quads.sp)) * self.params.deltas['Quads']
         corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
         sept_lim = np.array([self.params.deltas['InjSept']])
         kckr_lim = np.array([self.params.deltas['InjKckr']])
 
-        up = np.concatenate((corr_lim, sept_lim, kckr_lim))
+        up = np.concatenate((quad_lim, corr_lim, sept_lim, kckr_lim))
         down = -1 * up
-        self.set_limits(upper=up, lower=down)
+        # 1e6 added to emulate Inf limits
+        self.set_limits(upper=up*1e6, lower=down*1e6)
+        self.set_deltas(dmax=up)
 
         self.reference = np.array([h.value for h in self.hands])
-        self.reset_wait_buffer()
+        self.position = self.reference
+        # self.reset_wait_buffer()
         self.init_obj_func()
 
     def get_pvs(self):
@@ -225,7 +336,8 @@ class SAInjection(SimulAnneal):
         _time.sleep(self.params.wait_change)
         self.pv_nr_sample.value = self.params.nturns
 
-        self.eyes = PV(self.sofb.sumsignal, auto_monitor=True)
+        # self.eyes = PV(self.sofb.sumsignal, auto_monitor=True)
+        self.eyes = self.dcct.current
 
         self.hands = [PV(c) for c in self.corrs.sp]
         self.hands.append(PV(self.kckr.sp))
@@ -264,13 +376,23 @@ class SAInjection(SimulAnneal):
 
     def init_obj_func(self):
         """."""
-        self.f_init = -np.sum(self.eyes.value[:self.bpm_idx])
+        # self.f_init = -np.sum(self.eyes.value[:self.bpm_idx])
+        pulse_cnt = []
+        for _ in range(self.params.nbuffer):
+            pulse_cnt.append(np.mean(self.eyes))
+            _time.sleep(1/self.params.freq)
+        self.f_init = -np.mean(pulse_cnt)
 
     def calc_obj_fun(self):
         """."""
         f_out = []
+        pulse_cnt = []
         self.set_change(self.get_change())
         _time.sleep(self.params.wait_change)
-        self.reset_wait_buffer()
-        f_out = np.sum(self.eyes.value[:self.bpm_idx])
+        # self.reset_wait_buffer()
+        for _ in range(self.params.nbuffer):
+            pulse_cnt.append(np.mean(self.eyes))
+            _time.sleep(1/self.params.freq)
+        # f_out = np.sum(self.eyes.value[:self.bpm_idx])
+        f_out = np.mean(pulse_cnt)
         return - f_out
