@@ -135,21 +135,20 @@ class FitQuads():
 class FindSeptQuad(SimulAnneal):
 
     def __init__(self, tb_model, bo_model, corr_names, elems,
-                 respmat, disp=None, nturns=1, save=False, in_sept=True):
+                 respmat, disp, nturns=1, save=False, in_sept=True):
         super().__init__(save=save)
         self.tb_model = tb_model
         self.bo_model = bo_model
         self.corr_names = corr_names
         self.elems = elems
         self.nturns = nturns
-        self.respmat = respmat
-        self.disp = disp
+        self.respmat = self.merge_disp_respm(respmat, disp)
         self.in_sept = in_sept
 
     def initialization(self):
         return
 
-    def calc_obj_fun_respmat(self):
+    def calc_obj_fun(self):
         ksqs, kxl, kyl, ksxl, ksyl = self._position
         tbmod = self.set_ks_qs(self.tb_model, ksqs)
         tbmod = self.set_k_septum(
@@ -157,24 +156,10 @@ class FindSeptQuad(SimulAnneal):
         respmat = calc_model_respmatTBBO(
             tbmod, tbmod + self.bo_model, self.corr_names, self.elems,
             meth='middle', ishor=True)
+        disp = self.calc_disp(tbmod, self.bo_model)
+        respmat = self.merge_disp_respm(respmat, disp)
         respmat -= self.respmat
         return np.sqrt(np.mean(respmat*respmat))
-
-    def calc_obj_fun_disp(self):
-        ksqs, kxl, kyl, ksxl, ksyl = self._position
-        tbmod = self.set_ks_qs(self.tb_model, ksqs)
-        tbmod = self.set_k_septum(
-            tbmod, kxl, kyl, ksxl, ksyl)
-        disp = self.calc_disp(tbmod, self.bo_model)
-        disp -= self.disp
-        return np.sqrt(np.mean(disp*disp))
-
-    def calc_obj_fun(self):
-        fun_respmat = self.calc_obj_fun_respmat()
-        fun_disp = self.calc_obj_fun_disp()
-        wrespm = 1
-        wdisp = 1
-        return (wrespm*fun_respmat + wdisp*fun_disp) / (wrespm+wdisp)
 
     def set_k_septum(self, tbmodel, kxl, kyl, ksxl, ksyl):
         tbmod = _dcopy(tbmodel)
