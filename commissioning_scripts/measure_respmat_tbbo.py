@@ -43,11 +43,11 @@ class MeasureRespMatTBBO:
 
     @property
     def trajx(self):
-        return np.hstack([self.tb_sofb.trajx, self.bo_sofb.trajx])
+        return np.hstack([self.tb_sofb.trajx, self.bo_sofb.trajx_idx])
 
     @property
     def trajy(self):
-        return np.hstack([self.tb_sofb.trajy, self.bo_sofb.trajy])
+        return np.hstack([self.tb_sofb.trajy, self.bo_sofb.trajy_idx])
 
     def wait(self, timeout=10):
         self.tb_sofb.wait(timeout=timeout)
