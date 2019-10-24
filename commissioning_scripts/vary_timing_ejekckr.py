@@ -21,19 +21,23 @@ class Params:
         st += '{0:30s}= {1:9.3f}\n'.format('final delay [us]', self.delay_fin)
         st += '{0:30s}= {1:9.3f}\n'.format('step delay [us]', self.delay_step)
         st += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
-        st += '{0:30s}= {1:9.3f}\n'.format('SOFB timeout', self.sofb_timeout)
-        st += '{0:30s}= {1:9.3f}\n'.format('Wait Kicker', self.wait_kckr)
+        st += '{0:30s}= {1:9.3f}\n'.format(
+            'SOFB timeout [s]', self.sofb_timeout)
+        st += '{0:30s}= {1:9.3f}\n'.format(
+            'Kicker Voltage [V]', self.kckr_voltage)
+        st += '{0:30s}= {1:9.3f}\n'.format('Wait Kicker [s]', self.wait_kckr)
         return st
 
 
-class ControlRF:
+class FindKickerDelay:
     def __init__(self):
         self.params = Params()
         self.sofb = SOFB('BO')
-        self.kicker = Kicker('BO-48D:TI-EjeKckr')
+        self.kicker = Kicker('BO-48D:PU-EjeKckr')
         self.data_sum = []
         self.data_orbx = []
         self.data_orby = []
+        self.data_delay = []
 
     @property
     def connected(self):
@@ -60,31 +64,42 @@ class ControlRF:
         self.data_sum = []
         self.data_orbx = []
         self.data_orby = []
+        self.data_delay = []
         self.kicker.voltage = self.params.kckr_voltage
         print('Starting Loop')
         for val in var_spam:
+            print('delay -> {0:9.4f} '.format(val), end='')
             self.kicker.delay = val
-            self.kicker.turnoff_pulses()
+            print(' turn off pulse ', end='')
+            self.kicker.turnoff_pulse()
             _time.sleep(self.params.wait_kckr)
+            print(' reset sofb ', end='')
             self.sofb.reset()
+            _time.sleep(2)
             self.sofb.wait(self.params.sofb_timeout)
+            print(' measure orbit ', end='')
             data_sum = [self.sofb.sum, ]
             data_orbx = [self.sofb.trajx, ]
             data_orby = [self.sofb.trajy, ]
 
-            self.kicker.turnon_pulses()
+            print(' turn on pulse ', end='')
+            self.kicker.turnon_pulse()
+            _time.sleep(self.params.wait_kckr)
+            print(' reset sofb ', end='')
             self.sofb.reset()
+            _time.sleep(2)
             self.sofb.wait(self.params.sofb_timeout)
+            print(' measure orbit ', end='')
             data_sum.append(self.sofb.sum)
             data_orbx.append(self.sofb.trajx)
             data_orby.append(self.sofb.trajy)
+            print(' end')
 
             self.data_sum.append(data_sum)
             self.data_orbx.append(data_orbx)
             self.data_orby.append(data_orby)
-            std = np.std(data_orbx[1] - data_orbx[0])
-            print('Delay [us]: {0:8.3f} -> orb std [um]: {1:8.3f}'.format(
-                    self.kicker.delay, std))
+            self.data_delay.append(self.kicker.delay)
+            print('')
         print('Finished!')
 
     def save_data(self, fname):
@@ -93,6 +108,7 @@ class ControlRF:
             data_orbx=self.data_orbx,
             data_orby=self.data_orby,
             data_sum=self.data_sum,
+            data_delay=self.data_delay,
             delay_spam=self.delay_spam,
             )
         if not fname.endswith('.pickle'):
@@ -104,6 +120,6 @@ class ControlRF:
     def load_data(fname):
         if not fname.endswith('.pickle'):
             fname += '.pickle'
-        with open(fname, 'rb') as f:
-            data = _pickle.load(f)
+        with open(fname, 'rb') as fil:
+            data = _pickle.load(fil)
         return data
