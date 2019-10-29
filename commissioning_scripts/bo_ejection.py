@@ -134,9 +134,9 @@ class FindEjeBO:
                 j = idx2
                 if self.params.sweep_order == self.params.SWEEPORDER.Together:
                     j = (idx1+idx2) % kckr.shape[1]
-                # self.ejekckr.voltage = kckr[i, j]
-                # self.ejeseptf.voltage = septf[i, j]
-                # self.ejeseptg.voltage = septg[i, j]
+                self.ejekckr.voltage = kckr[i, j]
+                self.ejeseptf.voltage = septf[i, j]
+                self.ejeseptg.voltage = septg[i, j]
                 print(
                     '{0:03d}/{1:03d} :{2:7.2f}, {3:7.2f}, {4:7.2f} '.format(
                         idx1 + idx2*kckr.shape[0],
