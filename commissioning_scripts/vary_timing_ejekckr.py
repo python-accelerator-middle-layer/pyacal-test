@@ -46,28 +46,28 @@ class FindKickerDelay:
         return conn
 
     @property
-    def delay_spam(self):
+    def delay_span(self):
         ini = self.params.delay_ini
         fin = self.params.delay_fin
         dlt = self.params.delay_step
-        return self._calc_spam(ini, fin, dlt)
+        return self._calc_span(ini, fin, dlt)
 
     @staticmethod
-    def _calc_spam(ini, fin, dlt):
+    def _calc_span(ini, fin, dlt):
         npts = abs(int((fin - ini)/dlt)) + 1
         return np.linspace(ini, fin, npts)
 
     def do_scan(self):
         self.sofb.nr_points = self.params.nrpulses
 
-        var_spam = self.delay_spam
+        var_span = self.delay_span
         self.data_sum = []
         self.data_orbx = []
         self.data_orby = []
         self.data_delay = []
         self.kicker.voltage = self.params.kckr_voltage
         print('Starting Loop')
-        for val in var_spam:
+        for val in var_span:
             print('delay -> {0:9.4f} '.format(val), end='')
             self.kicker.delay = val
             print(' turn off pulse ', end='')
@@ -109,7 +109,7 @@ class FindKickerDelay:
             data_orby=self.data_orby,
             data_sum=self.data_sum,
             data_delay=self.data_delay,
-            delay_spam=self.delay_spam,
+            delay_span=self.delay_span,
             )
         if not fname.endswith('.pickle'):
             fname += '.pickle'

@@ -65,21 +65,21 @@ class ControlRF:
         return conn
 
     @property
-    def phase_spam(self):
+    def phase_span(self):
         ini = self.params.phase_ini
         fin = self.params.phase_fin
         dlt = self.params.phase_delta
-        return self._calc_spam(ini, fin, dlt)
+        return self._calc_span(ini, fin, dlt)
 
     @property
-    def voltage_spam(self):
+    def voltage_span(self):
         ini = self.params.voltage_ini
         fin = self.params.voltage_fin
         dlt = self.params.voltage_delta
-        return self._calc_spam(ini, fin, dlt)
+        return self._calc_span(ini, fin, dlt)
 
     @staticmethod
-    def _calc_spam(ini, fin, dlt):
+    def _calc_span(ini, fin, dlt):
         npts = abs(int((fin - ini)/dlt)) + 1
         return np.linspace(ini, fin, npts)
 
@@ -103,7 +103,7 @@ class ControlRF:
         print('Turning DCCT On')
         self.dcct.turn_on(self.params.dcct_timeout)
 
-        var_spam = self.phase_spam if isphase else self.voltage_spam
+        var_span = self.phase_span if isphase else self.voltage_span
         self.data_phase = []
         self.data_voltage = []
         self.data_power = []
@@ -112,7 +112,7 @@ class ControlRF:
         self.data_orbx = []
         self.data_orby = []
         print('Starting Loop')
-        for val in var_spam:
+        for val in var_span:
             self._vary(val, isphase=isphase)
             _time.sleep(self.params.wait_rf)
             dcct_data = np.zeros(nrpul)
@@ -158,8 +158,8 @@ class ControlRF:
             data_orbx=self.data_orbx,
             data_orby=self.data_orby,
             data_sum=self.data_sum,
-            phase_spam=self.phase_spam,
-            voltage_spam=self.voltage_spam,
+            phase_span=self.phase_span,
+            voltage_span=self.voltage_span,
             )
         if not fname.endswith('.pickle'):
             fname += '.pickle'
