@@ -3,7 +3,7 @@ from collections import namedtuple
 import pickle as _pickle
 import numpy as np
 
-from pymodels.middlelayer.devices import Kicker, Septum, Screen
+from pymodels.middlelayer.devices import Kicker, Septum, Screen, BPM
 
 
 class Params:
@@ -58,6 +58,7 @@ class FindEjeBO:
     def __init__(self):
         self.params = Params()
         self.screen = Screen('TS-01:DI-Scrn')
+        self.bpm = BPM('TS-01:DI-BPM')
         self.ejekckr = Kicker('BO-48D:PU-EjeKckr')
         self.ejeseptf = Septum('TS-01:PU-EjeSeptF')
         self.ejeseptg = Septum('TS-01:PU-EjeSeptG')
@@ -65,10 +66,15 @@ class FindEjeBO:
         self.data_ejekckr = []
         self.data_ejeseptf = []
         self.data_ejeseptg = []
+        self.data_bpm_anta = []
+        self.data_bpm_antb = []
+        self.data_bpm_antc = []
+        self.data_bpm_antd = []
 
     @property
     def connected(self):
         conn = self.screen.connected
+        conn &= self.bpm.connected
         conn &= self.ejekckr.connected
         conn &= self.ejeseptf.connected
         conn &= self.ejeseptg.connected
@@ -114,6 +120,11 @@ class FindEjeBO:
         self.data_ejekckr = []
         self.data_ejeseptf = []
         self.data_ejeseptg = []
+        self.data_bpm_anta = []
+        self.data_bpm_antb = []
+        self.data_bpm_antc = []
+        self.data_bpm_antd = []
+
         print('Starting Loop')
         print('{0:9s}{1:^7s}, {2:^7s}, {3:^7s} '.format(
             '', 'Kckr', 'SeptF', 'SeptG'))
@@ -136,6 +147,10 @@ class FindEjeBO:
                 for _ in range(self.params.nrpulses):
                     print('.', end='')
                     self.data_image.append(self.screen.image)
+                    self.data_bpm_anta.append(self.bpm.sp_anta)
+                    self.data_bpm_antb.append(self.bpm.sp_antb)
+                    self.data_bpm_antc.append(self.bpm.sp_antc)
+                    self.data_bpm_antd.append(self.bpm.sp_antd)
                     self.data_ejekckr.append(self.ejekckr.voltage)
                     self.data_ejeseptf.append(self.ejeseptf.voltage)
                     self.data_ejeseptg.append(self.ejeseptg.voltage)
@@ -146,6 +161,10 @@ class FindEjeBO:
     def save_data(self, fname):
         data = dict(
             params=self.params,
+            data_bpm_anta=self.data_bpm_anta,
+            data_bpm_antb=self.data_bpm_antb,
+            data_bpm_antc=self.data_bpm_antc,
+            data_bpm_antd=self.data_bpm_antd,
             data_image=self.data_image,
             data_ejekckr=self.data_ejekckr,
             data_ejeseptf=self.data_ejeseptf,
