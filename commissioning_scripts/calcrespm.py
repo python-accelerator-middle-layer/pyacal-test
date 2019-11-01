@@ -42,7 +42,6 @@ class CalcRespm():
                 closed_orbit=[0, 0, 0, 0])
 
         T = np.array(T)
-
         total_len_ch = np.zeros(self.nch)
         total_len_cv = np.zeros(self.ncv)
         for jx in range(self.nch):
@@ -68,7 +67,6 @@ class CalcRespm():
         return np.concatenate((Mx, My), axis=1)
 
     def _getC(self, T, DM, R, row, col, total_len):
-
         if row > col:
             Rij = np.dot(R, np.linalg.inv(T[col, :, :]))
         else:
@@ -77,7 +75,6 @@ class CalcRespm():
                     T[-1, :, :], np.linalg.inv(T[col, :, :])))
 
         c = np.dot(np.linalg.inv(DM), Rij)
-
         cxx = c[0, 1] - total_len * c[0, 0] / 2
         cyx = c[2, 1] - total_len * c[2, 0] / 2
         cxy = c[0, 3] - total_len * c[0, 2] / 2
