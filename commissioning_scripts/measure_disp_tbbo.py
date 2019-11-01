@@ -7,7 +7,7 @@ from siriuspy.epics import PV
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.csdevice.orbitcorr import SOFBFactory
 
-from pymodels.middlelayer.devices import SOFB, Klystron
+from pymodels.middlelayer.devices import SOFB, LiLLRF
 from apsuite.optimization import SimulAnneal
 
 
@@ -27,7 +27,7 @@ class MeasureDispTBBO:
         self.bo_sofb = SOFB('BO')
         self.tb_sofb = SOFB('TB')
         self.params = ParamsDisp()
-        self.kly = Klystron()
+        self.kly = LiLLRF('Klystron2')
 
     @property
     def energy(self):
