@@ -1,3 +1,6 @@
+#!/usr/bin/env python-sirius
+"""."""
+
 import time as _time
 from threading import Thread as _Thread, Event as _Event
 import pickle as _pickle

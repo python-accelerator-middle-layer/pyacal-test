@@ -1,19 +1,23 @@
+#!/usr/bin/env python-sirius
+"""."""
+
 import time as _time
 from threading import Thread as _Thread, Event as _Event
 import numpy as np
 
 import pyaccel
-from siriuspy.epics import PV
 from siriuspy.namesys import SiriusPVName as _PVName
-from siriuspy.csdevice.orbitcorr import SOFBFactory
 
 from pymodels.middlelayer.devices import SOFB, LiLLRF
 from apsuite.optimization import SimulAnneal
+from apsuite.commissioning_scripts.base import BaseClass
 
 
 class ParamsDisp:
+    """."""
 
     def __init__(self):
+        """."""
         self.klystron_delta = -2
         self.wait_time = 40
         self.timeout_orb = 10
@@ -21,52 +25,62 @@ class ParamsDisp:
         self.klystron_excit_coefs = [1.098, 66.669]
 
 
-class MeasureDispTBBO:
+class MeasureDispTBBO(BaseClass):
+    """."""
 
     def __init__(self):
-        self.bo_sofb = SOFB('BO')
-        self.tb_sofb = SOFB('TB')
-        self.params = ParamsDisp()
-        self.kly = LiLLRF('Klystron2')
+        """."""
+        super().__init__(ParamsDisp())
+        self.devices = {
+            'bo_sofb': SOFB('BO'),
+            'tb_sofb': SOFB('TB'),
+            'kly': LiLLRF('Klystron2'),
+            }
 
     @property
     def energy(self):
-        return np.polyval(self.params.klystron_excit_coefs, self.kly.amplitude)
-
-    @property
-    def connected(self):
-        conn = self.bo_sofb.connected
-        conn &= self.tb_sofb.connected
-        return conn
+        """."""
+        return np.polyval(
+            self.params.klystron_excit_coefs, self.devices['kly'].amplitude)
 
     @property
     def trajx(self):
-        return np.hstack([self.tb_sofb.trajx, self.bo_sofb.trajx_idx])
+        """."""
+        return np.hstack(
+            [self.devices['tb_sofb'].trajx, self.devices['bo_sofb'].trajx_idx])
 
     @property
     def trajy(self):
-        return np.hstack([self.tb_sofb.trajy, self.bo_sofb.trajy_idx])
+        """."""
+        return np.hstack(
+            [self.devices['tb_sofb'].trajy, self.devices['bo_sofb'].trajy_idx])
 
     @property
     def nr_points(self):
-        return min(self.tb_sofb.nr_points, self.bo_sofb.nr_points)
+        """."""
+        return min(
+            self.devices['tb_sofb'].nr_points,
+            self.devices['bo_sofb'].nr_points)
 
     @nr_points.setter
     def nr_points(self, value):
-        self.tb_sofb.nr_points = int(value)
-        self.bo_sofb.nr_points = int(value)
+        self.devices['tb_sofb'].nr_points = int(value)
+        self.devices['bo_sofb'].nr_points = int(value)
 
     def wait(self, timeout=10):
-        self.tb_sofb.wait(timeout=timeout)
-        self.bo_sofb.wait(timeout=timeout)
+        """."""
+        self.devices['tb_sofb'].wait(timeout=timeout)
+        self.devices['bo_sofb'].wait(timeout=timeout)
 
     def reset(self, wait=0):
+        """."""
         _time.sleep(wait)
-        self.tb_sofb.reset()
-        self.bo_sofb.reset()
+        self.devices['tb_sofb'].reset()
+        self.devices['bo_sofb'].reset()
         _time.sleep(1)
 
     def measure_dispersion(self):
+        """."""
         self.nr_points = self.params.num_points
         delta = self.params.klystron_delta
 
@@ -75,32 +89,36 @@ class MeasureDispTBBO:
         orb = [-np.hstack([self.trajx, self.trajy]), ]
         ene0 = self.energy
 
-        origamp = self.kly.amplitude
-        self.kly.amplitude = origamp + delta
+        origamp = self.devices['kly'].amplitude
+        self.devices['kly'].amplitude = origamp + delta
 
         self.reset(self.params.wait_time)
         self.wait(self.params.timeout_orb)
         orb.append(np.hstack([self.trajx, self.trajy]))
         ene1 = self.energy
 
-        self.kly.amplitude = origamp
+        self.devices['kly'].amplitude = origamp
 
         d_ene = ene1/ene0 - 1
         return np.array(orb).sum(axis=0) / d_ene
 
 
 class ParamsDispMat:
+    """."""
 
     def __init__(self):
+        """."""
         self.deltas = {'QF': 0.1, 'QD': 0.1}
 
 
-class MeasureDispMatTBBO:
+class MeasureDispMatTBBO(BaseClass):
+    """."""
 
     def __init__(self, quads):
+        """."""
+        super().__init__(ParamsDispMat())
         self._all_corrs = quads
         self.measdisp = MeasureDispTBBO()
-        self.params = ParamsDispMat()
         self._matrix = dict()
         self._corrs_to_measure = []
         self._thread = _Thread(target=self._measure_matrix_thread)
@@ -108,16 +126,19 @@ class MeasureDispMatTBBO:
 
     @property
     def connected(self):
+        """."""
         conn = self.measdisp.connected
         conn &= all(map(lambda x: x.connected, self._all_corrs.values()))
         return conn
 
     @property
     def corr_names(self):
+        """."""
         return sorted(self._all_corrs.keys())
 
     @property
     def corrs_to_measure(self):
+        """."""
         if not self._corrs_to_measure:
             return sorted(self._all_corrs.keys() - self._matrix.keys())
         return self._corrs_to_measure
@@ -128,6 +149,7 @@ class MeasureDispMatTBBO:
 
     @property
     def matrix(self):
+        """."""
         mat = np.zeros(
             [len(self._all_corrs), 2*self.measdisp.trajx.size], dtype=float)
         for i, cor in enumerate(self.corr_names):
@@ -138,9 +160,11 @@ class MeasureDispMatTBBO:
 
     @property
     def measuring(self):
+        """."""
         return self._thread.is_alive()
 
     def start(self):
+        """."""
         if not self._thread.is_alive():
             self._thread = _Thread(
                 target=self._measure_matrix_thread, daemon=True)
@@ -148,6 +172,7 @@ class MeasureDispMatTBBO:
             self._thread.start()
 
     def stop(self):
+        """."""
         self._stopped.set()
 
     def _measure_matrix_thread(self):
@@ -159,7 +184,7 @@ class MeasureDispMatTBBO:
             delta = self._get_delta(cor)
             origkl = self._all_corrs[cor].strength
             for sig in (1, -1):
-                print('  pos' if sig>0 else '  neg\n', end='')
+                print('  pos' if sig > 0 else '  neg\n', end='')
                 self._all_corrs[cor].strength = origkl + sig * delta / 2
                 orb.append(sig*self.measdisp.measure_dispersion())
                 if self._stopped.is_set():
@@ -180,8 +205,8 @@ class MeasureDispMatTBBO:
         print('ERR: delta not found!')
         return 0.0
 
-
 def calc_model_dispersionTBBO(model, bpms):
+    """."""
     dene = 0.0001
     rout, *_ = pyaccel.tracking.line_pass(
         model,
@@ -195,6 +220,7 @@ def calc_model_dispersionTBBO(model, bpms):
 
 def calc_model_dispmatTBBO(tb_mod, bo_mod, corr_names, elems, nturns=3,
                            dKL=None):
+    """."""
     dKL = 0.0001 if dKL is None else dKL
 
     model = tb_mod + nturns*bo_mod
@@ -214,9 +240,11 @@ def calc_model_dispmatTBBO(tb_mod, bo_mod, corr_names, elems, nturns=3,
 
 
 class FindSeptQuad(SimulAnneal):
+    """."""
 
     def __init__(self, tb_model, bo_model, corr_names, elems,
                  respmat, nturns=5, save=False, in_sept=True):
+        """."""
         super().__init__(save=save)
         self.tb_model = tb_model
         self.bo_model = bo_model
@@ -227,9 +255,11 @@ class FindSeptQuad(SimulAnneal):
         self.in_sept = in_sept
 
     def initialization(self):
+        """."""
         return
 
     def calc_obj_fun(self):
+        """."""
         if self.in_sept:
             sept_idx = pyaccel.lattice.find_indices(
                 self.tb_model, 'fam_name', 'InjSept')

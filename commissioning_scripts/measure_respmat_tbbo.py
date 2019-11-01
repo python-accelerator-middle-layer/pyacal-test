@@ -1,20 +1,23 @@
-import time as _time
+#!/usr/bin/env python-sirius
+"""."""
+
 from threading import Thread as _Thread, Event as _Event
 import numpy as np
 
 import pyaccel
 
-from siriuspy.epics import PV
 from siriuspy.namesys import SiriusPVName as _PVName
-from siriuspy.csdevice.orbitcorr import SOFBFactory
 
 from pymodels.middlelayer.devices import SOFB
 from apsuite.optimization import SimulAnneal
+from apsuite.commissioning_scripts.base import BaseClass
 
 
 class Params:
+    """."""
 
     def __init__(self):
+        """."""
         self.deltas = {
             'CH': 0.3e-3, 'CV': 0.15e-3, 'InjSept': 0.3e-3, 'InjKckr': 0.3e-3}
         self.wait_time = 2
@@ -22,48 +25,52 @@ class Params:
         self.num_points = 10
 
 
-class MeasureRespMatTBBO:
+class MeasureRespMatTBBO(BaseClass):
+    """."""
 
     def __init__(self, all_corrs):
-        self.bo_sofb = SOFB('BO')
-        self.tb_sofb = SOFB('TB')
+        """."""
+        super().__init__(Params())
+        self.devices = {
+            'bo_sofb': SOFB('BO'),
+            'tb_sofb': SOFB('TB'),
+            }
         self._all_corrs = all_corrs
-        self.params = Params()
         self._matrix = dict()
         self._corrs_to_measure = []
         self._thread = _Thread(target=self._measure_matrix_thread)
         self._stopped = _Event()
 
     @property
-    def connected(self):
-        conn = self.bo_sofb.connected
-        conn &= self.tb_sofb.connected
-        conn &= all(map(lambda x: x.connected, self._all_corrs.values()))
-        return conn
-
-    @property
     def trajx(self):
-        return np.hstack([self.tb_sofb.trajx, self.bo_sofb.trajx_idx])
+        """."""
+        return np.hstack(
+            [self.devices['tb_sofb'].trajx, self.devices['bo_sofb'].trajx_idx])
 
     @property
     def trajy(self):
-        return np.hstack([self.tb_sofb.trajy, self.bo_sofb.trajy_idx])
+        """."""
+        return np.hstack(
+            [self.devices['tb_sofb'].trajy, self.devices['bo_sofb'].trajy_idx])
 
     def wait(self, timeout=10):
-        self.tb_sofb.wait(timeout=timeout)
-        self.bo_sofb.wait(timeout=timeout)
+        """."""
+        self.devices['tb_sofb'].wait(timeout=timeout)
+        self.devices['bo_sofb'].wait(timeout=timeout)
 
     def reset(self, wait=0):
+        """."""
         if self._stopped.wait(wait):
             return False
-        self.tb_sofb.reset()
-        self.bo_sofb.reset()
+        self.devices['tb_sofb'].reset()
+        self.devices['bo_sofb'].reset()
         if self._stopped.wait(1):
             return False
         return True
 
     @property
     def corr_names(self):
+        """."""
         corrs = sorted([
             c for c in self._all_corrs if not c.dev.startswith('CV')])
         corrs.extend(sorted([
@@ -72,16 +79,19 @@ class MeasureRespMatTBBO:
 
     @property
     def corrs_to_measure(self):
+        """."""
         if not self._corrs_to_measure:
             return sorted(self._all_corrs.keys() - self._matrix.keys())
         return self._corrs_to_measure
 
     @corrs_to_measure.setter
     def corrs_to_measure(self, value):
+        """."""
         self._corrs_to_measure = sorted([_PVName(n) for n in value])
 
     @property
     def matrix(self):
+        """."""
         mat = np.zeros([len(self._all_corrs), 2*self.trajx.size], dtype=float)
         for i, cor in enumerate(self.corr_names):
             line = self._matrix.get(cor)
@@ -91,18 +101,23 @@ class MeasureRespMatTBBO:
 
     @property
     def measuring(self):
+        """."""
         return self._thread.is_alive()
 
     @property
     def nr_points(self):
-        return min(self.tb_sofb.nr_points, self.bo_sofb.nr_points)
+        """."""
+        return min(
+            self.devices['tb_sofb'].nr_points,
+            self.devices['bo_sofb'].nr_points)
 
     @nr_points.setter
     def nr_points(self, value):
-        self.tb_sofb.nr_points = int(value)
-        self.bo_sofb.nr_points = int(value)
+        self.devices['tb_sofb'].nr_points = int(value)
+        self.devices['bo_sofb'].nr_points = int(value)
 
     def start(self):
+        """."""
         if not self._thread.is_alive():
             self._thread = _Thread(
                 target=self._measure_matrix_thread, daemon=True)
@@ -110,6 +125,7 @@ class MeasureRespMatTBBO:
             self._thread.start()
 
     def stop(self):
+        """."""
         self._stopped.set()
 
     def _measure_matrix_thread(self):
@@ -147,6 +163,7 @@ class MeasureRespMatTBBO:
 
 def calc_model_respmatTBBO(tb_mod, model, corr_names, elems, meth='middle',
                            ishor=True):
+    """."""
     bpms = np.array(pyaccel.lattice.find_indices(model, 'fam_name', 'BPM'))[1:]
     _, cumulmat = pyaccel.tracking.find_m44(
         model, indices='open', closed_orbit=[0, 0, 0, 0])
@@ -210,9 +227,11 @@ def _get_respmat_line(cumul_mat, indcs, bpms, length,
 
 
 class FindSeptQuad(SimulAnneal):
+    """."""
 
     def __init__(self, tb_model, bo_model, corr_names, elems,
                  respmat, nturns=5, save=False, in_sept=True):
+        """."""
         super().__init__(save=save)
         self.tb_model = tb_model
         self.bo_model = bo_model
@@ -223,9 +242,11 @@ class FindSeptQuad(SimulAnneal):
         self.in_sept = in_sept
 
     def initialization(self):
+        """."""
         return
 
     def calc_obj_fun(self):
+        """."""
         if self.in_sept:
             sept_idx = pyaccel.lattice.find_indices(
                 self.tb_model, 'fam_name', 'InjSept')
@@ -235,7 +256,6 @@ class FindSeptQuad(SimulAnneal):
         pyaccel.lattice.set_attribute(self.tb_model, 'K', sept_idx, k)
         pyaccel.lattice.set_attribute(self.tb_model, 'Ks', sept_idx, ks)
         respmat = calc_model_respmatTBBO(
-            self.tb_model, self.bo_model, self.corr_names, self.elems,
-            nturns=self.nturns)
+            self.tb_model, self.bo_model, self.corr_names, self.elems)
         respmat -= self.respmat
         return np.sqrt(np.mean(respmat*respmat))
