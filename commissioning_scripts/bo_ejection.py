@@ -4,6 +4,7 @@ import pickle as _pickle
 import numpy as np
 
 from pymodels.middlelayer.devices import Kicker, Septum, Screen, BPM
+from apsuite.commissioning_scripts.base import BaseClass
 
 
 class Params:
@@ -54,31 +55,21 @@ class Params:
         return st
 
 
-class FindEjeBO:
+class FindEjeBO(BaseClass):
     def __init__(self):
-        self.params = Params()
-        self.screen = Screen('TS-01:DI-Scrn')
-        self.bpm = BPM('TS-01:DI-BPM')
-        self.ejekckr = Kicker('BO-48D:PU-EjeKckr')
-        self.ejeseptf = Septum('TS-01:PU-EjeSeptF')
-        self.ejeseptg = Septum('TS-01:PU-EjeSeptG')
-        self.data_image = []
-        self.data_ejekckr = []
-        self.data_ejeseptf = []
-        self.data_ejeseptg = []
-        self.data_bpm_anta = []
-        self.data_bpm_antb = []
-        self.data_bpm_antc = []
-        self.data_bpm_antd = []
-
-    @property
-    def connected(self):
-        conn = self.screen.connected
-        conn &= self.bpm.connected
-        conn &= self.ejekckr.connected
-        conn &= self.ejeseptf.connected
-        conn &= self.ejeseptg.connected
-        return conn
+        super().__init__(Params())
+        self.devices = {
+            'screen': Screen('TS-01:DI-Scrn'),
+            'bpm': BPM('TS-01:DI-BPM'),
+            'ejekckr': Kicker('BO-48D:PU-EjeKckr'),
+            'ejeseptf': Septum('TS-01:PU-EjeSeptF'),
+            'ejeseptg': Septum('TS-01:PU-EjeSeptG'),
+            }
+        self.data = {
+            'image': [],
+            'ejekckr': [], 'ejeseptf': [], 'ejeseptg': [],
+            'bpm_anta': [], 'bpm_antb': [], 'bpm_antc': [], 'bpm_antd': [],
+            }
 
     @property
     def span_ejekckr(self):
@@ -116,14 +107,14 @@ class FindEjeBO:
             septf = septf.T
             septg = septg.T
 
-        self.data_image = []
-        self.data_ejekckr = []
-        self.data_ejeseptf = []
-        self.data_ejeseptg = []
-        self.data_bpm_anta = []
-        self.data_bpm_antb = []
-        self.data_bpm_antc = []
-        self.data_bpm_antd = []
+        self.data['image'] = []
+        self.data['ejekckr'] = []
+        self.data['ejeseptf'] = []
+        self.data['ejeseptg'] = []
+        self.data['bpm_anta'] = []
+        self.data['bpm_antb'] = []
+        self.data['bpm_antc'] = []
+        self.data['bpm_antd'] = []
 
         print('Starting Loop')
         print('{0:9s}{1:^7s}, {2:^7s}, {3:^7s} '.format(
@@ -134,9 +125,9 @@ class FindEjeBO:
                 j = idx2
                 if self.params.sweep_order == self.params.SWEEPORDER.Together:
                     j = (idx1+idx2) % kckr.shape[1]
-                self.ejekckr.voltage = kckr[i, j]
-                self.ejeseptf.voltage = septf[i, j]
-                self.ejeseptg.voltage = septg[i, j]
+                self.devices['ejekckr'].voltage = kckr[i, j]
+                self.devices['ejeseptf'].voltage = septf[i, j]
+                self.devices['ejeseptg'].voltage = septg[i, j]
                 print(
                     '{0:03d}/{1:03d} :{2:7.2f}, {3:7.2f}, {4:7.2f} '.format(
                         idx1 + idx2*kckr.shape[0],
@@ -146,39 +137,17 @@ class FindEjeBO:
                 print('   Measuring', end='')
                 for _ in range(self.params.nrpulses):
                     print('.', end='')
-                    self.data_image.append(self.screen.image)
-                    self.data_bpm_anta.append(self.bpm.sp_anta)
-                    self.data_bpm_antb.append(self.bpm.sp_antb)
-                    self.data_bpm_antc.append(self.bpm.sp_antc)
-                    self.data_bpm_antd.append(self.bpm.sp_antd)
-                    self.data_ejekckr.append(self.ejekckr.voltage)
-                    self.data_ejeseptf.append(self.ejeseptf.voltage)
-                    self.data_ejeseptg.append(self.ejeseptg.voltage)
+                    self.data['image'].append(self.devices['screen'].image)
+                    self.data['bpm_anta'].append(self.devices['bpm'].sp_anta)
+                    self.data['bpm_antb'].append(self.devices['bpm'].sp_antb)
+                    self.data['bpm_antc'].append(self.devices['bpm'].sp_antc)
+                    self.data['bpm_antd'].append(self.devices['bpm'].sp_antd)
+                    self.data['ejekckr'].append(
+                        self.devices['ejekckr'].voltage)
+                    self.data['ejeseptf'].append(
+                        self.devices['ejeseptf'].voltage)
+                    self.data['ejeseptg'].append(
+                        self.devices['ejeseptg'].voltage)
                     _time.sleep(0.5)
                 print('done!')
         print('Finished!')
-
-    def save_data(self, fname):
-        data = dict(
-            params=self.params,
-            data_bpm_anta=self.data_bpm_anta,
-            data_bpm_antb=self.data_bpm_antb,
-            data_bpm_antc=self.data_bpm_antc,
-            data_bpm_antd=self.data_bpm_antd,
-            data_image=self.data_image,
-            data_ejekckr=self.data_ejekckr,
-            data_ejeseptf=self.data_ejeseptf,
-            data_ejeseptg=self.data_ejeseptg,
-            )
-        if not fname.endswith('.pickle'):
-            fname += '.pickle'
-        with open(fname, 'wb') as f:
-            _pickle.dump(data, f)
-
-    @staticmethod
-    def load_data(fname):
-        if not fname.endswith('.pickle'):
-            fname += '.pickle'
-        with open(fname, 'rb') as fil:
-            data = _pickle.load(fil)
-        return data
