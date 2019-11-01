@@ -1,6 +1,8 @@
+#!/usr/bin/env python-sirius
+"""."""
+
 import time as _time
 from collections import namedtuple
-import pickle as _pickle
 import numpy as np
 
 from pymodels.middlelayer.devices import Kicker, Septum, Screen, BPM
@@ -8,11 +10,13 @@ from apsuite.commissioning_scripts.base import BaseClass
 
 
 class Params:
+    """."""
 
     SWEEPORDER = namedtuple(
         'SWeepOrder', ['KickerFirst', 'SeptumFirst', 'Together'])(0, 1, 2)
 
     def __init__(self):
+        """."""
         self.ejekckr_ini = 220
         self.ejekckr_fin = 250
         self.ejekckr_step = 2
@@ -26,10 +30,12 @@ class Params:
 
     @property
     def sweep_order_string(self):
+        """."""
         return self.SWEEPORDER._fields[self._sweep_order]
 
     @property
     def sweep_order(self):
+        """."""
         return self._sweep_order
 
     @sweep_order.setter
@@ -40,6 +46,7 @@ class Params:
             self._sweep_order = self.SWEEPORDER._fields.index(value)
 
     def __str__(self):
+        """."""
         st = '{0:30s}= {1:.2f}:{2:.2f}:{3:.2f}\n'.format(
             'EjeKckr Sweep [V]',
             self.ejekckr_ini, self.ejekckr_fin, self.ejekckr_step)
@@ -56,7 +63,10 @@ class Params:
 
 
 class FindEjeBO(BaseClass):
+    """."""
+
     def __init__(self):
+        """."""
         super().__init__(Params())
         self.devices = {
             'screen': Screen('TS-01:DI-Scrn'),
@@ -73,6 +83,7 @@ class FindEjeBO(BaseClass):
 
     @property
     def span_ejekckr(self):
+        """."""
         ini = self.params.ejekckr_ini
         fin = self.params.ejekckr_fin
         dlt = self.params.ejekckr_step
@@ -80,6 +91,7 @@ class FindEjeBO(BaseClass):
 
     @property
     def span_ejeseptf(self):
+        """."""
         ini = self.params.ejeseptf_ini
         fin = self.params.ejeseptf_fin
         dlt = self.params.ejeseptf_step
@@ -87,6 +99,7 @@ class FindEjeBO(BaseClass):
 
     @property
     def span_ejeseptg(self):
+        """."""
         return self.span_ejeseptf + self.params.ejeseptg_volt_offset
 
     @staticmethod
@@ -95,6 +108,7 @@ class FindEjeBO(BaseClass):
         return np.linspace(ini, fin, npts)
 
     def do_scan(self):
+        """."""
         kckr = self.span_ejekckr
         septf = self.span_ejeseptf
         septg = self.span_ejeseptg

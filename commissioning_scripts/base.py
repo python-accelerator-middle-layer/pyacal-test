@@ -1,10 +1,14 @@
+#!/usr/bin/env python-sirius
+"""."""
 
 import pickle as _pickle
 
 
 class BaseClass:
+    """."""
 
     def __init__(self, params=None):
+        """."""
         self.params = params
         self.data = dict()
         self.devices = dict()
@@ -12,11 +16,13 @@ class BaseClass:
 
     @property
     def connected(self):
+        """."""
         conn = all([dev.connected for dev in self.devices.items()])
         conn &= all([pv.connected for pv in self.pvs.items()])
         return conn
 
     def save_data(self, fname):
+        """."""
         data = dict(params=self.params, data=self.data)
         if not fname.endswith('.pickle'):
             fname += '.pickle'
@@ -25,6 +31,7 @@ class BaseClass:
 
     @staticmethod
     def load_data(fname):
+        """."""
         if not fname.endswith('.pickle'):
             fname += '.pickle'
         with open(fname, 'rb') as fil:
