@@ -40,8 +40,10 @@ class MeasureDispTBBO(BaseClass):
             'rf': RF()
             }
         self.pvs = {
-            'injsi': PV('AS-RaMO:TI-EVG:InjSIDelay-SP'),
-            'digts': PV('AS-RaMO:TI-EVG:DigTSDelay-SP'),
+            'injsi_sp': PV('AS-RaMO:TI-EVG:InjSIDelay-SP'),
+            'injsi_rb': PV('AS-RaMO:TI-EVG:InjSIDelay-RB'),
+            'digts_sp': PV('AS-RaMO:TI-EVG:DigTSDelay-SP'),
+            'digts_rb': PV('AS-RaMO:TI-EVG:DigTSDelay-RB'),
             'update_evt': PV('AS-RaMO:TI-EVG:UpdateEvt-Cmd'),
             }
 
@@ -59,6 +61,25 @@ class MeasureDispTBBO(BaseClass):
     def trajy(self):
         """."""
         return self.devices['ts_sofb'].trajy
+
+    @property
+    def injsi(self):
+        return self.pvs['injsi_rb'].value
+
+    @injsi.setter
+    def injsi(self, value):
+        self.pvs['injsi_sp'].value = value
+
+    @property
+    def digts(self):
+        return self.pvs['digts_rb'].value
+
+    @digts.setter
+    def digts(self, value):
+        self.pvs['digts_sp'].value = value
+
+    def update_events(self):
+        self.pvs['update_evt'].value = 1
 
     @property
     def nr_points(self):
@@ -79,9 +100,6 @@ class MeasureDispTBBO(BaseClass):
         self.devices['ts_sofb'].reset()
         _time.sleep(1)
 
-    def update_events(self):
-        self.pvs['update_evt'].value = 1
-
     def calc_delta(self, delta):
         # delta and revolution time in [us]
         t0 = self.HARMONIC_NUM/self.devices['rf'].frequency * 1e6
@@ -97,10 +115,10 @@ class MeasureDispTBBO(BaseClass):
         orb = [-np.hstack([self.trajx, self.trajy]), ]
         ene0 = self.energy
 
-        orig_delay = self.pvs['injsi'].value
-        orig_delay_digts = self.pvs['digts'].value
-        self.pvs['injsi'].value = orig_delay + delta
-        self.pvs['digts'].value = orig_delay_digts + delta
+        orig_delay_injsi = self.injsi
+        orig_delay_digts = self.digts
+        self.injsi = orig_delay_injsi + delta
+        self.digts = orig_delay_digts + delta
 
         self.update_events()
         self.reset(self.params.wait_time)
@@ -109,15 +127,15 @@ class MeasureDispTBBO(BaseClass):
         orb.append(np.hstack([self.trajx, self.trajy]))
         ene1 = self.energy
 
-        self.pvs['injsi'].value = orig_delay
-        self.pvs['digts'].value = orig_delay_digts
+        self.injsi = orig_delay_injsi
+        self.digts = orig_delay_digts
         self.update_events()
 
         d_ene = ene1/ene0 - 1
         return np.array(orb).sum(axis=0) / d_ene
 
 
-def calc_model_dispersionTBBO(model, bpms):
+def calc_model_dispersionTS(model, bpms):
     """."""
     dene = 1e-3
     rout, *_ = pyaccel.tracking.line_pass(
