@@ -27,7 +27,7 @@ class ParamsDisp:
         return self.energy_delta / self.delay2energy  # in us
 
 
-class MeasureDispTBBO(BaseClass):
+class MeasureDispTS(BaseClass):
     """."""
 
     HARMONIC_NUM = 828
