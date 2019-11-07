@@ -17,8 +17,8 @@ class BaseClass:
     @property
     def connected(self):
         """."""
-        conn = all([dev.connected for dev in self.devices.items()])
-        conn &= all([pv.connected for pv in self.pvs.items()])
+        conn = all([dev.connected for dev in self.devices.values()])
+        conn &= all([pv.connected for pv in self.pvs.values()])
         return conn
 
     def save_data(self, fname):
