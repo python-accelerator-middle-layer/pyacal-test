@@ -6,6 +6,7 @@ import numpy as np
 
 from pymodels.middlelayer.devices import Bias, ICT, TranspEff
 from apsuite.commissioning_scripts.base import BaseClass
+from epics import PV
 
 
 class Params:
@@ -40,10 +41,16 @@ class MeasCharge(BaseClass):
             'ict': ICT('ICT-1'),
             'transpeff': TranspEff(),
             }
+        self.pvs = {
+            'energy': PV('LI-Glob:AP-MeasEnergy:Energy-Mon'),
+            'spread': PV('LI-Glob:AP-MeasEnergy:Spread-Mon'),
+        }
         self.data = {
             'eff': [],
             'charge': [],
             'bias': [],
+            'energy': [],
+            'spread': [],
             }
 
     @property
@@ -65,6 +72,8 @@ class MeasCharge(BaseClass):
         self.data['eff'] = []
         self.data['charge'] = []
         self.data['bias'] = []
+        self.data['energy'] = []
+        self.data['spread'] = []
 
         print('Setting Initial Value...')
         self.devices['bias'].voltage = var_span[0]
@@ -74,16 +83,25 @@ class MeasCharge(BaseClass):
             eff = np.zeros(self.params.nrpulses)
             chrg = np.zeros(self.params.nrpulses)
             bias_val = np.zeros(self.params.nrpulses)
+            energy = np.zeros(self.params.nrpulses)
+            spread = np.zeros(self.params.nrpulses)
             self.devices['bias'].voltage = val
             _time.sleep(self.params.wait_bias)
             for k in range(self.params.nrpulses):
                 eff[k] = self.devices['transpeff'].efficiency
                 chrg[k] = self.devices['ict'].charge
                 bias_val[k] = self.devices['bias'].voltage
+                energy[k] = self.pvs['energy'].value
+                spread[k] = self.pvs['spread'].value
                 _time.sleep(0.5)
         self.data['eff'].append(eff)
         self.data['charge'].append(chrg)
         self.data['bias'].append(bias_val)
-        print('Bias [V]: {0:8.3f} -> Charge [nC]: {1:8.3f}'.format(
-            self.devices['bias'].voltage, self.devices['ict'].charge))
+        self.data['energy'].append(energy)
+        self.data['spread'].append(spread)
+        print(
+            ('Bias [V]: {0:8.3f} -> Charge [nC]: {1:8.3f}, ' +
+             'Energy [MeV]: {2:8.3f}, Spread [%]: {3:8.3f}').format(
+                    self.devices['bias'].voltage, self.devices['ict'].charge,
+                    self.pvs['energy'].value, self.pvs['spread'].value))
     print('Finished!')
