@@ -55,12 +55,12 @@ class Params:
 class ControlRF(BaseClass):
     """."""
 
-    def __init__(self):
+    def __init__(self, is_cw=True):
         """."""
         super().__init__(Params())
         self.devices = {
             'dcct': DCCT(),
-            'rf': RF(),
+            'rf': RF(is_cw=is_cw),
             'sofb': SOFB('BO'),
             }
         self.data = {
