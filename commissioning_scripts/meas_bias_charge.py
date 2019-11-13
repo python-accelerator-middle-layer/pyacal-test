@@ -4,9 +4,9 @@
 import time as _time
 import numpy as np
 
+from epics import PV
 from pymodels.middlelayer.devices import Bias, ICT, TranspEff, LiLLRF
 from apsuite.commissioning_scripts.base import BaseClass
-from epics import PV
 
 
 class ParamsBias:
@@ -116,7 +116,8 @@ class ParamsKly2:
         self.kly2_fin = 73
         self.kly2_step = 0.2
         self.nrpulses = 20
-        self.wait_kly2 = 30
+        self.wait_kly2 = 10
+        self.kly2_timeout = 40
 
     def __str__(self):
         """."""
@@ -129,6 +130,8 @@ class ParamsKly2:
         st += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
         st += '{0:30s}= {1:9.3f}\n'.format(
             'wait klystron2 [s]', self.wait_kly2)
+        st += '{0:30s}= {1:9.3f}\n'.format(
+            'klystron2 timeout [s]', self.kly2_timeout)
         return st
 
 
@@ -178,7 +181,8 @@ class Kly2Energy(BaseClass):
         self.data['spread'] = []
 
         print('Setting Initial Value...')
-        self.devices['kly2'].amplitude = var_span[0]
+        self.devices['kly2'].set_amplitude(
+            var_span[0], timeout=self.params.kly2_timeout)
         _time.sleep(self.params.wait_kly2)
         print('Starting Loop')
         for val in var_span:
@@ -187,7 +191,8 @@ class Kly2Energy(BaseClass):
             kly2_val = np.zeros(self.params.nrpulses)
             energy = np.zeros(self.params.nrpulses)
             spread = np.zeros(self.params.nrpulses)
-            self.devices['kly2'].amplitude = val
+            self.devices['kly2'].set_amplitude(
+                val, timeout=self.params.kly2_timeout)
             _time.sleep(self.params.wait_kly2)
             for k in range(self.params.nrpulses):
                 eff[k] = self.devices['transpeff'].efficiency
