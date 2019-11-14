@@ -94,17 +94,17 @@ class MeasCharge(BaseClass):
                 energy[k] = self.pvs['energy'].value
                 spread[k] = self.pvs['spread'].value
                 _time.sleep(0.5)
-        self.data['eff'].append(eff)
-        self.data['charge'].append(chrg)
-        self.data['bias'].append(bias_val)
-        self.data['energy'].append(energy)
-        self.data['spread'].append(spread)
-        print(
-            ('Bias [V]: {0:8.3f} -> Charge [nC]: {1:8.3f}, ' +
-             'Energy [MeV]: {2:8.3f}, Spread [%]: {3:8.3f}').format(
-                    self.devices['bias'].voltage, self.devices['ict'].charge,
-                    self.pvs['energy'].value, self.pvs['spread'].value))
-    print('Finished!')
+            self.data['eff'].append(eff)
+            self.data['charge'].append(chrg)
+            self.data['bias'].append(bias_val)
+            self.data['energy'].append(energy)
+            self.data['spread'].append(spread)
+            print(
+                ('Bias [V]: {0:8.3f} -> Charge [nC]: {1:8.3f}, ' +
+                    'Energy [MeV]: {2:8.3f}, Spread [%]: {3:8.3f}').format(
+                        self.devices['bias'].voltage, self.devices['ict'].charge,
+                        self.pvs['energy'].value, self.pvs['spread'].value))
+        print('Finished!')
 
 
 class ParamsKly2:
@@ -153,7 +153,7 @@ class Kly2Energy(BaseClass):
         self.data = {
             'eff': [],
             'charge': [],
-            'klystron2amp': [],
+            'kly2amp': [],
             'energy': [],
             'spread': [],
             }
@@ -176,7 +176,7 @@ class Kly2Energy(BaseClass):
         var_span = self.kly2_span
         self.data['eff'] = []
         self.data['charge'] = []
-        self.data['klystron2amp'] = []
+        self.data['kly2amp'] = []
         self.data['energy'] = []
         self.data['spread'] = []
 
@@ -201,15 +201,15 @@ class Kly2Energy(BaseClass):
                 energy[k] = self.pvs['energy'].value
                 spread[k] = self.pvs['spread'].value
                 _time.sleep(0.5)
-        self.data['eff'].append(eff)
-        self.data['charge'].append(chrg)
-        self.data['klystron2amp'].append(kly2_val)
-        self.data['energy'].append(energy)
-        self.data['spread'].append(spread)
-        print(
-            ('Klystron2 Amp [%]: {0:8.3f} -> Charge [nC]: {1:8.3f}, ' +
-             'Energy [MeV]: {2:8.3f}, Spread [%]: {3:8.3f}').format(
-                    self.devices['klystron2'].amplitude,
-                    self.devices['ict'].charge,
-                    self.pvs['energy'].value, self.pvs['spread'].value))
-    print('Finished!')
+            self.data['eff'].append(eff)
+            self.data['charge'].append(chrg)
+            self.data['kly2amp'].append(kly2_val)
+            self.data['energy'].append(energy)
+            self.data['spread'].append(spread)
+            print(
+                ('Klystron2 Amp [%]: {0:8.3f} -> Charge [nC]: {1:8.3f}, ' +
+                    'Energy [MeV]: {2:8.3f}, Spread [%]: {3:8.3f}').format(
+                        self.devices['kly2'].amplitude,
+                        self.devices['ict'].charge,
+                        self.pvs['energy'].value, self.pvs['spread'].value))
+        print('Finished!')
