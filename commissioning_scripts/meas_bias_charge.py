@@ -102,7 +102,8 @@ class MeasCharge(BaseClass):
             print(
                 ('Bias [V]: {0:8.3f} -> Charge [nC]: {1:8.3f}, ' +
                     'Energy [MeV]: {2:8.3f}, Spread [%]: {3:8.3f}').format(
-                        self.devices['bias'].voltage, self.devices['ict'].charge,
+                        self.devices['bias'].voltage,
+                        self.devices['ict'].charge,
                         self.pvs['energy'].value, self.pvs['spread'].value))
         print('Finished!')
 
