@@ -22,7 +22,9 @@ class ParamsDisp:
         self.wait_time = 40
         self.timeout_orb = 10
         self.num_points = 10
-        self.klystron_excit_coefs = [1.098, 66.669]
+        # self.klystron_excit_coefs = [1.098, 66.669]  # old
+        # self.klystron_excit_coefs = [1.01026423, 71.90322743]  # > 2.5nC
+        self.klystron_excit_coefs = [0.80518365, 87.56545895]  # < 2.5nC
 
 
 class MeasureDispTBBO(BaseClass):
@@ -84,7 +86,7 @@ class MeasureDispTBBO(BaseClass):
         self.nr_points = self.params.num_points
         delta = self.params.klystron_delta
 
-        self.reset(self.params.wait_time)
+        self.reset(3)
         self.wait(self.params.timeout_orb)
         orb = [-np.hstack([self.trajx, self.trajy]), ]
         ene0 = self.energy
