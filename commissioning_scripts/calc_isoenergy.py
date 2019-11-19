@@ -38,19 +38,28 @@ class Isoenergy():
         p = np.array([0.00178367, 0.0177915, 0.05214362, 0.12375059])
         return np.polyval(p, q)
 
-    def kly2en(self, amp):
+    def kly2en(self, amp, q):
         """."""
-        p = [0.925, 77.05]
+        if q > 2.5:
+            p = np.array([1.01026423, 71.90322743])  # > 2.5nC
+        else:
+            p = np.array([0.80518365, 87.56545895])  # < 2.5nC
         return np.polyval(p, amp)
 
-    def en2kly(self, en):
+    def en2kly(self, en, q):
         """."""
-        p = np.array([1.01026423, 71.90322743])
+        if q > 2.5:
+            p = np.array([1.01026423, 71.90322743])  # > 2.5nC
+        else:
+            p = np.array([0.80518365, 87.56545895])  # < 2.5nC
         return (en - p[1])/p[0]
 
-    def calc_deltak2(self, delta_en):
+    def calc_deltak2(self, delta_en, q):
         """."""
-        p = np.array([1.01026423, 71.90322743])
+        if q > 2.5:
+            p = np.array([1.01026423, 71.90322743])  # > 2.5nC
+        else:
+            p = np.array([0.80518365, 87.56545895])  # < 2.5nC
         return delta_en/p[0]
 
     def calc_deltaen(self, delta_q):
@@ -68,7 +77,7 @@ class Isoenergy():
         spread_init = self.charge2spread(q=self.qinit)
         bias_final = self.charge2bias(q=self.qfinal)
         spread_final = self.charge2spread(q=self.qfinal)
-        delta_k2 = self.calc_deltak2(-denergy)
+        delta_k2 = self.calc_deltak2(-denergy, self.qfinal)
         print(
             'Charge: {0:4f} nC --> {1:4f} nC'.format(
                 self.qinit, self.qfinal))
