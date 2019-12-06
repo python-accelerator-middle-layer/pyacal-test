@@ -55,13 +55,17 @@ class Params:
 class ControlRF(BaseClass):
     """."""
 
-    def __init__(self, is_cw=True):
+    def __init__(self, acc=None, is_cw=True):
         """."""
         super().__init__(Params())
+        if acc is not None:
+            self.acc = acc
+        else:
+            raise Exception('Set BO or SI')
         self.devices = {
             'dcct': DCCT(),
-            'rf': RF(is_cw=is_cw),
-            'sofb': SOFB('BO'),
+            'rf': RF(acc=acc, is_cw=is_cw),
+            'sofb': SOFB(acc=acc),
             }
         self.data = {
             'phase': [],
