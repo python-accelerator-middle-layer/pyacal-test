@@ -78,7 +78,7 @@ class PSOInjection(PSO):
         self.f_init = 0
         self.params = Params()
         self.sofb = SOFB('BO')
-        self.dcct = DCCT()
+        self.dcct = DCCT('BO')
         self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()
@@ -189,7 +189,7 @@ class SAInjection(SimulAnneal):
         self.hands = []
         self.f_init = 0
         self.params = Params()
-        self.dcct = DCCT()
+        self.dcct = DCCT('BO')
         self.sofb = SOFB('BO')
         self.quads = Quads()
         self.corrs = Corrs()
