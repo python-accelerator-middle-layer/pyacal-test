@@ -4,6 +4,8 @@
 import time as _time
 import numpy as np
 from siriuspy.epics import PV
+
+from pymodels.middlelayer.devices import DCCT, SOFB
 from apsuite.optimization import PSO, SimulAnneal
 
 
@@ -48,19 +50,6 @@ class Quads:
         self.rb = [c + ':KL-RB' for c in names]
 
 
-class SOFB:
-    """."""
-
-    def __init__(self):
-        """."""
-        self.nsample = 'BO-Glob:AP-SOFB:TrigNrSamplesPost-SP'
-        self.sumsignal = 'BO-Glob:AP-SOFB:MTurnSum-Mon'
-        self.nbuffer_sp = 'BO-Glob:AP-SOFB:SmoothNrPts-SP'
-        self.nbuffer_rb = 'BO-Glob:AP-SOFB:SmoothNrPts-RB'
-        self.nbuffer_mon = 'BO-Glob:AP-SOFB:BufferCount-Mon'
-        self.nbuffer_reset = 'BO-Glob:AP-SOFB:SmoothReset-Cmd'
-
-
 class Params:
     """."""
 
@@ -78,76 +67,6 @@ class Params:
         self.freq = 2
 
 
-class DCCT:
-
-    def __init__(self):
-        self._current = PV('BO-35D:DI-DCCT:RawReadings-Mon')
-        self._meas_per_sp = PV('BO-35D:DI-DCCT:FastMeasPeriod-SP')
-        self._meas_per_rb = PV('BO-35D:DI-DCCT:FastMeasPeriod-RB')
-        self._nr_samples_sp = PV('BO-35D:DI-DCCT:FastSampleCnt-SP')
-        self._nr_samples_rb = PV('BO-35D:DI-DCCT:FastSampleCnt-RB')
-        self._acq_ctrl_sp = PV('BO-35D:DI-DCCT:MeasTrg-Sel')
-        self._acq_ctrl_rb = PV('BO-35D:DI-DCCT:MeasTrg-Sts')
-        self._on_state = 1
-        self._off_state = 0
-
-    @property
-    def connected(self):
-        conn = self._current.connected
-        return conn
-
-    @property
-    def nrsamples(self):
-        return self._nr_samples_rb.value
-
-    @nrsamples.setter
-    def nrsamples(self, value):
-        self._nr_samples_sp.value = value
-
-    @property
-    def period(self):
-        return self._meas_per_rb.value
-
-    @period.setter
-    def period(self, value):
-        self._meas_per_sp.value = value
-
-    @property
-    def acq_ctrl(self):
-        return self._acq_ctrl_rb.value
-
-    @acq_ctrl.setter
-    def acq_ctrl(self, value):
-        self._acq_ctrl_sp.value = self._on_state if value else self._off_state
-
-    @property
-    def current(self):
-        return self._current.get()
-
-    def wait(self, timeout=10):
-        nrp = int(timeout/0.1)
-        for _ in range(nrp):
-            _time.sleep(0.1)
-            if self._isok():
-                break
-        else:
-            print('timed out waiting DCCT.')
-
-    def _isok(self):
-        if self._acq_ctrl_sp.value:
-            return self.acq_ctrl == self._on_state
-        else:
-            return self.acq_ctrl != self._on_state
-
-    def turn_on(self, timeout=10):
-        self.acq_ctrl = self._on_state
-        self.wait(timeout)
-
-    def turn_off(self, timeout=10):
-        self.acq_ctrl = self._off_state
-        self.wait(timeout)
-
-
 class PSOInjection(PSO):
     """."""
 
@@ -156,14 +75,9 @@ class PSOInjection(PSO):
         self.reference = []
         self.eyes = []
         self.hands = []
-        self.pv_nr_pts_sp = []
-        self.pv_nr_pts_rb = []
-        self.pv_buffer_mon = []
-        self.pv_buffer_reset = []
-        self.pv_nr_sample = []
         self.f_init = 0
         self.params = Params()
-        self.sofb = SOFB()
+        self.sofb = SOFB('BO')
         self.dcct = DCCT()
         self.quads = Quads()
         self.corrs = Corrs()
@@ -184,7 +98,7 @@ class PSOInjection(PSO):
             if self.check_connect():
                 break
 
-        self.pv_nr_pts_sp.value = self.params.nbuffer
+        self.sofb.nr_points = self.params.nbuffer
 
         quad_lim = np.ones(len(self.quads.sp)) * self.params.deltas['Quads']
         corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
@@ -206,21 +120,12 @@ class PSOInjection(PSO):
 
     def get_pvs(self):
         """."""
-        self.pv_nr_sample = PV(self.sofb.nsample)
-        _time.sleep(self.params.wait_change)
-        self.pv_nr_sample.value = self.params.nturns
-
-        # self.eyes = PV(self.sofb.sumsignal, auto_monitor=True)
+        # self.eyes = self.sofb.sum
         self.eyes = self.dcct.current
 
         self.hands = [PV(c) for c in self.corrs.sp]
         self.hands.append(PV(self.kckr.sp))
         self.hands.append(PV(self.sept.sp))
-
-        self.pv_nr_pts_sp = PV(self.sofb.nbuffer_sp)
-        self.pv_nr_pts_rb = PV(self.sofb.nbuffer_rb)
-        self.pv_buffer_mon = PV(self.sofb.nbuffer_mon)
-        self.pv_buffer_reset = PV(self.sofb.nbuffer_reset)
 
     def check_connect(self):
         """."""
@@ -243,10 +148,8 @@ class PSOInjection(PSO):
 
     def reset_wait_buffer(self):
         """."""
-        self.pv_buffer_reset.value = 1
-        while True:
-            if self.pv_buffer_mon.value == self.pv_nr_pts_sp.value:
-                break
+        self.sofb.reset()
+        self.sofb.wait()
 
     def init_obj_func(self):
         """."""
@@ -284,15 +187,10 @@ class SAInjection(SimulAnneal):
         self.reference = []
         self.eyes = []
         self.hands = []
-        self.pv_nr_pts_sp = []
-        self.pv_nr_pts_rb = []
-        self.pv_buffer_mon = []
-        self.pv_buffer_reset = []
-        self.pv_nr_sample = []
         self.f_init = 0
         self.params = Params()
         self.dcct = DCCT()
-        self.sofb = SOFB()
+        self.sofb = SOFB('BO')
         self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()
@@ -312,17 +210,15 @@ class SAInjection(SimulAnneal):
             if self.check_connect():
                 break
 
-        self.pv_nr_pts_sp.value = self.params.nbuffer
-
         quad_lim = np.ones(len(self.quads.sp)) * self.params.deltas['Quads']
         corr_lim = np.ones(len(self.corrs.sp)) * self.params.deltas['Corrs']
         sept_lim = np.array([self.params.deltas['InjSept']])
         kckr_lim = np.array([self.params.deltas['InjKckr']])
 
         up = np.concatenate((quad_lim, corr_lim, sept_lim, kckr_lim))
-        down = -1 * up
-        # 1e6 added to emulate Inf limits
-        self.set_limits(upper=up*1e6, lower=down*1e6)
+        # down = -1 * up
+        infty = float('Inf')
+        self.set_limits(upper=up*infty, lower=-1*up*infty)
         self.set_deltas(dmax=up)
 
         self.reference = np.array([h.value for h in self.hands])
@@ -332,21 +228,12 @@ class SAInjection(SimulAnneal):
 
     def get_pvs(self):
         """."""
-        self.pv_nr_sample = PV(self.sofb.nsample)
-        _time.sleep(self.params.wait_change)
-        self.pv_nr_sample.value = self.params.nturns
-
-        # self.eyes = PV(self.sofb.sumsignal, auto_monitor=True)
+        # self.eyes = self.sofb.sum
         self.eyes = self.dcct.current
 
         self.hands = [PV(c) for c in self.corrs.sp]
         self.hands.append(PV(self.kckr.sp))
         self.hands.append(PV(self.sept.sp))
-
-        self.pv_nr_pts_sp = PV(self.sofb.nbuffer_sp)
-        self.pv_nr_pts_rb = PV(self.sofb.nbuffer_rb)
-        self.pv_buffer_mon = PV(self.sofb.nbuffer_mon)
-        self.pv_buffer_reset = PV(self.sofb.nbuffer_reset)
 
     def check_connect(self):
         """."""
@@ -369,10 +256,8 @@ class SAInjection(SimulAnneal):
 
     def reset_wait_buffer(self):
         """."""
-        self.pv_buffer_reset.value = 1
-        while True:
-            if self.pv_buffer_mon.value == self.pv_nr_pts_rb.value:
-                break
+        self.sofb.reset()
+        self.sofb.wait()
 
     def init_obj_func(self):
         """."""
