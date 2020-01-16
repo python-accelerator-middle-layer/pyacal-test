@@ -3,6 +3,7 @@
 
 import time as _time
 import numpy as np
+from threading import Thread, Event
 
 from pymodels.middlelayer.devices import RF, SOFB, DCCT, Timing
 from apsuite.commissioning_scripts.base import BaseClass
@@ -78,7 +79,8 @@ class ControlRF(BaseClass):
             self.devices['dcct-2'] = DCCT('SI-2')
             self.data['dcct-1'] = []
             self.data['dcct-2'] = []
-
+        self._thread = Thread(target=self._do_scan)
+        self._stopped = Event()
 
 
     @property
@@ -104,11 +106,23 @@ class ControlRF(BaseClass):
 
     def do_phase_scan(self):
         """."""
-        self._do_scan(isphase=True)
+        if not self._thread.is_alive():
+            self._thread = Thread(
+                target=self._do_scan, kwargs={'isphase': True}, daemon=True)
+            self._stopped.clear()
+            self._thread.start()
 
     def do_voltage_scan(self):
         """."""
-        self._do_scan(isphase=False)
+        if not self._thread.is_alive():
+            self._thread = Thread(
+                target=self._do_scan, kwargs={'isphase': False}, daemon=True)
+            self._stopped.clear()
+            self._thread.start()
+
+    def stop(self):
+        """."""
+        self._stopped.set()
 
     def _do_scan(self, isphase=True):
         nrpul = self.params.nrpulses
@@ -158,6 +172,8 @@ class ControlRF(BaseClass):
                     dcct1_data[k] = np.mean(self.devices['dcct-1'].current)
                     dcct2_data[k] = np.mean(self.devices['dcct-2'].current)
                 _time.sleep(1/freq)
+                if self._stopped.is_set():
+                    break
             self.devices['sofb'].wait(self.params.sofb_timeout)
             self.data['phase'].append(phase_data)
             self.data['voltage'].append(voltage_data)
@@ -175,6 +191,10 @@ class ControlRF(BaseClass):
             else:
                 print('Voltage [mV]: {0:8.3f}'.format(
                     self.devices['rf'].voltage))
+            if self._stopped.is_set():
+                print('Stopped!')
+                break
+        self.devices['tim'].turn_pulses_off(self.params.tim_timeout)
         print('Finished!')
 
     def _vary(self, val, isphase=True):
