@@ -36,18 +36,18 @@ class Respmat():
             model = self.model
         if self.dim == '6d':
             M, T = pyaccel.tracking.find_m66(
-                self.model, indices='open', closed_orbit=[0, 0, 0, 0, 0, 0])
+                model, indices='open', closed_orbit=[0, 0, 0, 0, 0, 0])
         else:
             M, T = pyaccel.tracking.find_m44(
-                self.model, indices='open', energy_offset=0.0,
+                model, indices='open', energy_offset=0.0,
                 closed_orbit=[0, 0, 0, 0])
         T = np.array(T)
         total_len_ch = np.zeros(self.nch)
         total_len_cv = np.zeros(self.ncv)
         for jx in range(self.nch):
-            total_len_ch[jx] = self.model[self.ch[jx][0]].length
+            total_len_ch[jx] = model[self.ch[jx][0]].length
         for jy in range(self.ncv):
-            total_len_cv[jy] = self.model[self.cv[jy][0]].length
+            total_len_cv[jy] = model[self.cv[jy][0]].length
         D = np.eye(M.shape[0])
         for i in range(self.nbpm):
             Ri = T[self.bpms[i][0], :, :]
