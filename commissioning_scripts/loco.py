@@ -626,7 +626,7 @@ class LOCO():
                     rfline = np.zeros((new_respm.shape[0], 1))
                 new_respm = np.hstack(
                     [new_respm, rfline])
-                dmdk = (new_respm - nominal_matrix)/deltak
+                dmdk = (new_respm - nominal_matrix)/kdelta
                 kmatrix[:, idx1] = dmdk.flatten()
                 LOCO.set_quadfam_deltak(model, idx_fam, kquads[idx1], 0.0)
         else:
@@ -634,7 +634,7 @@ class LOCO():
                 for idx2, idx_seg in enumerate(idx):
                     pyaccel.lattice.set_attribute(
                         model, 'K', idx_seg, kquads[idx1][idx2] +
-                        deltak)
+                        kdelta)
                 new_respm = respm.get_respm(model=model)
                 if use_disp:
                     rfline = LOCO.calc_rf_line(model)
@@ -642,7 +642,7 @@ class LOCO():
                     rfline = np.zeros((new_respm.shape[0], 1))
                 new_respm = np.hstack(
                     [new_respm, rfline])
-                dmdk = (new_respm - nominal_matrix)/deltak
+                dmdk = (new_respm - nominal_matrix)/kdelta
                 kmatrix[:, idx1] = dmdk.flatten()
                 LOCO.set_quadmag_deltak(model, idx_mag, kvalues, 0*kdelta)
                 model = _dcopy(respm.model)
