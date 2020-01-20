@@ -117,19 +117,33 @@ class LOCO():
             dmde[:, j] = diff.flatten()
         return dmde
 
-    def calc_rf_line(self, model, delta=100):
-        if self.cavidx is None:
-            self.cavidx = pyaccel.lattice.find_indices(
-                model, 'fam_name', 'SRFCav')[0]
-        f0 = model[self.cavidx].frequency
-        model[self.cavidx].frequency = f0 + delta/2
+    @staticmethod
+    def get_indices(model):
+        """."""
+        indices = dict()
+        # cavity
+        indices['cavidx'] = pyaccel.lattice.find_indices(
+            model, 'fam_name', 'SRFCav')[0]
+        # bpm
+        indices['bpmidx'] = pyaccel.lattice.find_indices(
+            model, 'fam_name', 'BPM')
+        return indices
+
+    @staticmethod
+    def calc_rf_line(model, delta=100):
+        ind = LOCO.get_indices(model)
+        f0 = model[ind['cavidx']].frequency
+        model[ind['cavidx']].frequency = f0 + delta/2
         orbp = pyaccel.tracking.find_orbit6(model, indices='open')
-        model[self.cavidx].frequency = f0 - delta/2
+        model[ind['cavidx']].frequency = f0 - delta/2
         orbm = pyaccel.tracking.find_orbit6(model, indices='open')
-        model[self.cavidx].frequency = f0
+        model[ind['cavidx']].frequency = f0
         dorb = orbp - orbm
-        return np.vstack(
-            [dorb[0, self.bpmidx], dorb[2, self.bpmidx]])/delta
+        dorbx = dorb[0, ind['bpmidx']]
+        dorby = dorb[2, ind['bpmidx']]
+        data = np.zeros((len(dorbx) + len(dorby), 1))
+        data[:, 0] = np.hstack([dorbx, dorby])
+        return data
 
     def apply_bpm_gain(self, matrix, gain):
         return np.dot(np.diag(gain), matrix)
@@ -164,7 +178,7 @@ class LOCO():
     def _calc_kmatrix(self, deltak=1e-6):
         if self.use_families:
             nquads = len(self.quadsidx)
-            self.kquads = self._get_quads_strengths()
+            self.kquads = LOCO._get_quads_strengths(self.model, self.quadsidx)
         else:
             nquads = len(self.qnidx)
             self.kquads = np.array(
@@ -174,52 +188,49 @@ class LOCO():
         mod = _dcopy(self.model)
 
         if self.use_families:
-            for i1, fam in enumerate(self.quadsidx):
-                for i2, idx in enumerate(fam):
-                    for i3, idx_seg in enumerate(idx):
+            for idx1, fam in enumerate(self.quadsidx):
+                for idx2, idx in enumerate(fam):
+                    for idx3, idx_seg in enumerate(idx):
                         pyaccel.lattice.set_attribute(
-                            mod, 'K', idx_seg, self.kquads[i1][i2][i3] +
+                            mod, 'K', idx_seg, self.kquads[idx1][idx2][idx3] +
                             deltak)
                 new_respm = self.respm.get_respm(model=mod)
                 if self.use_disp:
                     new_respm = np.hstack(
-                        [new_respm, self.calc_rf_line(mod)])
+                        [new_respm, LOCO.calc_rf_line(mod)])
                 else:
                     new_respm = np.hstack(
                         [new_respm, np.zeros((new_respm.shape[0], 1))])
                 dmdk = (new_respm - self.matrix)/deltak
-                kmatrix[:, i1] = dmdk.flatten()
+                kmatrix[:, idx1] = dmdk.flatten()
                 mod = _dcopy(self.model)
         else:
-            for i1, idx in enumerate(self.qnidx):
-                for i2, idx_seg in enumerate(idx):
+            for idx1, idx in enumerate(self.qnidx):
+                for idx2, idx_seg in enumerate(idx):
                     pyaccel.lattice.set_attribute(
-                        mod, 'K', idx_seg, self.kquads[i1][i2] +
+                        mod, 'K', idx_seg, self.kquads[idx1][idx2] +
                         deltak)
                 new_respm = self.respm.get_respm(model=mod)
                 if self.use_disp:
                     new_respm = np.hstack(
-                        [new_respm, self.calc_rf_line(mod)])
+                        [new_respm, LOCO.calc_rf_line(mod)])
                 else:
                     new_respm = np.hstack(
                         [new_respm, np.zeros((new_respm.shape[0], 1))])
                 dmdk = (new_respm - self.matrix)/deltak
-                kmatrix[:, i1] = dmdk.flatten()
+                kmatrix[:, idx1] = dmdk.flatten()
                 mod = _dcopy(self.model)
         return kmatrix
 
-    def _get_quads_strengths(self, model=None, quadsidx=None):
-        if model is None:
-            model = self.model
-        if quadsidx is None:
-            quadsidx = self.quadsidx
+    @staticmethod
+    def _get_quads_strengths(model, quadsidx):
         kquads = []
-        for qi in quadsidx:
+        for qidx in quadsidx:
             kquads.append(pyaccel.lattice.get_attribute(
-                model, 'K', qi))
+                model, 'K', qidx))
         return kquads
 
-    def chi2(self, matrix1, matrix2):
+    def chidx2(self, matrix1, matrix2):
         """."""
         return np.sqrt(np.mean((matrix1-matrix2)**2))
 
@@ -313,7 +324,7 @@ class LOCO():
             modelmat = self.respm.get_respm(model=mod)
             if self.use_disp:
                 modelmat = np.hstack(
-                     [modelmat, self.calc_rf_line(mod)])
+                     [modelmat, LOCO.calc_rf_line(mod)])
             else:
                 modelmat = np.hstack(
                      [modelmat, np.zeros((modelmat.shape[0], 1))])
@@ -339,11 +350,11 @@ class LOCO():
         self.Jloco = self.filter_Jloco(self.Jloco)
 
         diffmat = self.measmat - modelmat
-        chi2_old = self.chi2(self.measmat, modelmat)
-        chi2_init = chi2_old
-        print('Initial Error: {:.6e}'.format(chi2_old))
+        chidx2_old = self.chidx2(self.measmat, modelmat)
+        chidx2_init = chidx2_old
+        print('Initial Error: {:.6e}'.format(chidx2_old))
 
-        if not chi2_init:
+        if not chidx2_init:
             print('The initial error is zero! Model = Measurement')
 
         u, s, v = np.linalg.svd(self.Jloco, full_matrices=False)
@@ -356,7 +367,8 @@ class LOCO():
         self.invJloco = np.dot(np.dot(v.T, inv_s), u.T)
 
         if self.use_families:
-            self.grad_quads = self._get_quads_strengths(model=mod)
+            self.grad_quads = LOCO._get_quads_strengths(
+                model=mod, quadsidx=self.quadsidx)
             self.grad_delta = np.zeros(len(self.quadsidx))
         else:
             self.grad_quads = np.array(
@@ -370,20 +382,20 @@ class LOCO():
             fitmat, mod = self.get_fitmat(mod, new_pars)
             diffmat = self.measmat - fitmat
             print('Iter {0:d}'.format(n+1))
-            chi2_new = self.chi2(self.measmat, fitmat)
-            perc = (chi2_new - chi2_init)/chi2_init * 100
-            print('Error: {0:.6e} ({1:.2f}%)'.format(chi2_new, perc))
+            chidx2_new = self.chidx2(self.measmat, fitmat)
+            perc = (chidx2_new - chidx2_init)/chidx2_init * 100
+            print('Error: {0:.6e} ({1:.2f}%)'.format(chidx2_new, perc))
 
-            if np.isnan(chi2_new):
+            if np.isnan(chidx2_new):
                 print('Matrix deviation is NaN!')
                 break
 
-            if (chi2_old - chi2_new) < tol:
+            if (chidx2_old - chidx2_new) < tol:
                 print('Limit Reached!')
                 fitmat, mod = self.get_fitmat(mod, -1*new_pars)
                 break
             else:
-                chi2_old = chi2_new
+                chidx2_old = chidx2_new
         print('Finished!')
         gain_bpm = self.gain_bpm + self.delta_gains_bpms
         roll_bpm = self.roll_bpm + self.delta_rolls_bpms
@@ -528,7 +540,7 @@ class LOCO():
         fitmat = self.respm.get_respm(model=modc)
         if self.use_disp:
             fitmat = np.hstack(
-                [fitmat, self.calc_rf_line(mod)])
+                [fitmat, LOCO.calc_rf_line(mod)])
         else:
             fitmat = np.hstack(
                 [fitmat, np.zeros((fitmat.shape[0], 1))])
@@ -542,19 +554,83 @@ class LOCO():
 
     @staticmethod
     def _set_deltas_fams(model, quadidx, ref, delta):
-        for i1, fam in enumerate(quadidx):
-            for i2, idx in enumerate(fam):
-                for i3, idx_seg in enumerate(idx):
+        for idx1, fam in enumerate(quadidx):
+            for idx2, idx in enumerate(fam):
+                for idx3, idx_seg in enumerate(idx):
                     pyaccel.lattice.set_attribute(
-                        model, 'K', idx_seg, ref[i1][i2][i3] +
-                        delta[i1])
+                        model, 'K', idx_seg, ref[idx1][idx2][idx3] +
+                        delta[idx1])
         return model
 
     @staticmethod
     def _set_deltas_quads(model, quadidx, ref, delta):
-        for i1, idx in enumerate(quadidx):
-            for i2, idx_seg in enumerate(idx):
+        for idx1, idx in enumerate(quadidx):
+            for idx2, idx_seg in enumerate(idx):
                 pyaccel.lattice.set_attribute(
-                    model, 'K', idx_seg, ref[i1][i2] +
-                    delta[i1])
+                    model, 'K', idx_seg, ref[idx1][idx2] +
+                    delta[idx1])
         return model
+
+    @staticmethod
+    def calc_kmatrix(respm,
+                     deltak=1e-6,
+                     use_disp=True,
+                     use_families=False):
+
+        def set_family_deltak(model, idx_fam, deltak):
+            for idx2, idx_mag in enumerate(idx_fam):
+                for idx3, idx_seg in enumerate(idx_mag):
+                    pyaccel.lattice.set_attribute(
+                        model, 'K', idx_seg, kquads[idx1][idx2][idx3] +
+                        deltak)
+
+        if use_families:
+            quadsidx = []
+            for fam_name in LOCO.QUAD_FAM:
+                quadsidx.append(respm.fam_data[fam_name]['index'])
+            nquads = len(quadsidx)
+            kquads = LOCO._get_quads_strengths(respm.model, quadsidx)
+        else:
+            qnidx = respm.fam_data['QN']['index']
+            nquads = len(qnidx)
+            kquads = np.array(
+                pyaccel.lattice.get_attribute(respm.model, 'K', qnidx))
+
+        nominal_matrix = respm.get_respm()
+        rfline = LOCO.calc_rf_line(respm.model)
+        nominal_matrix = np.hstack([nominal_matrix, rfline])
+
+        vector = nominal_matrix.flatten()
+        kmatrix = np.zeros((len(vector), nquads))
+        model = _dcopy(respm.model)
+
+        if use_families:
+            for idx1, idx_fam in enumerate(quadsidx):
+                set_family_deltak(model, idx_fam, deltak)
+                new_respm = respm.get_respm(model=model)
+                rfline = LOCO.calc_rf_line(model)
+                if use_disp:
+                    new_respm = np.hstack([new_respm, rfline])
+                else:
+                    new_respm = np.hstack(
+                        [new_respm, np.zeros((new_respm.shape[0], 1))])
+                dmdk = (new_respm - nominal_matrix)/deltak
+                kmatrix[:, idx1] = dmdk.flatten()
+                set_family_deltak(model, idx_fam, 0.0)
+        else:
+            for idx1, idx in enumerate(qnidx):
+                for idx2, idx_seg in enumerate(idx):
+                    pyaccel.lattice.set_attribute(
+                        model, 'K', idx_seg, kquads[idx1][idx2] +
+                        deltak)
+                new_respm = respm.get_respm(model=model)
+                if use_disp:
+                    new_respm = np.hstack(
+                        [new_respm, LOCO.calc_rf_line(model)])
+                else:
+                    new_respm = np.hstack(
+                        [new_respm, np.zeros((new_respm.shape[0], 1))])
+                dmdk = (new_respm - nominal_matrix)/deltak
+                kmatrix[:, idx1] = dmdk.flatten()
+                model = _dcopy(respm.model)
+        return kmatrix
