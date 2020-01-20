@@ -60,7 +60,10 @@ class LOCO():
         if loco_input['gain_bpm'] is None:
             self.gain_bpm = np.ones(2*self.nbpm)
         else:
-            self.gain_bpm = loco_input['gain_bpm']
+            if isinstance(loco_input['gain_bpm'], (int, float)):
+                self.gain_bpm = np.ones(2*self.nbpm) * loco_input['gain_bpm']
+            else:
+                self.gain_bpm = loco_input['gain_bpm']
         if loco_input['roll_bpm'] is None:
             self.roll_bpm = np.zeros(self.nbpm)
         else:
@@ -116,6 +119,12 @@ class LOCO():
             diff = np.hstack([diff, np.zeros((diff.shape[0], 1))])
             dmde[:, j] = diff.flatten()
         return dmde
+
+    @property
+    def chi2(self):
+        """."""
+        res = LOCO.calc_chi2(self.matrix, self.measmat)
+        return res
 
     @staticmethod
     def get_indices(model):
@@ -231,7 +240,8 @@ class LOCO():
                 model, 'K', qidx))
         return kquads
 
-    def chidx2(self, matrix1, matrix2):
+    @staticmethod
+    def calc_chi2(matrix1, matrix2):
         """."""
         return np.sqrt(np.mean((matrix1-matrix2)**2))
 
@@ -351,7 +361,7 @@ class LOCO():
         self.Jloco = self.filter_Jloco(self.Jloco)
 
         diffmat = self.measmat - modelmat
-        chidx2_old = self.chidx2(self.measmat, modelmat)
+        chidx2_old = self.calc_chi2(self.measmat, modelmat)
         chidx2_init = chidx2_old
         print('Initial Error: {:.6e}'.format(chidx2_old))
 
@@ -383,7 +393,7 @@ class LOCO():
             fitmat, mod = self.get_fitmat(mod, new_pars)
             diffmat = self.measmat - fitmat
             print('Iter {0:d}'.format(n+1))
-            chidx2_new = self.chidx2(self.measmat, fitmat)
+            chidx2_new = self.calc_chi2(self.measmat, fitmat)
             perc = (chidx2_new - chidx2_init)/chidx2_init * 100
             print('Error: {0:.6e} ({1:.2f}%)'.format(chidx2_new, perc))
 
