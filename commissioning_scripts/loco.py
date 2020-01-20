@@ -16,13 +16,6 @@ class LOCO():
 
     def __init__(self, loco_input):
         """."""
-        model = loco_input['model']
-        dim = loco_input['dim']
-        use_families = loco_input['use_families']
-        gain_bpm = loco_input['gain_bpm']
-        roll_bpm = loco_input['roll_bpm']
-        gain_corr = loco_input['gain_corr']
-        use_disp = loco_input['use_dispersion']
         self.kmatrix = loco_input['kmatrix']
         self.measmat = loco_input['measured_matrix']
         self.niter = loco_input['number_of_iterations']
@@ -31,17 +24,15 @@ class LOCO():
         self.fit_gains_bpm = loco_input['fit_gains_bpm']
         self.fit_gains_corr = loco_input['fit_gains_corr']
         self.fit_quadrupoles = loco_input['fit_quadrupoles']
-
-        if not model.cavity_on and dim == '6d':
-            model.cavity_on = True
-        if not model.radiation_on:
-            model.radiation_on = True
-
-        self.model = model
-        self.dim = dim
-        self.respm = Respmat(model=model, dim=dim)
+        self.model = loco_input['model']
+        self.dim = loco_input['dim']
+        if not self.model.cavity_on and self.dim == '6d':
+            self.model.cavity_on = True
+        if not self.model.radiation_on:
+            self.model.radiation_on = True
+        self.respm = Respmat(model=self.model, dim=self.dim)
         self.matrix = self.respm.get_respm()
-        self.use_disp = use_disp
+        self.use_disp = loco_input['use_dispersion']
         self.bpmidx = self.respm.fam_data['BPM']['index']
         if self.use_disp:
             self.rfline = self.calc_rf_line(self.model)
@@ -55,7 +46,7 @@ class LOCO():
             self.rf_freq = self.model[self.cavidx].frequency
         else:
             self.rf_freq = loco_input['rf_frequency']
-        self.alpha = pyaccel.optics.get_mcf(model)
+        self.alpha = pyaccel.optics.get_mcf(self.model)
         self.meas_disp = self.get_meas_disp()
 
         if not self.use_coupling:
@@ -66,19 +57,25 @@ class LOCO():
         self.nbpm = self.matrix.shape[0]//2
         self.ncorr = self.matrix.shape[1] - 1
 
-        if gain_bpm is None:
+        if loco_input['gain_bpm'] is None:
             self.gain_bpm = np.ones(2*self.nbpm)
-        if roll_bpm is None:
+        else:
+            self.gain_bpm = loco_input['gain_bpm']
+        if loco_input['roll_bpm'] is None:
             self.roll_bpm = np.zeros(self.nbpm)
-        if gain_corr is None:
+        else:
+            self.roll_bpm = loco_input['roll_bpm']
+        if loco_input['gain_corr'] is None:
             self.gain_corr = np.ones(self.ncorr)
+        else:
+            self.gain_corr = loco_input['gain_corr']
         self.matrix = self.apply_all_gains(
             matrix=self.matrix,
             gain_bpm=self.gain_bpm,
             roll_bpm=self.roll_bpm,
             gain_corr=self.gain_corr)
         self.vector = self.matrix.flatten()
-        self.use_families = use_families
+        self.use_families = loco_input['use_families']
         self.quadsidx = []
         for fam_name in self.QUAD_FAM:
             self.quadsidx.append(self.respm.fam_data[fam_name]['index'])
