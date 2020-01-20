@@ -131,6 +131,7 @@ class LOCO():
 
     @staticmethod
     def calc_rf_line(model, delta=100):
+        """."""
         ind = LOCO.get_indices(model)
         f0 = model[ind['cavidx']].frequency
         model[ind['cavidx']].frequency = f0 + delta/2
@@ -525,17 +526,15 @@ class LOCO():
             self.delta_gains_corrs += parameters['corr_gain']
 
         if self.use_families:
-            modc = self._set_deltas_fams(
-                model=modc,
-                quadidx=self.quadsidx,
-                ref=self.grad_quads,
-                delta=self.grad_delta)
+            for idx1, idx_fam in enumerate(self.quadsidx):
+                kvalues = self.grad_quads[idx1]
+                kdelta = self.grad_delta[idx1]
+                LOCO.set_quadfam_deltak(modc, idx_fam, kvalues, kdelta)
         else:
-            modc = self._set_deltas_quads(
-                model=modc,
-                quadidx=self.qnidx,
-                ref=self.grad_quads,
-                delta=self.grad_delta)
+            idx_mag = self.qnidx
+            kvalues = self.grad_quads
+            kdelta = self.grad_delta
+            LOCO.set_quadmag_deltak(modc, idx_mag, kvalues, kdelta)
 
         fitmat = self.respm.get_respm(model=modc)
         if self.use_disp:
@@ -552,38 +551,49 @@ class LOCO():
             )
         return fitmat, modc
 
-    @staticmethod
-    def _set_deltas_fams(model, quadidx, ref, delta):
-        for idx1, fam in enumerate(quadidx):
-            for idx2, idx in enumerate(fam):
-                for idx3, idx_seg in enumerate(idx):
-                    pyaccel.lattice.set_attribute(
-                        model, 'K', idx_seg, ref[idx1][idx2][idx3] +
-                        delta[idx1])
-        return model
+    # @staticmethod
+    # def _set_deltas_fams(model, quadidx, ref, delta):
+    #     for idx1, fam in enumerate(quadidx):
+    #         for idx2, idx in enumerate(fam):
+    #             for idx3, idx_seg in enumerate(idx):
+    #                 pyaccel.lattice.set_attribute(
+    #                     model, 'K', idx_seg, ref[idx1][idx2][idx3] +
+    #                     delta[idx1])
+    #     return model
+
+    # @staticmethod
+    # def _set_deltas_quads(model, quadidx, ref, delta):
+    #     for idx1, idx in enumerate(quadidx):
+    #         for idx2, idx_seg in enumerate(idx):
+    #             pyaccel.lattice.set_attribute(
+    #                 model, 'K', idx_seg, ref[idx1][idx2] +
+    #                 delta[idx1])
+    #     return model
 
     @staticmethod
-    def _set_deltas_quads(model, quadidx, ref, delta):
-        for idx1, idx in enumerate(quadidx):
+    def set_quadfam_deltak(model, idx_fam, kvalues, kdelta):
+        """."""
+        for idx2, idx_mag in enumerate(idx_fam):
+            for idx3, idx_seg in enumerate(idx_mag):
+                pyaccel.lattice.set_attribute(
+                    model, 'K', idx_seg, kvalues[idx2][idx3] +
+                    kdelta)
+
+    @staticmethod
+    def set_quadmag_deltak(model, idx_mag, kvalues, kdelta):
+        """."""
+        for idx1, idx in enumerate(idx_mag):
             for idx2, idx_seg in enumerate(idx):
                 pyaccel.lattice.set_attribute(
-                    model, 'K', idx_seg, ref[idx1][idx2] +
-                    delta[idx1])
-        return model
+                    model, 'K', idx_seg, kvalues[idx1][idx2] +
+                    kdelta[idx1])
 
     @staticmethod
     def calc_kmatrix(respm,
-                     deltak=1e-6,
+                     kdelta=1e-6,
                      use_disp=True,
                      use_families=False):
-
-        def set_family_deltak(model, idx_fam, deltak):
-            for idx2, idx_mag in enumerate(idx_fam):
-                for idx3, idx_seg in enumerate(idx_mag):
-                    pyaccel.lattice.set_attribute(
-                        model, 'K', idx_seg, kquads[idx1][idx2][idx3] +
-                        deltak)
-
+        """."""
         if use_families:
             quadsidx = []
             for fam_name in LOCO.QUAD_FAM:
@@ -608,7 +618,7 @@ class LOCO():
 
         if use_families:
             for idx1, idx_fam in enumerate(quadsidx):
-                set_family_deltak(model, idx_fam, deltak)
+                LOCO.set_quadfam_deltak(model, idx_fam, kquads[idx1], kdelta)
                 new_respm = respm.get_respm(model=model)
                 if use_disp:
                     rfline = LOCO.calc_rf_line(model)
@@ -618,7 +628,7 @@ class LOCO():
                     [new_respm, rfline])
                 dmdk = (new_respm - nominal_matrix)/deltak
                 kmatrix[:, idx1] = dmdk.flatten()
-                set_family_deltak(model, idx_fam, 0.0)
+                LOCO.set_quadfam_deltak(model, idx_fam, kquads[idx1], 0.0)
         else:
             for idx1, idx in enumerate(qnidx):
                 for idx2, idx_seg in enumerate(idx):
@@ -634,5 +644,6 @@ class LOCO():
                     [new_respm, rfline])
                 dmdk = (new_respm - nominal_matrix)/deltak
                 kmatrix[:, idx1] = dmdk.flatten()
+                LOCO.set_quadmag_deltak(model, idx_mag, kvalues, 0*kdelta)
                 model = _dcopy(respm.model)
         return kmatrix
