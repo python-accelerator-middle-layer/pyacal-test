@@ -36,6 +36,7 @@ class LOCO():
             model.cavity_on = True
         if not model.radiation_on:
             model.radiation_on = True
+
         self.model = model
         self.dim = dim
         self.respm = Respmat(model=model, dim=dim)
@@ -43,12 +44,19 @@ class LOCO():
         self.use_disp = use_disp
         self.bpmidx = self.respm.fam_data['BPM']['index']
         if self.use_disp:
-            self.cavidx = pyaccel.lattice.find_indices(
-                self.model, 'fam_name', 'SRFCav')[0]
             self.rfline = self.calc_rf_line(self.model)
         else:
             self.rfline = np.zeros((self.matrix.shape[0], 1))
             self.cavidx = None
+
+        self.cavidx = pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'SRFCav')[0]
+        if 'rf_frequency' not in loco_input.keys():
+            self.rf_freq = self.model[self.cavidx].frequency
+        else:
+            self.rf_freq = loco_input['rf_frequency']
+        self.alpha = pyaccel.optics.get_mcf(model)
+        self.meas_disp = self.get_meas_disp()
 
         if not self.use_coupling:
             self.measmat = self.remove_coupling(self.measmat)
@@ -56,9 +64,7 @@ class LOCO():
         self.matrix = np.hstack(
                 [self.matrix, self.rfline])
         self.nbpm = self.matrix.shape[0]//2
-        self.ncorr = self.matrix.shape[1]
-        if self.use_disp:
-            self.ncorr -= 1
+        self.ncorr = self.matrix.shape[1] - 1
 
         if gain_bpm is None:
             self.gain_bpm = np.ones(2*self.nbpm)
@@ -86,6 +92,33 @@ class LOCO():
     def remove_y(self, matrix):
         matrix[self.nbpm:, :] *= 0
         return matrix
+
+    def get_meas_disp(self):
+        return self.alpha * self.rf_freq * self.measmat[:, -1]
+
+    def disp_corrs(self):
+        twi, *_ = pyaccel.optics.calc_twiss(self.model, indices='open')
+        chidx = self.respm.fam_data['CH']['index']
+        cvidx = self.respm.fam_data['CV']['index']
+        corrsidx = chidx + cvidx
+        disp = np.zeros((self.ncorr, 2))
+        disp[:, 0] = twi.etax[corrsidx]
+        disp[:, 1] = twi.etay[corrsidx]
+        return disp
+
+    def calc_energy_shift(self):
+        disp_meas = self.get_meas_disp()
+        dmde = np.zeros(
+            (self.matrix.shape[0]*self.matrix.shape[1], self.ncorr))
+        delta = 1e-3
+
+        for j in range(self.ncorr):
+            energy_shift = np.zeros((self.ncorr, 1))
+            energy_shift[j] = delta
+            diff = np.dot(disp_meas, energy_shift.T)/delta
+            diff = np.hstack([diff, np.zeros((diff.shape[0], 1))])
+            dmde[:, j] = diff.flatten()
+        return dmde
 
     def calc_rf_line(self, model, delta=100):
         if self.cavidx is None:
@@ -268,7 +301,8 @@ class LOCO():
         J_loco[:, :nfam] = kmatrix
         J_loco[:, nfam:nfam+2*nbpm] = dmdg_bpm
         J_loco[:, nfam+2*nbpm:nfam+3*nbpm] = dmdalpha_bpm
-        J_loco[:, nfam+3*nbpm:] = dmdg_corr
+        J_loco[:, nfam+3*nbpm:nfam+3*nbpm+nch+ncv] = dmdg_corr
+        # J_loco[:, nfam+3*nbpm+nch+ncv:] = self.calc_energy_shift()
         return J_loco
 
     def fit_matrices(self, model=None):
@@ -368,12 +402,17 @@ class LOCO():
         if not self.fit_quadrupoles:
             J_loco[:, :self.idx_grads] = None
         if not self.fit_gains_bpm:
-            J_loco[:, self.idx_grads:self.idx_grads+2*self.nbpm] = None
+            idx1 = self.idx_grads
+            idx2 = idx1 + 2*self.nbpm
+            J_loco[:, idx1:idx2] = None
         if not self.fit_gains_corr:
-            J_loco[:, self.idx_grads+3*self.nbpm] = None
+            idx1 = self.idx_grads+3*self.nbpm
+            idx2 = idx1 + self.ncorr
+            J_loco[:, idx1:idx2] = None
         if not self.use_coupling:
-            J_loco[:,
-            self.idx_grads+2*self.nbpm:self.idx_grads+3*self.nbpm] = None
+            idx1 = self.idx_grads+2*self.nbpm
+            idx2 = idx1 + self.nbpm
+            J_loco[:, idx1:idx2] = None
 
         J_loco = J_loco[~np.isnan(J_loco)].reshape(J_loco.shape[0], -1)
         return J_loco
@@ -388,50 +427,61 @@ class LOCO():
         one = False
 
         if size == len(self.grad_quads) + 3*self.nbpm + self.ncorr:
-            parameters['k'] = param[:self.idx_grads]
-            parameters['bpm_gain'] = param[
-                self.idx_grads:self.idx_grads+2*self.nbpm]
-            parameters['bpm_roll'] = param[
-                self.idx_grads+2*self.nbpm:self.idx_grads+3*self.nbpm]
-            parameters['corr_gain'] = param[
-                self.idx_grads+3*self.nbpm:]
+            idx1 = self.idx_grads
+            idx2 = idx1 + 2*self.nbpm
+            idx3 = idx2 + self.nbpm
+            parameters['k'] = param[:idx1]
+            parameters['bpm_gain'] = param[idx1:idx2]
+            parameters['bpm_roll'] = param[idx2:idx3]
+            parameters['corr_gain'] = param[idx3:]
         elif size == len(self.grad_quads) + 2*self.nbpm + self.ncorr:
-            parameters['k'] = param[:self.idx_grads]
-            parameters['bpm_gain'] = param[
-                self.idx_grads:self.idx_grads+2*self.nbpm]
-            parameters['corr_gain'] = param[self.idx_grads+2*self.nbpm:]
+            idx1 = self.idx_grads
+            idx2 = idx1 + 2*self.nbpm
+            parameters['k'] = param[:idx1]
+            parameters['bpm_gain'] = param[idx1:idx2]
+            parameters['corr_gain'] = param[idx2:]
         elif size == len(self.grad_quads) + 1*self.nbpm + self.ncorr:
-            parameters['k'] = param[:self.idx_grads]
-            parameters['bpm_roll'] = param[
-                self.idx_grads:self.idx_grads+1*self.nbpm]
-            parameters['corr_gain'] = param[self.idx_grads+1*self.nbpm:]
+            idx1 = self.idx_grads
+            idx2 = idx1 + self.nbpm
+            parameters['k'] = param[:idx1]
+            parameters['bpm_roll'] = param[idx1:idx2]
+            parameters['corr_gain'] = param[idx2:]
         elif size == len(self.grad_quads) + 2*self.nbpm:
-            parameters['k'] = param[:self.idx_grads]
-            parameters['bpm_gain'] = param[self.idx_grads:]
+            idx1 = self.idx_grads
+            parameters['k'] = param[:idx1]
+            parameters['bpm_gain'] = param[idx1:]
         elif size == len(self.grad_quads) + 3*self.nbpm:
-            parameters['k'] = param[:self.idx_grads]
-            parameters['bpm_gain'] = param[
-                self.idx_grads:self.idx_grads+2*self.nbpm]
-            parameters['bpm_roll'] = param[self.idx_grads+2*self.nbpm:]
+            idx1 = self.idx_grads
+            idx2 = idx1 + 2*self.nbpm
+            parameters['k'] = param[:idx1]
+            parameters['bpm_gain'] = param[idx1:idx2]
+            parameters['bpm_roll'] = param[idx2:]
         elif size == len(self.grad_quads) + 1*self.nbpm:
-            parameters['k'] = param[:self.idx_grads]
-            parameters['bpm_roll'] = param[self.idx_grads:]
+            idx1 = self.idx_grads
+            parameters['k'] = param[:idx1]
+            parameters['bpm_roll'] = param[idx1:]
         elif size == len(self.grad_quads) + self.ncorr:
-            parameters['k'] = param[:self.idx_grads]
-            parameters['corr_gain'] = param[self.idx_grads:]
+            idx1 = self.idx_grads
+            parameters['k'] = param[:idx1]
+            parameters['corr_gain'] = param[idx1:]
         elif size == 2*self.nbpm + self.ncorr:
-            parameters['bpm_gain'] = param[:2*self.nbpm]
-            parameters['corr_gain'] = param[2*self.nbpm:]
+            idx1 = 2*self.nbpm
+            parameters['bpm_gain'] = param[:idx1]
+            parameters['corr_gain'] = param[idx1:]
         elif size == 3*self.nbpm + self.ncorr:
-            parameters['bpm_gain'] = param[:2*self.nbpm]
-            parameters['bpm_roll'] = param[2*self.nbpm:3*self.nbpm]
-            parameters['corr_gain'] = param[3*self.nbpm:]
+            idx1 = 2*self.nbpm
+            idx2 = idx1 + self.nbpm
+            parameters['bpm_gain'] = param[:idx1]
+            parameters['bpm_roll'] = param[idx1:idx2]
+            parameters['corr_gain'] = param[idx2:]
         elif size == self.nbpm + self.ncorr:
-            parameters['bpm_roll'] = param[:self.nbpm]
-            parameters['corr_gain'] = param[self.nbpm:]
+            idx1 = self.nbpm
+            parameters['bpm_roll'] = param[:idx1]
+            parameters['corr_gain'] = param[idx1:]
         elif size == 3*self.nbpm:
-            parameters['bpm_gain'] = param[:2*self.nbpm]
-            parameters['bpm_roll'] = param[2*self.nbpm:]
+            idx1 = 2*self.nbpm
+            parameters['bpm_gain'] = param[:idx1]
+            parameters['bpm_roll'] = param[idx1:]
 
         if size == len(self.grad_quads):
             name = 'k'
