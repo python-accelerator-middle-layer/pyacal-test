@@ -571,22 +571,34 @@ class LOCO():
     #     return model
 
     @staticmethod
-    def set_quadfam_deltak(model, idx_fam, kvalues, kdelta):
+    def add_rf_response(model, matrix, use_disp):
         """."""
-        for idx2, idx_mag in enumerate(idx_fam):
-            for idx3, idx_seg in enumerate(idx_mag):
-                pyaccel.lattice.set_attribute(
-                    model, 'K', idx_seg, kvalues[idx2][idx3] +
-                    kdelta)
+        if use_disp:
+            rfline = LOCO.calc_rf_line(model)
+        else:
+            rfline = np.zeros((matrix.shape[0], 1))
+        matrix = np.hstack([matrix, rfline])
+        return matrix
+
+    @staticmethod
+    def calc_matrix_rf(model, respm, use_disp):
+        matrix = respm.get_respm(model=model)
+        matrix = LOCO.add_rf_response(model, matrix, use_disp)
+        return matrix
 
     @staticmethod
     def set_quadmag_deltak(model, idx_mag, kvalues, kdelta):
         """."""
-        for idx1, idx in enumerate(idx_mag):
-            for idx2, idx_seg in enumerate(idx):
-                pyaccel.lattice.set_attribute(
-                    model, 'K', idx_seg, kvalues[idx1][idx2] +
-                    kdelta[idx1])
+        for idx, idx_seg in enumerate(idx_mag):
+            pyaccel.lattice.set_attribute(
+                model, 'K', idx_seg, kvalues[idx] +
+                kdelta)
+
+    @staticmethod
+    def set_quadset_kdelta(model, idx_set, kvalues, kdelta):
+        """."""
+        for idx, idx_mag in enumerate(idx_set):
+            LOCO.set_quadmag_deltak(model, idx_mag, kvalues[idx], kdelta)
 
     @staticmethod
     def calc_kmatrix(respm,
@@ -595,55 +607,26 @@ class LOCO():
                      use_families=False):
         """."""
         if use_families:
-            quadsidx = []
+            kindices = []
             for fam_name in LOCO.QUAD_FAM:
-                quadsidx.append(respm.fam_data[fam_name]['index'])
-            nquads = len(quadsidx)
-            kquads = LOCO._get_quads_strengths(respm.model, quadsidx)
+                kindices.append(respm.fam_data[fam_name]['index'])
+            kvalues = LOCO._get_quads_strengths(respm.model, kindices)
+            func = LOCO.set_quadset_kdelta
         else:
-            qnidx = respm.fam_data['QN']['index']
-            nquads = len(qnidx)
-            kquads = np.array(
-                pyaccel.lattice.get_attribute(respm.model, 'K', qnidx))
+            kindices = respm.fam_data['QN']['index']
+            kvalues = np.array(
+                pyaccel.lattice.get_attribute(respm.model, 'K', kindices))
+            func = LOCO.set_quadmag_deltak
+        matrix_nominal = LOCO.calc_matrix_rf(respm.model, respm, use_disp)
 
-        nominal_matrix = respm.get_respm()
-        if use_disp:
-            rfline = LOCO.calc_rf_line(respm.model)
-        else:
-            rfline = np.zeros((nominal_matrix.shape[0], 1))
-        nominal_matrix = np.hstack([nominal_matrix, rfline])
-        vector = nominal_matrix.flatten()
-        kmatrix = np.zeros((len(vector), nquads))
+        kmatrix = np.zeros((
+            matrix_nominal.shape[0]*matrix_nominal.shape[1], len(kindices)))
         model = _dcopy(respm.model)
 
-        if use_families:
-            for idx1, idx_fam in enumerate(quadsidx):
-                LOCO.set_quadfam_deltak(model, idx_fam, kquads[idx1], kdelta)
-                new_respm = respm.get_respm(model=model)
-                if use_disp:
-                    rfline = LOCO.calc_rf_line(model)
-                else:
-                    rfline = np.zeros((new_respm.shape[0], 1))
-                new_respm = np.hstack(
-                    [new_respm, rfline])
-                dmdk = (new_respm - nominal_matrix)/kdelta
-                kmatrix[:, idx1] = dmdk.flatten()
-                LOCO.set_quadfam_deltak(model, idx_fam, kquads[idx1], 0.0)
-        else:
-            for idx1, idx in enumerate(qnidx):
-                for idx2, idx_seg in enumerate(idx):
-                    pyaccel.lattice.set_attribute(
-                        model, 'K', idx_seg, kquads[idx1][idx2] +
-                        kdelta)
-                new_respm = respm.get_respm(model=model)
-                if use_disp:
-                    rfline = LOCO.calc_rf_line(model)
-                else:
-                    rfline = np.zeros((new_respm.shape[0], 1))
-                new_respm = np.hstack(
-                    [new_respm, rfline])
-                dmdk = (new_respm - nominal_matrix)/kdelta
-                kmatrix[:, idx1] = dmdk.flatten()
-                LOCO.set_quadmag_deltak(model, idx_mag, kvalues, 0*kdelta)
-                model = _dcopy(respm.model)
+        for idx, idx_set in enumerate(kindices):
+            func(model, idx_set, kvalues[idx], kdelta)
+            matrix = LOCO.calc_matrix_rf(model, respm, use_disp)
+            dmatrix = (matrix - matrix_nominal)/kdelta
+            kmatrix[:, idx] = dmatrix.flatten()
+            func(model, idx_set, kvalues[idx], 0)
         return kmatrix
