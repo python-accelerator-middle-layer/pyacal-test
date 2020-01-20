@@ -142,7 +142,7 @@ class LOCO():
         dorbx = dorb[0, ind['bpmidx']]
         dorby = dorb[2, ind['bpmidx']]
         data = np.zeros((len(dorbx) + len(dorby), 1))
-        data[:, 0] = np.hstack([dorbx, dorby])
+        data[:, 0] = np.hstack([dorbx, dorby])/delta
         return data
 
     def apply_bpm_gain(self, matrix, gain):
@@ -597,9 +597,11 @@ class LOCO():
                 pyaccel.lattice.get_attribute(respm.model, 'K', qnidx))
 
         nominal_matrix = respm.get_respm()
-        rfline = LOCO.calc_rf_line(respm.model)
+        if use_disp:
+            rfline = LOCO.calc_rf_line(respm.model)
+        else:
+            rfline = np.zeros((nominal_matrix.shape[0], 1))
         nominal_matrix = np.hstack([nominal_matrix, rfline])
-
         vector = nominal_matrix.flatten()
         kmatrix = np.zeros((len(vector), nquads))
         model = _dcopy(respm.model)
@@ -608,12 +610,12 @@ class LOCO():
             for idx1, idx_fam in enumerate(quadsidx):
                 set_family_deltak(model, idx_fam, deltak)
                 new_respm = respm.get_respm(model=model)
-                rfline = LOCO.calc_rf_line(model)
                 if use_disp:
-                    new_respm = np.hstack([new_respm, rfline])
+                    rfline = LOCO.calc_rf_line(model)
                 else:
-                    new_respm = np.hstack(
-                        [new_respm, np.zeros((new_respm.shape[0], 1))])
+                    rfline = np.zeros((new_respm.shape[0], 1))
+                new_respm = np.hstack(
+                    [new_respm, rfline])
                 dmdk = (new_respm - nominal_matrix)/deltak
                 kmatrix[:, idx1] = dmdk.flatten()
                 set_family_deltak(model, idx_fam, 0.0)
@@ -625,11 +627,11 @@ class LOCO():
                         deltak)
                 new_respm = respm.get_respm(model=model)
                 if use_disp:
-                    new_respm = np.hstack(
-                        [new_respm, LOCO.calc_rf_line(model)])
+                    rfline = LOCO.calc_rf_line(model)
                 else:
-                    new_respm = np.hstack(
-                        [new_respm, np.zeros((new_respm.shape[0], 1))])
+                    rfline = np.zeros((new_respm.shape[0], 1))
+                new_respm = np.hstack(
+                    [new_respm, rfline])
                 dmdk = (new_respm - nominal_matrix)/deltak
                 kmatrix[:, idx1] = dmdk.flatten()
                 model = _dcopy(respm.model)
