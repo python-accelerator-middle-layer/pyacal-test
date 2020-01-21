@@ -205,7 +205,7 @@ class LOCO():
         return np.reshape(vector, (row, col))
 
     @staticmethod
-    def _get_quads_strengths(model, quadsidx):
+    def get_quads_strengths(model, quadsidx):
         kquads = []
         for qidx in quadsidx:
             kquads.append(pyaccel.lattice.get_attribute(
@@ -387,7 +387,7 @@ class LOCO():
         self.invJloco = np.dot(np.dot(v.T, inv_s), u.T)
 
         if self.use_families:
-            self.grad_quads = LOCO._get_quads_strengths(
+            self.grad_quads = LOCO.get_quads_strengths(
                 model=mod, quadsidx=self.quadsidx)
         else:
             self.grad_quads = np.array(
@@ -604,7 +604,7 @@ class LOCO():
             kindices = []
             for fam_name in LOCO.QUAD_FAM:
                 kindices.append(respm.fam_data[fam_name]['index'])
-            kvalues = LOCO._get_quads_strengths(respm.model, kindices)
+            kvalues = LOCO.get_quads_strengths(respm.model, kindices)
             set_quad_kdelta = LOCO.set_quadset_kdelta
         else:
             kindices = respm.fam_data['QN']['index']
