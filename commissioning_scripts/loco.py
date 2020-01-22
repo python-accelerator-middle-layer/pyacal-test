@@ -16,33 +16,29 @@ class LOCO():
 
     def __init__(self, loco_input):
         """."""
+        self.model = loco_input['model']
+        self.dim = loco_input['dim']
+        self._check_model()
+
         self.kmatrix = loco_input['kmatrix']
-        self.measmat = loco_input['measured_matrix']
+        self.goalmat = loco_input['measured_matrix']
         self.niter = loco_input['number_of_iterations']
+
         self.svd_method = loco_input['svd_method']
-        if 'svd_selection' in loco_input.keys():
-            self.svd_sel = loco_input['svd_selection']
-        else:
-            self.svd_sel = None
+        self._check_svd(loco_input)
+
         self.use_coupling = loco_input['use_coupling']
+        self.use_families = loco_input['use_families']
+        self.use_disp = loco_input['use_dispersion']
         self.fit_gains_bpm = loco_input['fit_gains_bpm']
         self.fit_gains_corr = loco_input['fit_gains_corr']
         self.fit_quadrupoles = loco_input['fit_quadrupoles']
-        self.model = loco_input['model']
-        self.dim = loco_input['dim']
-        if not self.model.cavity_on and self.dim == '6d':
-            self.model.cavity_on = True
-        if not self.model.radiation_on:
-            self.model.radiation_on = True
+
+        if not self.use_coupling:
+            self.goalmat = self.remove_coupling(self.goalmat)
+
         self.respm = Respmat(model=self.model, dim=self.dim)
-        self.matrix = self.respm.get_respm()
-        self.use_disp = loco_input['use_dispersion']
         self.bpmidx = self.respm.fam_data['BPM']['index']
-        if self.use_disp:
-            self.rfline = self.calc_rf_line(self.model)
-        else:
-            self.rfline = np.zeros((self.matrix.shape[0], 1))
-            self.cavidx = None
 
         self.cavidx = pyaccel.lattice.find_indices(
                 self.model, 'fam_name', 'SRFCav')[0]
@@ -50,17 +46,39 @@ class LOCO():
             self.rf_freq = self.model[self.cavidx].frequency
         else:
             self.rf_freq = loco_input['rf_frequency']
-        self.alpha = pyaccel.optics.get_mcf(self.model)
-        self.meas_disp = self.get_meas_disp()
 
-        if not self.use_coupling:
-            self.measmat = self.remove_coupling(self.measmat)
-
-        self.matrix = np.hstack(
-                [self.matrix, self.rfline])
+        self.matrix = self.calc_matrix_rf(
+            self.model, self.respm, self.use_disp)
         self.nbpm = self.matrix.shape[0]//2
         self.ncorr = self.matrix.shape[1] - 1
+        self.matrix = LOCO.apply_all_gains(
+            matrix=self.matrix,
+            gain_bpm=self.gain_bpm,
+            roll_bpm=self.roll_bpm,
+            gain_corr=self.gain_corr)
+        self.vector = self.matrix.flatten()
+        self.kquads = []
+        self._init_gains(loco_input)
+        self.quadsidx = []
+        self._define_quadsidx()
 
+    @property
+    def chi2(self):
+        """."""
+        return LOCO.calc_chi2(self.matrix, self.goalmat)
+
+    @property
+    def alpha(self):
+        """."""
+        return pyaccel.optics.get_mcf(self.model)
+
+    @property
+    def measured_dispersion(self):
+        """."""
+        return self.alpha * self.rf_freq * self.goalmat[:, -1]
+
+    def _init_gains(self, loco_input):
+        """."""
         if loco_input['gain_bpm'] is None:
             self.gain_bpm = np.ones(2*self.nbpm)
         else:
@@ -83,35 +101,49 @@ class LOCO():
             else:
                 self.gain_corr = loco_input['gain_corr']
 
-        self.matrix = LOCO.apply_all_gains(
-            matrix=self.matrix,
-            gain_bpm=self.gain_bpm,
-            roll_bpm=self.roll_bpm,
-            gain_corr=self.gain_corr)
-        self.vector = self.matrix.flatten()
-        self.use_families = loco_input['use_families']
-
+    def _define_quadsidx(self):
         if self.use_families:
-            self.quadsidx = []
             for fam_name in self.QUAD_FAM:
                 self.quadsidx.append(self.respm.fam_data[fam_name]['index'])
         else:
             self.quadsidx = self.respm.fam_data['QN']['index']
 
-        self.kquads = []
+    def _check_model(self):
+        if not self.model.cavity_on and self.dim == '6d':
+            self.model.cavity_on = True
+        if not self.model.radiation_on:
+            self.model.radiation_on = True
 
-    def remove_x(self, matrix):
-        matrix[:self.nbpm, :] *= 0
+    def _check_svd(self, loco_input):
+        if self.svd_method.lower() == 'selection':
+            if 'svd_selection' in loco_input.keys():
+                self.svd_sel = loco_input['svd_selection']
+                print('It will be used {0:d} SV'.format(self.svd_sel))
+            else:
+                self.svd_sel = None
+                print('Number of SV not selected, all SV will be used')
+        elif self.svd_method.lower() == 'threshold':
+            if 'svd_threshold' in loco_input.keys():
+                self.svd_thre = loco_input['svd_threshold']
+                print('SV threshold {0:0.1f}'.format(self.svd_thre))
+            else:
+                self.svd_thre = 1e-6
+                print('Default SV threshold (1e-6)')
+
+    @staticmethod
+    def remove_x(matrix):
+        """."""
+        matrix[:matrix.shape[0]//2, :-1] *= 0
         return matrix
 
-    def remove_y(self, matrix):
-        matrix[self.nbpm:, :] *= 0
+    @staticmethod
+    def remove_y(matrix):
+        """."""
+        matrix[matrix.shape[0]//2:, :-1] *= 0
         return matrix
 
-    def get_meas_disp(self):
-        return self.alpha * self.rf_freq * self.measmat[:, -1]
-
-    def disp_corrs(self):
+    def disp_at_corrs(self):
+        """."""
         twi, *_ = pyaccel.optics.calc_twiss(self.model, indices='open')
         chidx = self.respm.fam_data['CH']['index']
         cvidx = self.respm.fam_data['CV']['index']
@@ -122,7 +154,7 @@ class LOCO():
         return disp
 
     def calc_energy_shift(self):
-        disp_meas = self.get_meas_disp()
+        """."""
         dmde = np.zeros(
             (self.matrix.shape[0]*self.matrix.shape[1], self.ncorr))
         delta = 1e-3
@@ -130,16 +162,10 @@ class LOCO():
         for j in range(self.ncorr):
             energy_shift = np.zeros((self.ncorr, 1))
             energy_shift[j] = delta
-            diff = np.dot(disp_meas, energy_shift.T)/delta
+            diff = np.dot(self.measured_dispersion, energy_shift.T)/delta
             diff = np.hstack([diff, np.zeros((diff.shape[0], 1))])
             dmde[:, j] = diff.flatten()
         return dmde
-
-    @property
-    def chi2(self):
-        """."""
-        res = LOCO.calc_chi2(self.matrix, self.measmat)
-        return res
 
     @staticmethod
     def get_indices(model):
@@ -172,10 +198,12 @@ class LOCO():
 
     @staticmethod
     def apply_bpm_gain(matrix, gain):
+        """."""
         return np.dot(np.diag(gain), matrix)
 
     @staticmethod
     def apply_bpm_roll(matrix, roll):
+        """."""
         nbpm = len(roll)
         cos_mat = np.diag(np.cos(roll))
         sin_mat = np.diag(np.sin(roll))
@@ -188,24 +216,21 @@ class LOCO():
 
     @staticmethod
     def apply_corr_gain(matrix, gain):
+        """."""
         matrix[:, :-1] = np.dot(matrix[:, :-1], np.diag(gain))
-        # matrix = np.dot(matrix, np.diag(gain))
         return matrix
 
     @staticmethod
     def apply_all_gains(matrix, gain_bpm, roll_bpm, gain_corr):
+        """."""
         matrix = LOCO.apply_bpm_gain(matrix, gain_bpm)
         matrix = LOCO.apply_bpm_roll(matrix, roll_bpm)
         matrix = LOCO.apply_corr_gain(matrix, gain_corr)
         return matrix
 
-    def _vector2respm(self, vector):
-        row = self.matrix.shape[0]
-        col = self.matrix.shape[1]
-        return np.reshape(vector, (row, col))
-
     @staticmethod
     def get_quads_strengths(model, quadsidx):
+        """."""
         kquads = []
         for qidx in quadsidx:
             kquads.append(pyaccel.lattice.get_attribute(
@@ -219,6 +244,7 @@ class LOCO():
 
     @staticmethod
     def remove_coupling(matrix_in):
+        """."""
         nbpm = 160
         nch = 120
         ncv = 160
@@ -230,6 +256,7 @@ class LOCO():
 
     @staticmethod
     def calc_linear_part(matrix, use_disp):
+        """."""
         nbpm = 160
         nch = 120
         ncv = 160
@@ -279,6 +306,7 @@ class LOCO():
 
     @staticmethod
     def kronecker(i, j, size):
+        """."""
         kron = np.zeros((size, size))
         if i != j:
             kron[i, j] = 1
@@ -289,6 +317,7 @@ class LOCO():
 
     @staticmethod
     def merge_kmatrix_linear(kmatrix, dmdg_bpm, dmdalpha_bpm, dmdg_corr):
+        """."""
         nbpm = 160
         nch = 120
         ncv = 160
@@ -302,32 +331,28 @@ class LOCO():
         return J_loco
 
     def filter_Jloco(self, J):
+        """."""
         idx = 0
         if not self.fit_quadrupoles:
             J = np.delete(J, slice(idx, idx + self.idx_grads), axis=1)
             print('removing quadrupoles...')
-            print(J.shape)
         else:
             idx += self.idx_grads
         if not self.fit_gains_bpm:
             J = np.delete(J, slice(idx, idx + 2*self.nbpm), axis=1)
             print('removing BPM gains...')
-            print(J.shape)
         else:
             idx += 2*self.nbpm
         if not self.use_coupling:
             J = np.delete(J, slice(idx, idx + self.nbpm), axis=1)
             print('removing BPM roll...')
-            print(J.shape)
         else:
             idx += self.nbpm
         if not self.fit_gains_corr:
             J = np.delete(J, slice(idx, idx + self.ncorr), axis=1)
             print('removing corrector gains...')
-            print(J.shape)
         else:
             idx += self.ncorr
-        print(J.shape)
         return J
 
     def run_fit(self, model=None):
@@ -342,7 +367,7 @@ class LOCO():
                 mod, self.respm, self.use_disp)
 
         if not self.use_disp:
-            self.measmat[:, -1] *= 0
+            self.goalmat[:, -1] *= 0
 
         dmdg_bpm, dmdalpha_bpm, dmdg_corr = LOCO.calc_linear_part(
             modelmat, self.use_disp)
@@ -357,8 +382,8 @@ class LOCO():
         self.Jloco = self.filter_Jloco(Jloco)
         del Jloco
 
-        diffmat = self.measmat - modelmat
-        chidx2_old = self.calc_chi2(self.measmat, modelmat)
+        diffmat = self.goalmat - modelmat
+        chidx2_old = self.calc_chi2(self.goalmat, modelmat)
         chidx2_init = chidx2_old
         print('Initial Error: {:.6e}'.format(chidx2_old))
 
@@ -399,9 +424,9 @@ class LOCO():
         for n in range(self.niter):
             new_pars = np.dot(self.invJloco, diffmat.flatten())
             fitmat, mod = self.get_fitmat(mod, new_pars)
-            diffmat = self.measmat - fitmat
+            diffmat = self.goalmat - fitmat
             print('Iter {0:d}'.format(n+1))
-            chidx2_new = self.calc_chi2(self.measmat, fitmat)
+            chidx2_new = self.calc_chi2(self.goalmat, fitmat)
             perc = (chidx2_new - chidx2_init)/chidx2_init * 100
             print('Error: {0:.6e} ({1:.2f}%)'.format(chidx2_new, perc))
 
@@ -545,25 +570,6 @@ class LOCO():
             )
         return fitmat, mod
 
-    # @staticmethod
-    # def _set_deltas_fams(model, quadidx, ref, delta):
-    #     for idx1, fam in enumerate(quadidx):
-    #         for idx2, idx in enumerate(fam):
-    #             for idx3, idx_seg in enumerate(idx):
-    #                 pyaccel.lattice.set_attribute(
-    #                     model, 'K', idx_seg, ref[idx1][idx2][idx3] +
-    #                     delta[idx1])
-    #     return model
-
-    # @staticmethod
-    # def _set_deltas_quads(model, quadidx, ref, delta):
-    #     for idx1, idx in enumerate(quadidx):
-    #         for idx2, idx_seg in enumerate(idx):
-    #             pyaccel.lattice.set_attribute(
-    #                 model, 'K', idx_seg, ref[idx1][idx2] +
-    #                 delta[idx1])
-    #     return model
-
     @staticmethod
     def add_rf_response(model, matrix, use_disp):
         """."""
@@ -576,6 +582,7 @@ class LOCO():
 
     @staticmethod
     def calc_matrix_rf(model, respm, use_disp):
+        """."""
         matrix = respm.get_respm(model=model)
         matrix = LOCO.add_rf_response(model, matrix, use_disp)
         return matrix
