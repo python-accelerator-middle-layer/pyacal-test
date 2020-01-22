@@ -21,7 +21,7 @@ class LOCO():
         self._check_model()
 
         self.kmatrix = loco_input['kmatrix']
-        self.goalmat = loco_input['measured_matrix']
+        self.goalmat = loco_input['goal_matrix']
         self.niter = loco_input['number_of_iterations']
 
         self.svd_method = loco_input['svd_method']
@@ -51,14 +51,15 @@ class LOCO():
             self.model, self.respm, self.use_disp)
         self.nbpm = self.matrix.shape[0]//2
         self.ncorr = self.matrix.shape[1] - 1
+        self._init_gains(loco_input)
         self.matrix = LOCO.apply_all_gains(
             matrix=self.matrix,
             gain_bpm=self.gain_bpm,
             roll_bpm=self.roll_bpm,
             gain_corr=self.gain_corr)
         self.vector = self.matrix.flatten()
+
         self.kquads = []
-        self._init_gains(loco_input)
         self.quadsidx = []
         self._define_quadsidx()
 
@@ -355,23 +356,22 @@ class LOCO():
             idx += self.ncorr
         return J
 
-    def run_fit(self, model=None):
-        """."""
+    def prepare_fit(self, model=None):
         if model is None:
             model = self.model
             modelmat = self.matrix
-            mod = _dcopy(model)
+            self.mod = _dcopy(model)
         else:
-            mod = _dcopy(model)
+            self.mod = _dcopy(model)
             modelmat = LOCO.calc_matrix_rf(
-                mod, self.respm, self.use_disp)
+                self.mod, self.respm, self.use_disp)
 
         if not self.use_disp:
             self.goalmat[:, -1] *= 0
 
         dmdg_bpm, dmdalpha_bpm, dmdg_corr = LOCO.calc_linear_part(
             modelmat, self.use_disp)
-        Jloco = LOCO.merge_kmatrix_linear(
+        Jloco_temp = LOCO.merge_kmatrix_linear(
             self.kmatrix, dmdg_bpm, dmdalpha_bpm, dmdg_corr)
 
         self.delta_gains_bpms = np.zeros(2*self.nbpm)
@@ -379,15 +379,15 @@ class LOCO():
         self.delta_gains_corrs = np.zeros(self.ncorr)
         self.idx_grads = len(self.quadsidx)
 
-        self.Jloco = self.filter_Jloco(Jloco)
-        del Jloco
+        self.Jloco = self.filter_Jloco(Jloco_temp)
+        del Jloco_temp
 
-        diffmat = self.goalmat - modelmat
-        chidx2_old = self.calc_chi2(self.goalmat, modelmat)
-        chidx2_init = chidx2_old
-        print('Initial Error: {:.6e}'.format(chidx2_old))
+        self.diffmat = self.goalmat - modelmat
+        self.chi2_old = self.calc_chi2(self.goalmat, modelmat)
+        self.chi2_init = self.chi2_old
+        print('Initial Error: {:.6e}'.format(self.chi2_old))
 
-        if not chidx2_init:
+        if not self.chi2_init:
             print('The initial error is zero! Model = Measurement')
 
         u, s, v = np.linalg.svd(self.Jloco, full_matrices=False)
@@ -398,14 +398,10 @@ class LOCO():
         inv_s = np.diag(inv_s)
 
         if self.svd_method == 'threshold':
-            threshold = 1e-6
-            bad_sv = s/np.max(s) < threshold
+            bad_sv = s/np.max(s) < self.svd_thre
             print('remove {0:d} bad singular values'.format(np.sum(bad_sv)))
             inv_s[bad_sv] = 0
-            if self.svd_sel is not None:
-                raise Exception(
-                    'If you want to select SVD set ''rank'' in svd_method')
-        elif self.svd_method == 'rank':
+        elif self.svd_method == 'selection':
             if self.svd_sel is not None:
                 inv_s[self.svd_sel:] = 0
 
@@ -413,39 +409,42 @@ class LOCO():
 
         if self.use_families:
             self.grad_quads = LOCO.get_quads_strengths(
-                model=mod, quadsidx=self.quadsidx)
+                model=self.mod, quadsidx=self.quadsidx)
         else:
             self.grad_quads = np.array(
-                pyaccel.lattice.get_attribute(mod, 'K', self.quadsidx))
+                pyaccel.lattice.get_attribute(self.mod, 'K', self.quadsidx))
 
         self.grad_delta = np.zeros(len(self.quadsidx))
-        tol = 1e-16
+        self.tol = 1e-16
+
+    def run_fit(self, model=None):
+        """."""
+        self.prepare_fit(model)
         loco_out = dict()
         for n in range(self.niter):
-            new_pars = np.dot(self.invJloco, diffmat.flatten())
-            fitmat, mod = self.get_fitmat(mod, new_pars)
-            diffmat = self.goalmat - fitmat
+            new_pars = np.dot(self.invJloco, self.diffmat.flatten())
+            fitmat, self.mod = self.get_fitmat(self.mod, new_pars)
+            self.diffmat = self.goalmat - fitmat
             print('Iter {0:d}'.format(n+1))
-            chidx2_new = self.calc_chi2(self.goalmat, fitmat)
-            perc = (chidx2_new - chidx2_init)/chidx2_init * 100
-            print('Error: {0:.6e} ({1:.2f}%)'.format(chidx2_new, perc))
+            self.chi2_new = self.calc_chi2(self.goalmat, fitmat)
+            print('Error: {0:.6e}'.format(self.chi2_new))
 
-            if np.isnan(chidx2_new):
+            if np.isnan(self.chi2_new):
                 print('Matrix deviation is NaN!')
                 break
 
-            if chidx2_old - chidx2_new < tol:
+            if self.chi2_old - self.chi2_new < self.tol:
                 print('Limit Reached!')
-                fitmat, mod = self.get_fitmat(mod, -1*new_pars)
+                fitmat, self.mod = self.get_fitmat(self.mod, -1*new_pars)
                 break
             else:
-                chidx2_old = chidx2_new
+                self.chi2_old = self.chi2_new
         print('Finished!')
         gain_bpm = self.gain_bpm + self.delta_gains_bpms
         roll_bpm = self.roll_bpm + self.delta_rolls_bpms
         gain_corr = self.gain_corr + self.delta_gains_corrs
         loco_out['fit_matrix'] = fitmat
-        loco_out['fit_model'] = mod
+        loco_out['fit_model'] = self.mod
         loco_out['gain_bpm'] = gain_bpm
         loco_out['roll_bpm'] = roll_bpm
         loco_out['gain_corr'] = gain_corr
@@ -453,11 +452,11 @@ class LOCO():
 
     def get_param(self, param):
         """."""
-        parameters = dict()
-        parameters['k'] = None
-        parameters['bpm_gain'] = None
-        parameters['bpm_roll'] = None
-        parameters['corr_gain'] = None
+        pars = dict()
+        pars['k'] = None
+        pars['bpm_gain'] = None
+        pars['bpm_roll'] = None
+        pars['corr_gain'] = None
         size = len(param)
         one = False
 
@@ -465,58 +464,58 @@ class LOCO():
             idx1 = self.idx_grads
             idx2 = idx1 + 2*self.nbpm
             idx3 = idx2 + self.nbpm
-            parameters['k'] = param[:idx1]
-            parameters['bpm_gain'] = param[idx1:idx2]
-            parameters['bpm_roll'] = param[idx2:idx3]
-            parameters['corr_gain'] = param[idx3:]
+            pars['k'] = param[:idx1]
+            pars['bpm_gain'] = param[idx1:idx2]
+            pars['bpm_roll'] = param[idx2:idx3]
+            pars['corr_gain'] = param[idx3:]
         elif size == len(self.grad_quads) + 2*self.nbpm + self.ncorr:
             idx1 = self.idx_grads
             idx2 = idx1 + 2*self.nbpm
-            parameters['k'] = param[:idx1]
-            parameters['bpm_gain'] = param[idx1:idx2]
-            parameters['corr_gain'] = param[idx2:]
+            pars['k'] = param[:idx1]
+            pars['bpm_gain'] = param[idx1:idx2]
+            pars['corr_gain'] = param[idx2:]
         elif size == len(self.grad_quads) + 1*self.nbpm + self.ncorr:
             idx1 = self.idx_grads
             idx2 = idx1 + self.nbpm
-            parameters['k'] = param[:idx1]
-            parameters['bpm_roll'] = param[idx1:idx2]
-            parameters['corr_gain'] = param[idx2:]
+            pars['k'] = param[:idx1]
+            pars['bpm_roll'] = param[idx1:idx2]
+            pars['corr_gain'] = param[idx2:]
         elif size == len(self.grad_quads) + 2*self.nbpm:
             idx1 = self.idx_grads
-            parameters['k'] = param[:idx1]
-            parameters['bpm_gain'] = param[idx1:]
+            pars['k'] = param[:idx1]
+            pars['bpm_gain'] = param[idx1:]
         elif size == len(self.grad_quads) + 3*self.nbpm:
             idx1 = self.idx_grads
             idx2 = idx1 + 2*self.nbpm
-            parameters['k'] = param[:idx1]
-            parameters['bpm_gain'] = param[idx1:idx2]
-            parameters['bpm_roll'] = param[idx2:]
+            pars['k'] = param[:idx1]
+            pars['bpm_gain'] = param[idx1:idx2]
+            pars['bpm_roll'] = param[idx2:]
         elif size == len(self.grad_quads) + 1*self.nbpm:
             idx1 = self.idx_grads
-            parameters['k'] = param[:idx1]
-            parameters['bpm_roll'] = param[idx1:]
+            pars['k'] = param[:idx1]
+            pars['bpm_roll'] = param[idx1:]
         elif size == len(self.grad_quads) + self.ncorr:
             idx1 = self.idx_grads
-            parameters['k'] = param[:idx1]
-            parameters['corr_gain'] = param[idx1:]
+            pars['k'] = param[:idx1]
+            pars['corr_gain'] = param[idx1:]
         elif size == 2*self.nbpm + self.ncorr:
             idx1 = 2*self.nbpm
-            parameters['bpm_gain'] = param[:idx1]
-            parameters['corr_gain'] = param[idx1:]
+            pars['bpm_gain'] = param[:idx1]
+            pars['corr_gain'] = param[idx1:]
         elif size == 3*self.nbpm + self.ncorr:
             idx1 = 2*self.nbpm
             idx2 = idx1 + self.nbpm
-            parameters['bpm_gain'] = param[:idx1]
-            parameters['bpm_roll'] = param[idx1:idx2]
-            parameters['corr_gain'] = param[idx2:]
+            pars['bpm_gain'] = param[:idx1]
+            pars['bpm_roll'] = param[idx1:idx2]
+            pars['corr_gain'] = param[idx2:]
         elif size == self.nbpm + self.ncorr:
             idx1 = self.nbpm
-            parameters['bpm_roll'] = param[:idx1]
-            parameters['corr_gain'] = param[idx1:]
+            pars['bpm_roll'] = param[:idx1]
+            pars['corr_gain'] = param[idx1:]
         elif size == 3*self.nbpm:
             idx1 = 2*self.nbpm
-            parameters['bpm_gain'] = param[:idx1]
-            parameters['bpm_roll'] = param[idx1:]
+            pars['bpm_gain'] = param[:idx1]
+            pars['bpm_roll'] = param[idx1:]
 
         if size == len(self.grad_quads):
             name = 'k'
@@ -532,23 +531,23 @@ class LOCO():
             one = True
 
         if one:
-            parameters[name] = param
-        return parameters
+            pars[name] = param
+        return pars
 
     def get_fitmat(self, mod, new_pars):
         """."""
-        parameters = self.get_param(new_pars)
-        if parameters['k'] is not None:
-            self.grad_delta += parameters['k']
+        pars = self.get_param(new_pars)
+        if pars['k'] is not None:
+            self.grad_delta += pars['k']
 
-        if parameters['bpm_gain'] is not None:
-            self.delta_gains_bpms += parameters['bpm_gain']
+        if pars['bpm_gain'] is not None:
+            self.delta_gains_bpms += pars['bpm_gain']
 
-        if parameters['bpm_roll'] is not None:
-            self.delta_rolls_bpms += parameters['bpm_roll']
+        if pars['bpm_roll'] is not None:
+            self.delta_rolls_bpms += pars['bpm_roll']
 
-        if parameters['corr_gain'] is not None:
-            self.delta_gains_corrs += parameters['corr_gain']
+        if pars['corr_gain'] is not None:
+            self.delta_gains_corrs += pars['corr_gain']
 
         if self.use_families:
             set_quad_kdelta = LOCO.set_quadset_kdelta
