@@ -4,7 +4,7 @@
 from copy import deepcopy as _dcopy
 import numpy as np
 import pyaccel
-from apsuite.commissioning_scripts.calc_orbcorr_mat import Respmat
+from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 
 
 class LOCO():
@@ -30,7 +30,7 @@ class LOCO():
             self.model.cavity_on = True
         if not self.model.radiation_on:
             self.model.radiation_on = True
-        self.respm = Respmat(model=self.model, dim=self.dim)
+        self.respm = OrbRespmat(model=self.model, acc='SI', dim=self.dim)
         self.matrix = self.respm.get_respm()
         self.use_disp = loco_input['use_dispersion']
         self.bpmidx = self.respm.fam_data['BPM']['index']
@@ -180,7 +180,8 @@ class LOCO():
                         pyaccel.lattice.set_attribute(
                             mod, 'K', idx_seg, self.kquads[i1][i2][i3] +
                             deltak)
-                new_respm = self.respm.get_respm(model=mod)
+                self.respm.model = mod
+                new_respm = self.respm.get_respm()
                 if self.use_disp:
                     new_respm = np.hstack(
                         [new_respm, self.calc_rf_line(mod)])
@@ -196,7 +197,8 @@ class LOCO():
                     pyaccel.lattice.set_attribute(
                         mod, 'K', idx_seg, self.kquads[i1][i2] +
                         deltak)
-                new_respm = self.respm.get_respm(model=mod)
+                self.respm.model = mod
+                new_respm = self.respm.get_respm()
                 if self.use_disp:
                     new_respm = np.hstack(
                         [new_respm, self.calc_rf_line(mod)])
@@ -310,7 +312,8 @@ class LOCO():
             mod = _dcopy(model)
         else:
             mod = _dcopy(model)
-            modelmat = self.respm.get_respm(model=mod)
+            self.respm.model = mod
+            modelmat = self.respm.get_respm()
             if self.use_disp:
                 modelmat = np.hstack(
                      [modelmat, self.calc_rf_line(mod)])
@@ -525,7 +528,8 @@ class LOCO():
                 ref=self.grad_quads,
                 delta=self.grad_delta)
 
-        fitmat = self.respm.get_respm(model=modc)
+        self.respm.model = modc
+        fitmat = self.respm.get_respm()
         if self.use_disp:
             fitmat = np.hstack(
                 [fitmat, self.calc_rf_line(mod)])

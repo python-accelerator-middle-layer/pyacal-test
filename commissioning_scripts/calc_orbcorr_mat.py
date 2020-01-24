@@ -6,173 +6,192 @@ from pymodels import tb, bo, ts, si
 import pyaccel
 
 
-class Respmat():
+class OrbRespmat():
     """."""
 
-    def __init__(self, model, dim='4d'):
+    def __init__(self, model, acc, dim='4d'):
         """."""
         self.model = model
-        if self.model.harmonic_number == 828:
+        self.acc = acc
+        if self.acc == 'BO':
             self.fam_data = bo.families.get_family_data(self.model)
-        elif self.model.harmonic_number == 864:
+        elif self.acc == 'SI':
             self.fam_data = si.families.get_family_data(self.model)
         else:
             raise Exception('Set models: BO or SI')
         self.dim = dim
-        self.bpms = self.fam_data['BPM']['index']
-        self.ch = self.fam_data['CH']['index']
-        self.cv = self.fam_data['CV']['index']
-        self.nbpm = len(self.bpms)
-        self.nch = len(self.ch)
-        self.ncv = len(self.cv)
-        self.mxx = np.zeros((self.nbpm, self.nch))
-        self.mxy = np.zeros((self.nbpm, self.ncv))
-        self.myx = np.zeros((self.nbpm, self.nch))
-        self.myy = np.zeros((self.nbpm, self.ncv))
+        self.bpms = self._get_idx(self.fam_data['BPM']['index'])
+        self.ch = self._get_idx(self.fam_data['CH']['index'])
+        self.cv = self._get_idx(self.fam_data['CV']['index'])
 
-    def get_respm(self, model=None):
+    @staticmethod
+    def _get_idx(indcs):
+        return np.array([idx[0] for idx in indcs])
+
+    def get_respm(self):
         """."""
-        if model is None:
-            model = self.model
         if self.dim == '6d':
             M, T = pyaccel.tracking.find_m66(
-                model, indices='open', closed_orbit=[0, 0, 0, 0, 0, 0])
+                self.model, indices='open', closed_orbit=[0, 0, 0, 0, 0, 0])
         else:
             M, T = pyaccel.tracking.find_m44(
-                model, indices='open', energy_offset=0.0,
-                closed_orbit=[0, 0, 0, 0])
-        T = np.array(T)
-        total_len_ch = np.zeros(self.nch)
-        total_len_cv = np.zeros(self.ncv)
-        for jx in range(self.nch):
-            total_len_ch[jx] = model[self.ch[jx][0]].length
-        for jy in range(self.ncv):
-            total_len_cv[jy] = model[self.cv[jy][0]].length
-        D = np.eye(M.shape[0])
-        for i in range(self.nbpm):
-            Ri = T[self.bpms[i][0], :, :]
-            DMi = D - np.dot(np.dot(Ri, M), np.linalg.inv(Ri))
-            for jx in range(self.nch):
-                self.mxx[i, jx], self.myx[i, jx], _, _ = self._getC(
-                    T, DMi, Ri, self.bpms[i][0], self.ch[jx][0],
-                    total_len_ch[jx]
-                )
-            for jy in range(self.ncv):
-                _, _, self.mxy[i, jy], self.myy[i, jy] = self._getC(
-                    T, DMi, Ri, self.bpms[i][0], self.cv[jy][0],
-                    total_len_cv[jy]
-                )
-        Mx = np.concatenate((self.mxx, self.myx))
-        My = np.concatenate((self.mxy, self.myy))
-        return np.concatenate((Mx, My), axis=1)
+                self.model, indices='open', closed_orbit=[0, 0, 0, 0])
 
-    def _getC(self, T, DM, R, row, col, total_len):
-        if row > col:
-            Rij = np.dot(R, np.linalg.inv(T[col, :, :]))
-        else:
-            Rij = np.dot(
-                R, np.dot(
-                    T[-1, :, :], np.linalg.inv(T[col, :, :])))
+        nch = len(self.ch)
+        respmat = []
+        corrs = np.hstack([self.ch, self.cv])
+        for i, corr in enumerate(corrs):
+            Rc = T[corr, :, :]
+            Rb = T[self.bpms, :, :]
+            corr_len = self.model[corr].length
+            KL = self.model[corr].KL
+            KsL = self.model[corr].KsL
+            respx, respy = self._get_respmat_line(
+                Rc, Rb, M, corr, corr_len,
+                kxl=KL, kyl=-KL, ksxl=KsL, ksyl=KsL)
+            if i < nch:
+                respmat.append(respx)
+            else:
+                respmat.append(respy)
+        return np.array(respmat).T
 
-        c = np.dot(np.linalg.inv(DM), Rij)
-        cxx = c[0, 1] - total_len * c[0, 0] / 2
-        cyx = c[2, 1] - total_len * c[2, 0] / 2
-        cxy = c[0, 3] - total_len * c[0, 2] / 2
-        cyy = c[2, 3] - total_len * c[2, 2] / 2
-        return cxx, cyx, cxy, cyy
+    def _get_respmat_line(self, Rc, Rb, M, corr, length,
+                          kxl=0, kyl=0, ksxl=0, ksyl=0):
+        # create a symplectic integrator of second order
+        # for the last half of the element:
+        drift = np.eye(Rc.shape[0], dtype=float)
+        drift[0, 1] = length/2 / 2
+        drift[2, 3] = length/2 / 2
+        quad = np.eye(Rc.shape[0], dtype=float)
+        quad[1, 0] = -kxl/2
+        quad[3, 2] = -kyl/2
+        quad[1, 2] = -ksxl/2
+        quad[3, 0] = -ksyl/2
+        half_cor = drift @ quad @ drift
+        Rc = half_cor @ Rc
+
+        Mc = np.linalg.solve(Rc.T, (Rc @ M).T).T  # Mc = Rc M Rc^-1
+        Mci = np.eye(Mc.shape[0], dtype=float) - Mc
+
+        small = self.bpms < corr
+        large = np.logical_not(small)
+
+        RcbL = np.linalg.solve(Rc.T, Rb.transpose((0, 2, 1)))
+        RcbL = RcbL.transpose((0, 2, 1))
+        RcbS = RcbL[small] @ Mc
+        RcbL = RcbL[large]
+
+        RcbL = np.linalg.solve(Mci.T, RcbL.transpose((0, 2, 1)))
+        RcbL = RcbL.transpose((0, 2, 1))
+        RcbS = np.linalg.solve(Mci.T, RcbS.transpose((0, 2, 1)))
+        RcbS = RcbS.transpose((0, 2, 1))
+
+        respxx = np.zeros(len(self.bpms))
+        respyx = np.zeros(len(self.bpms))
+        respxy = np.zeros(len(self.bpms))
+        respyy = np.zeros(len(self.bpms))
+
+        respxx[large] = RcbL[:, 0, 1]
+        respyx[large] = RcbL[:, 2, 1]
+        respxx[small] = RcbS[:, 0, 1]
+        respyx[small] = RcbS[:, 2, 1]
+        respx = np.hstack([respxx, respyx])
+
+        respxy[large] = RcbL[:, 0, 3]
+        respyy[large] = RcbL[:, 2, 3]
+        respxy[small] = RcbS[:, 0, 3]
+        respyy[small] = RcbS[:, 2, 3]
+        respy = np.hstack([respxy, respyy])
+        return respx, respy
 
 
-class Trajmat():
+class TrajRespmat():
     """."""
 
     def __init__(self, model, acc):
         """."""
         self.model = model
         self.acc = acc
-        self.bpms = []
-        self.corrh = []
-        self.corrv = []
-        self.corrs = []
-        self.fam = []
-
-    def model_trajmat(self, model=None, acc=None, meth='middle'):
-        """."""
-        if model is None:
-            model = self.model
-        if acc is None:
-            acc = self.acc
-
-        ncorrs = 0
         if acc == 'TB':
-            self.fam = tb.get_family_data(model)
+            self.fam_data = tb.get_family_data(model)
         elif acc == 'BO':
-            self.fam = bo.get_family_data(model)
+            self.fam_data = bo.get_family_data(model)
         elif acc == 'TS':
-            self.fam = ts.get_family_data(model)
+            self.fam_data = ts.get_family_data(model)
         elif acc == 'SI':
-            self.fam = si.get_family_data(model)
-            ncorrs += 1  # RF Frequency as corrector
+            self.fam_data = si.get_family_data(model)
 
-        self.bpms = self.fam['BPM']['index']
-        self.bpms = np.array([b[0] for b in self.bpms])
-        self.corrh = self.fam['CH']['index']
+        self.bpms = self._get_idx(self.fam_data['BPM']['index'])
+        self.ch = self.fam_data['CH']['index']
 
         if acc == 'TS':
             ejesept = pyaccel.lattice.find_indices(
                 model, 'fam_name', 'EjeSeptG')
             segs = len(ejesept)
-            self.corrh.append([ejesept[segs//2]])
-            self.corrh = sorted(self.corrh)
+            self.ch.append([ejesept[segs//2]])
+            self.ch = sorted(self.ch)
 
-        self.corrv = self.fam['CV']['index']
-        self.corrs = self.corrh + self.corrv
-        ncorrs += len(self.corrs)
+        self.ch = self._get_idx(self.ch)
+        self.cv = self._get_idx(self.fam_data['CV']['index'])
 
+    @staticmethod
+    def _get_idx(indcs):
+        return np.array([idx[0] for idx in indcs])
+
+    def get_respm(self):
+        """."""
         _, cumulmat = pyaccel.tracking.find_m44(
-            model, indices='open', closed_orbit=[0, 0, 0, 0])
+            self.model, indices='open', closed_orbit=[0, 0, 0, 0])
 
-        trajmat = np.zeros((2*len(self.bpms), ncorrs))
-        corrtype = 'horizontal'
-        for idx, corr in enumerate(self.corrs):
-            if corr not in self.corrh:
-                corrtype = 'vertical'
-            corr_len = pyaccel.lattice.get_attribute(
-                model, 'length', corr[0])[0]
-            trajmat[:, idx] = self._get_respmat_line(
-                cumulmat, corr, length=corr_len,
-                kxl=0, kyl=0, ksxl=0, ksyl=0,
-                cortype=corrtype, meth=meth)
-        return trajmat
+        trajmat = []
+        corrs = np.hstack([self.ch, self.cv])
+        for idx, corr in enumerate(corrs):
+            Rc = cumulmat[corr]
+            Rb = cumulmat[self.bpms]
+            corr_len = self.model[corr].length
+            KL = self.model[corr].KL
+            KsL = self.model[corr].KsL
+            respx, respy = self._get_respmat_line(
+                Rc, Rb, corr, length=corr_len,
+                kxl=KL, kyl=-KL, ksxl=KsL, ksyl=KsL)
+            if idx < len(self.ch):
+                trajmat.append(respx)
+            else:
+                trajmat.append(respy)
+        return np.array(trajmat).T
 
-    def _get_respmat_line(self, cumul_mat, indcs, length,
-                          kxl=0, kyl=0, ksxl=0, ksyl=0,
-                          cortype='vertical', meth='middle'):
-        idx = 3 if cortype.startswith('vertical') else 1
-        cor = indcs[0]
-        if meth.lower().startswith('end'):
-            cor = indcs[-1]+1
-        elif meth.lower().startswith('mid'):
-            # create a symplectic integrator of second order
-            # for the last half of the element:
-            drift = np.eye(4, dtype=float)
-            drift[0, 1] = length/2 / 2
-            drift[2, 3] = length/2 / 2
-            quad = np.eye(4, dtype=float)
-            quad[1, 0] = -kxl/2
-            quad[3, 2] = -kyl/2
-            quad[1, 2] = -ksxl/2
-            quad[3, 0] = -ksyl/2
-            half_cor = np.dot(np.dot(drift, quad), drift)
+    def _get_respmat_line(self, Rc, Rb, corr, length,
+                          kxl=0, kyl=0, ksxl=0, ksyl=0):
+        # create a symplectic integrator of second order
+        # for the last half of the element:
+        drift = np.eye(4, dtype=float)
+        drift[0, 1] = length/2 / 2
+        drift[2, 3] = length/2 / 2
+        quad = np.eye(4, dtype=float)
+        quad[1, 0] = -kxl/2
+        quad[3, 2] = -kyl/2
+        quad[1, 2] = -ksxl/2
+        quad[3, 0] = -ksyl/2
+        half_cor = drift @ quad @ drift
 
-        m0c = cumul_mat[cor]
-        if meth.lower().startswith('mid'):
-            m0c = np.linalg.solve(half_cor, m0c)
-        mat = np.linalg.solve(m0c.T, cumul_mat[self.bpms].transpose((0, 2, 1)))
-        mat = mat.transpose(0, 2, 1)
-        # if meth.lower().startswith('mid'):
-        #     mat = np.dot(mat, half_cor)
-        respx = mat[:, 0, idx]
-        respy = mat[:, 2, idx]
-        respx[self.bpms < indcs[0]] = 0
-        respy[self.bpms < indcs[0]] = 0
-        return np.hstack([respx, respy])
+        Rc = half_cor @ Rc
+
+        large = self.bpms > corr
+
+        Rb = Rb[large, :, :]
+        Rcb = np.linalg.solve(Rc.T, Rb.transpose((0, 2, 1)))
+        Rcb = Rcb.transpose(0, 2, 1)
+
+        respxx = np.zeros(len(self.bpms), dtype=float)
+        respyx = np.zeros(len(self.bpms), dtype=float)
+        respxy = np.zeros(len(self.bpms), dtype=float)
+        respyy = np.zeros(len(self.bpms), dtype=float)
+
+        respxx[large] = Rcb[:, 0, 1]
+        respyx[large] = Rcb[:, 2, 1]
+        respx = np.hstack([respxx, respyx])
+
+        respxy[large] = Rcb[:, 0, 3]
+        respyy[large] = Rcb[:, 2, 3]
+        respy = np.hstack([respxy, respyy])
+        return respx, respy
