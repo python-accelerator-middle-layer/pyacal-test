@@ -85,9 +85,8 @@ class OrbRespmat():
             else:
                 respmat.append(respy)
 
-        if self.acc == 'SI':
-            rfline = self._calc_rfline()
-            respmat.append(rfline)
+        rfline = self._calc_rfline()
+        respmat.append(rfline)
         respmat = np.array(respmat).T
 
         self.model.cavity_on = cav
@@ -197,8 +196,7 @@ class TrajRespmat():
             else:
                 respmat.append(respy)
 
-        if self.acc == 'SI':
-            respmat.append(np.zeros(2*len(self.bpms)))
+        respmat.append(np.zeros(2*len(self.bpms)))
         respmat = np.array(respmat).T
         return respmat
 
