@@ -28,14 +28,45 @@ class OrbRespmat():
     def _get_idx(indcs):
         return np.array([idx[0] for idx in indcs])
 
+    def _calc_rfline(self):
+        idx = pyaccel.lattice.find_indices(
+            self.model, 'pass_method', 'cavity_pass')[0]
+        rffreq = self.model[idx].frequency
+        if self.dim == '6d':
+            df = 10
+            self.model[idx].frequency = rffreq + df
+            orbp = pyaccel.tracking.find_orbit6(self.model, indices='open')
+            self.model[idx].frequency = rffreq - df
+            orbn = pyaccel.tracking.find_orbit6(self.model, indices='open')
+            self.model[idx].frequency = rffreq
+            rfline = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/df
+            rfline = rfline[:, self.bpms].flatten()
+        else:
+            de = 1e-5
+            orbp = pyaccel.tracking.find_orbit4(
+                self.model, energy_offset=de, indices='open')
+            orbn = pyaccel.tracking.find_orbit4(
+                self.model, energy_offset=-de, indices='open')
+            dispbpm = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/de
+            dispbpm = dispbpm[:, self.bpms].flatten()
+
+            rin = np.zeros((2, 6))
+            rin[:, 4] = [de, -de]
+            rout, *_ = pyaccel.tracking.ring_pass(self.model, rin)
+            leng = self.model.length
+            alpha = -np.diff(rout[:, 5])/2/de / leng
+            # Convert dispersion to deltax/deltaf:
+            rfline = -dispbpm / rffreq / alpha
+        return rfline
+
     def get_respm(self):
         """."""
+        cav = self.model.cavity_on
+        self.model.cavity_on = self.dim == '6d'
         if self.dim == '6d':
-            M, T = pyaccel.tracking.find_m66(
-                self.model, indices='open', closed_orbit=[0, 0, 0, 0, 0, 0])
+            M, T = pyaccel.tracking.find_m66(self.model, indices='open')
         else:
-            M, T = pyaccel.tracking.find_m44(
-                self.model, indices='open', closed_orbit=[0, 0, 0, 0])
+            M, T = pyaccel.tracking.find_m44(self.model, indices='open')
 
         nch = len(self.ch)
         respmat = []
@@ -53,7 +84,13 @@ class OrbRespmat():
                 respmat.append(respx)
             else:
                 respmat.append(respy)
-        return np.array(respmat).T
+
+        rfline = self._calc_rfline()
+        respmat.append(rfline)
+        respmat = np.array(respmat).T
+
+        self.model.cavity_on = cav
+        return respmat
 
     def _get_respmat_line(self, Rc, Rb, M, corr, length,
                           kxl=0, kyl=0, ksxl=0, ksyl=0):
@@ -143,7 +180,7 @@ class TrajRespmat():
         _, cumulmat = pyaccel.tracking.find_m44(
             self.model, indices='open', closed_orbit=[0, 0, 0, 0])
 
-        trajmat = []
+        respmat = []
         corrs = np.hstack([self.ch, self.cv])
         for idx, corr in enumerate(corrs):
             Rc = cumulmat[corr]
@@ -155,10 +192,13 @@ class TrajRespmat():
                 Rc, Rb, corr, length=corr_len,
                 kxl=KL, kyl=-KL, ksxl=KsL, ksyl=KsL)
             if idx < len(self.ch):
-                trajmat.append(respx)
+                respmat.append(respx)
             else:
-                trajmat.append(respy)
-        return np.array(trajmat).T
+                respmat.append(respy)
+
+        respmat.append(np.zeros(2*len(self.bpms)))
+        respmat = np.array(respmat).T
+        return respmat
 
     def _get_respmat_line(self, Rc, Rb, corr, length,
                           kxl=0, kyl=0, ksxl=0, ksyl=0):
