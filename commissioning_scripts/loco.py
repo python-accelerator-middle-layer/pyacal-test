@@ -299,7 +299,6 @@ class LOCOConfig:
         self.goalmat = None
         self.use_disp = None
         self.use_coupling = None
-        self.rf_freq = None
         self.use_families = None
         self.svd_method = None
         self.svd_sel = None
@@ -351,7 +350,6 @@ class LOCOConfig:
         self.update_model(self.model, self.dim)
         self.update_matrix(self.use_disp)
         self.update_goalmat(self.goalmat, self.use_disp, self.use_coupling)
-        self.update_rf(self.rf_freq)
         self.update_gain()
         self.update_quad_knobs(self.use_families)
         self.update_svd(self.svd_method, self.svd_sel, self.svd_thre)
@@ -401,15 +399,6 @@ class LOCOConfig:
         self.use_disp = use_disp
         if not self.use_disp:
             self.goalmat[:, -1] *= 0
-
-    def update_rf(self, rf_freq=None):
-        """."""
-        self.cavidx = pyaccel.lattice.find_indices(
-            self.model, 'fam_name', self.FAMNAME_RF)[0]
-        if rf_freq is None:
-            self.rf_freq = self.model[self.cavidx].frequency
-        else:
-            self.rf_freq = rf_freq
 
     def update_matrix(self, use_disp):
         """."""
@@ -691,6 +680,7 @@ class LOCO:
     def run_fit(self, niter=1):
         """."""
         self._chi2 = self._chi2_init
+        loco_out = dict()
         for _iter in range(niter):
             print('iter # {}/{}'.format(_iter+1, niter))
 
@@ -712,8 +702,15 @@ class LOCO:
                     break
             if self._chi2 < self._tol:
                 break
-
+        loco_out['fit_matrix'] = self._matrix
+        loco_out['fit_model'] = self._model
+        loco_out['gain_bpm'] = self._gain_bpm_inival + self._gain_bpm_delta
+        loco_out['roll_bpm'] = self._roll_bpm_inival + self._roll_bpm_delta
+        loco_out['gain_corr'] = self._gain_corr_inival + self._gain_corr_delta
+        loco_out['initial_chi2'] = self._chi2_init
+        loco_out['final_chi2'] = self._chi2
         print('Finished!')
+        return loco_out
 
     def calc_chi2(self, matrix=None):
         """."""
@@ -763,21 +760,21 @@ class LOCO:
         else:
             matrix = _dcopy(self.config.matrix)
 
-        if 'bpm_gain' in param_dict:
+        if 'gain_bpm' in param_dict:
             # update delta
-            self._gain_bpm_delta += param_dict['bpm_gain']
+            self._gain_bpm_delta += param_dict['gain_bpm']
             gain = self._gain_bpm_inival + self._gain_bpm_delta
             matrix = LOCOUtils.apply_bpm_gain(matrix, gain)
 
-        if 'bpm_roll' in param_dict:
+        if 'roll_bpm' in param_dict:
             # update delta
-            self._roll_bpm_delta += param_dict['bpm_roll']
+            self._roll_bpm_delta += param_dict['roll_bpm']
             roll = self._roll_bpm_inival + self._roll_bpm_delta
             matrix = LOCOUtils.apply_bpm_roll(matrix, roll)
 
-        if 'corr_gain' in param_dict:
+        if 'gain_corr' in param_dict:
             # update delta
-            self._gain_corr_delta += param_dict['corr_gain']
+            self._gain_corr_delta += param_dict['gain_corr']
             gain = self._gain_corr_inival + self._gain_corr_delta
             matrix = LOCOUtils.apply_corr_gain(matrix, gain)
 
