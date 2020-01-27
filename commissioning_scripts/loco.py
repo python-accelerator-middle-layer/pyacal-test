@@ -4,18 +4,19 @@
 from copy import deepcopy as _dcopy
 import numpy as np
 import pyaccel
-from apsuite.commissioning_scripts.calc_orbcorr_mat import Respmat
+from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 
 
 class LOCOUtils:
     """LOCO utils."""
 
     @staticmethod
-    def respm_calc(config, model, respm, idx_cav, idx_bpm, use_disp):
+    def respm_calc(model, respm, use_disp):
         """."""
-        matrix = respm.get_respm(model=model)
-        matrix = LOCOUtils._add_rf_response(
-            config, model, matrix, idx_cav, idx_bpm, use_disp)
+        respm.model = _dcopy(model)
+        matrix = respm.get_respm()
+        if not use_disp:
+            matrix[:, -1] *= 0
         return matrix
 
     @staticmethod
@@ -147,8 +148,7 @@ class LOCOUtils:
                     config.respm.model, 'K', kindices))
             set_quad_kdelta = LOCOUtils.set_quadmag_kdelta
         matrix_nominal = LOCOUtils.respm_calc(
-            config, model, config.respm,
-            config.idx_cav, config.idx_bpm, config.use_disp)
+            model, config.respm, config.use_disp)
 
         kmatrix = np.zeros((
             matrix_nominal.shape[0]*matrix_nominal.shape[1], len(kindices)))
@@ -158,8 +158,7 @@ class LOCOUtils:
             set_quad_kdelta(
                 model_this, idx_set, kvalues[idx], config.DEFAULT_DELTA_K)
             matrix_this = LOCOUtils.respm_calc(
-                config, model_this, config.respm,
-                config.idx_cav, config.idx_bpm, config.use_disp)
+                model_this, config.respm, config.use_disp)
             dmatrix = (matrix_this - matrix_nominal)/config.DEFAULT_DELTA_K
             kmatrix[:, idx] = dmatrix.flatten()
             set_quad_kdelta(model_this, idx_set, kvalues[idx], 0)
@@ -365,7 +364,7 @@ class LOCOConfig:
             self.model.cavity_on = True
         if not model.radiation_on:
             self.model.radiation_on = True
-        self.respm = Respmat(model=self.model, dim=self.dim)
+        self.respm = OrbRespmat(model=self.model, acc=self.acc, dim=self.dim)
         self._create_indices()
 
     def update_svd(self, svd_method, svd_sel=None, svd_thre=None):
@@ -415,7 +414,7 @@ class LOCOConfig:
     def update_matrix(self, use_disp):
         """."""
         self.matrix = LOCOUtils.respm_calc(
-            self, self.model, self.respm, self.idx_cav, self.idx_bpm, use_disp)
+            self.model, self.respm, use_disp)
 
     def update_gain(self,
                     gain_bpm=None, gain_corr=None,
@@ -500,6 +499,11 @@ class LOCOConfigSI(LOCOConfig):
     """."""
 
     @property
+    def acc(self):
+        """."""
+        return 'SI'
+
+    @property
     def nr_bpm(self):
         """."""
         return 160
@@ -524,6 +528,11 @@ class LOCOConfigSI(LOCOConfig):
 
 class LOCOConfigBO(LOCOConfig):
     """."""
+
+    @property
+    def acc(self):
+        """."""
+        return 'BO'
 
     @property
     def nr_bpm(self):
@@ -750,8 +759,7 @@ class LOCO:
                     self._k_inival[idx], self._k_deltas[idx])
             # calc orbrespm
             matrix = LOCOUtils.respm_calc(
-                config, model, config.respm,
-                config.idx_cav, config.idx_bpm, config.use_disp)
+                model, config.respm, config.use_disp)
         else:
             matrix = _dcopy(self.config.matrix)
 
