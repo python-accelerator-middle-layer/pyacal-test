@@ -251,34 +251,6 @@ class LOCOUtils:
         chi2 = np.linalg.norm(dmatrix)**2/dmatrix.size
         return chi2
 
-    @staticmethod
-    def _calc_rf_line(model, idx_cav, idx_bpm, delta_rf):
-        """."""
-        fref = model[idx_cav].frequency
-        model[idx_cav].frequency = fref + delta_rf/2
-        orbp = pyaccel.tracking.find_orbit6(model, indices='open')
-        model[idx_cav].frequency = fref - delta_rf/2
-        orbm = pyaccel.tracking.find_orbit6(model, indices='open')
-        model[idx_cav].frequency = fref
-        dorb = orbp - orbm
-        dorbx = dorb[0, idx_bpm]
-        dorby = dorb[2, idx_bpm]
-        data = np.zeros((len(dorbx) + len(dorby), 1))
-        data[:, 0] = np.hstack([dorbx, dorby])/delta_rf
-        return data
-
-    @staticmethod
-    def _add_rf_response(config, model, matrix, idx_cav, idx_bpm, use_disp):
-        """."""
-        if use_disp:
-            rfline = LOCOUtils._calc_rf_line(
-                model, idx_cav, idx_bpm, config.DEFAULT_DELTA_RF)
-        else:
-            rfline = np.zeros((matrix.shape[0], 1))
-        matrix = np.hstack([matrix, rfline])
-        return matrix
-
-
 class LOCOConfig:
     """SI LOCO configuration."""
 
@@ -682,7 +654,8 @@ class LOCO:
         self._gain_corr_inival = np.ones(self.config.nr_corr)
         self._gain_corr_delta = np.zeros(self.config.nr_corr)
 
-        self._chi2_init = self.calc_chi2()
+        self._chi2 = self.calc_chi2()
+        self._chi2_init = self._chi2
         print('chi2_init: {:.6e}'.format(self._chi2_init))
 
         self._tol = LOCO.DEFAULT_TOL
