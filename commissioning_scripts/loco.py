@@ -680,7 +680,6 @@ class LOCO:
     def run_fit(self, niter=1):
         """."""
         self._chi2 = self._chi2_init
-        loco_out = dict()
         for _iter in range(niter):
             print('iter # {}/{}'.format(_iter+1, niter))
 
@@ -702,15 +701,8 @@ class LOCO:
                     break
             if self._chi2 < self._tol:
                 break
-        loco_out['fit_matrix'] = self._matrix
-        loco_out['fit_model'] = self._model
-        loco_out['gain_bpm'] = self._gain_bpm_inival + self._gain_bpm_delta
-        loco_out['roll_bpm'] = self._roll_bpm_inival + self._roll_bpm_delta
-        loco_out['gain_corr'] = self._gain_corr_inival + self._gain_corr_delta
-        loco_out['initial_chi2'] = self._chi2_init
-        loco_out['final_chi2'] = self._chi2
+
         print('Finished!')
-        return loco_out
 
     def calc_chi2(self, matrix=None):
         """."""
