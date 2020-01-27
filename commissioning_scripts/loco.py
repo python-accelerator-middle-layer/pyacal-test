@@ -26,14 +26,10 @@ class LOCOUtils:
     @staticmethod
     def apply_bpm_roll(matrix, roll):
         """."""
-        nbpm = len(roll)
         cos_mat = np.diag(np.cos(roll))
         sin_mat = np.diag(np.sin(roll))
-        r_alpha = np.zeros((2*nbpm, 2*nbpm))
-        r_alpha[:nbpm, :nbpm] = cos_mat
-        r_alpha[:nbpm, nbpm:] = sin_mat
-        r_alpha[nbpm:, :nbpm] = -sin_mat
-        r_alpha[nbpm:, nbpm:] = cos_mat
+        r_alpha = np.hstack((cos_mat, sin_mat))
+        r_alpha = np.vstack((r_alpha, np.hstack((-sin_mat, cos_mat))))
         return np.dot(r_alpha, matrix)
 
     @staticmethod
@@ -106,7 +102,6 @@ class LOCOUtils:
         alpha_bpm = np.zeros(nbpm)
         cos_mat = np.diag(np.cos(alpha_bpm))
         sin_mat = np.diag(np.sin(alpha_bpm))
-        G_bpm = np.diag(g_bpm)
 
         r_alpha = np.hstack((cos_mat, sin_mat))
         r_alpha = np.vstack((r_alpha, np.hstack((-sin_mat, cos_mat))))
@@ -125,7 +120,7 @@ class LOCOUtils:
             kron = LOCOUtils.kronecker(idx, idx, shape0//2)
             kron = np.tile(kron, (2, 2))
             deltaR = np.dot(kron, dr_alpha)
-            deltaB = np.dot(deltaR, G_bpm)
+            deltaB = np.dot(deltaR, np.diag(g_bpm))
             dmdalpha_bpm[:, idx] = np.dot(deltaB, matrix).flatten()
 
         dmdg_corr = np.zeros((shape0*shape1, ncorr))
@@ -160,7 +155,8 @@ class LOCOUtils:
 
         model_this = _dcopy(model)
         for idx, idx_set in enumerate(kindices):
-            set_quad_kdelta(model_this, idx_set, kvalues[idx], config.DEFAULT_DELTA_K)
+            set_quad_kdelta(
+                model_this, idx_set, kvalues[idx], config.DEFAULT_DELTA_K)
             matrix_this = LOCOUtils.respm_calc(
                 config, model_this, config.respm,
                 config.idx_cav, config.idx_bpm, config.use_disp)
@@ -182,35 +178,33 @@ class LOCOUtils:
         jloco[:, nfam:nfam+2*nbpm] = dmdg_bpm
         jloco[:, nfam+2*nbpm:nfam+3*nbpm] = dmdalpha_bpm
         jloco[:, nfam+3*nbpm:nfam+3*nbpm+nch+ncv] = dmdg_corr
-        # jloco[:, nfam+3*nbpm+nch+ncv:] = self.calc_energy_shift()
         return jloco
 
     @staticmethod
     def jloco_param_delete(config, jloco):
         """."""
         idx = 0
-
         k_nrsets = len(config.k_indices)
         if not config.fit_quadrupoles:
             jloco = np.delete(jloco, slice(idx, idx + k_nrsets), axis=1)
-            print('remove quadrupoles...')
+            print('removing quadrupoles...')
         else:
             idx += k_nrsets
         if not config.fit_gain_bpm:
             jloco = np.delete(jloco, slice(
                 idx, idx + 2*config.nr_bpm), axis=1)
-            print('remove bpm gain...')
+            print('removing bpm gain...')
         else:
             idx += 2*config.nr_bpm
         if not config.use_coupling:
             jloco = np.delete(jloco, slice(
                 idx, idx + config.nr_bpm), axis=1)
-            print('remove bpm roll...')
+            print('removing bpm roll...')
         else:
             idx += config.nr_bpm
         if not config.fit_gain_corr:
             jloco = np.delete(jloco, slice(idx, idx + config.nr_corr), axis=1)
-            print('remove corrector gain...')
+            print('removing corrector gain...')
         else:
             idx += config.nr_corr
         return jloco
@@ -243,11 +237,11 @@ class LOCOUtils:
     def kronecker(i, j, size):
         """."""
         kron = np.zeros((size, size))
-        if i != j:
+        if i == j:
+            kron[i, i] = 1
+        else:
             kron[i, j] = 1
             kron[j, i] = 1
-        else:
-            kron[i, i] = 1
         return kron
 
     @staticmethod
@@ -261,12 +255,12 @@ class LOCOUtils:
     @staticmethod
     def _calc_rf_line(model, idx_cav, idx_bpm, delta_rf):
         """."""
-        f0 = model[idx_cav].frequency
-        model[idx_cav].frequency = f0 + delta_rf/2
+        fref = model[idx_cav].frequency
+        model[idx_cav].frequency = fref + delta_rf/2
         orbp = pyaccel.tracking.find_orbit6(model, indices='open')
-        model[idx_cav].frequency = f0 - delta_rf/2
+        model[idx_cav].frequency = fref - delta_rf/2
         orbm = pyaccel.tracking.find_orbit6(model, indices='open')
-        model[idx_cav].frequency = f0
+        model[idx_cav].frequency = fref
         dorb = orbp - orbm
         dorbx = dorb[0, idx_bpm]
         dorby = dorb[2, idx_bpm]
@@ -291,6 +285,12 @@ class LOCOConfig:
 
     SVD_METHOD_SELECTION = 0
     SVD_METHOD_THRESHOLD = 1
+
+    DEFAULT_DELTA_K = 1e-6  # [1/m^2]
+    DEFAULT_DELTA_RF = 100  # [Hz]
+    DEFAULT_SVD_THRESHOLD = 1e-6
+
+    FAMNAME_RF = 'SRFCav'
 
     def __init__(self, **kwargs):
         """."""
@@ -374,13 +374,14 @@ class LOCOConfig:
         self.svd_thre = svd_thre
         if svd_method == LOCOConfig.SVD_METHOD_SELECTION:
             # if svd_sel is not None:
-            #     print('svd_selection: {:d} values will be used.'.format(self.svd_sel))
+            #     print(
+            #         'svd_selection: {:d} values will be used.'.format(self.svd_sel))
             # else:
             #     print('svd_selection: all values will be used.')
             pass
         if svd_method == LOCOConfig.SVD_METHOD_THRESHOLD:
             if svd_thre is None:
-                self.svd_thre = LOCOConfig.DEFAULT_DELTA_K
+                self.svd_thre = LOCOConfig.DEFAULT_SVD_THRESHOLD
             # print('svd_threshold: {:f}'.format(self.svd_thre))
 
     def update_goalmat(self, goalmat, use_disp, use_coupling):
@@ -417,8 +418,8 @@ class LOCOConfig:
             self, self.model, self.respm, self.idx_cav, self.idx_bpm, use_disp)
 
     def update_gain(self,
-                   gain_bpm=None, gain_corr=None,
-                   roll_bpm=None, roll_corr=None):
+                    gain_bpm=None, gain_corr=None,
+                    roll_bpm=None, roll_corr=None):
         """."""
         # bpm
         if gain_bpm is None:
@@ -476,7 +477,7 @@ class LOCOConfig:
         for key, value in kwargs.items():
             if key == 'model' and 'dim' in kwargs:
                 model, dim = kwargs['model'], kwargs['dim']
-                self.set_model(model, dim)
+                self.update_model(model, dim)
             elif key == 'dim':
                 pass
             elif key == 'svd_method' and ('svd_sel' in kwargs or
@@ -484,7 +485,7 @@ class LOCOConfig:
                 svd_method = kwargs['svd_method']
                 svd_sel = kwargs['svd_sel'] if 'svd_sel' in kwargs else None
                 svd_thre = kwargs['svd_thre'] if 'svd_thre' in kwargs else None
-                self.set_svd(svd_method, svd_sel, svd_thre)
+                self.update_svd(svd_method, svd_sel, svd_thre)
             setattr(self, key, value)
 
     def _create_indices(self):
@@ -497,11 +498,6 @@ class LOCOConfig:
 
 class LOCOConfigSI(LOCOConfig):
     """."""
-
-    DEFAULT_DELTA_K = 1e-6  # [1/m^2]
-    DEFAULT_DELTA_RF = 100  # [Hz]
-
-    FAMNAME_RF = 'SRFCav'
 
     @property
     def nr_bpm(self):
@@ -528,11 +524,6 @@ class LOCOConfigSI(LOCOConfig):
 
 class LOCOConfigBO(LOCOConfig):
     """."""
-
-    DEFAULT_DELTA_K = 1e-6  # [1/m^2]
-    DEFAULT_DELTA_RF = 100  # [Hz]
-
-    FAMNAME_RF = 'RF'
 
     @property
     def nr_bpm(self):
@@ -650,7 +641,7 @@ class LOCO:
 
         if self.config.svd_method == self.config.SVD_METHOD_THRESHOLD:
             bad_sv = s/np.max(s) < self.config.svd_thre
-            print('remove {:d} bad singular values...'.format(
+            print('removing {:d} bad singular values...'.format(
                 np.sum(bad_sv)))
             inv_s[bad_sv] = 0
         elif self.config.svd_method == self.config.SVD_METHOD_SELECTION:
@@ -692,7 +683,7 @@ class LOCO:
         """."""
         self._chi2 = self._chi2_init
         for _iter in range(niter):
-            print('iter #{}/{}'.format(_iter+1, niter))
+            print('iter # {}/{}'.format(_iter+1, niter))
 
             matrix_diff = self.config.goalmat - self._matrix
             param_new = np.dot(self._jloco_inv, matrix_diff.flatten())
@@ -700,7 +691,7 @@ class LOCO:
             chi2_new = self.calc_chi2(matrix_new)
             print('chi2: {0:.6e}'.format(chi2_new))
             if np.isnan(chi2_new):
-                print('Matrix deviation is NaN!')
+                print('matrix deviation is NaN!')
                 break
             if chi2_new < self._chi2:
                 self._update_state(model_new, matrix_new, chi2_new)
@@ -789,12 +780,12 @@ class LOCO:
         factor = 0.5
         _iter = 1
         while factor > self._reduc_threshold:
-            print('Chi2 was increased! Trial {0:d}'.format(_iter))
-            print('Applying {0:0.4f} %'.format(100*factor))
+            print('chi2 was increased! Trial {0:d}'.format(_iter))
+            print('applying {0:0.4f} %'.format(100*factor))
             model_new, matrix_new = \
                 self._calc_model_matrix(factor*param_new)
             chi2_new = self.calc_chi2(matrix_new)
-            print('Error: {0:.6e}'.format(chi2_new))
+            print('chi2: {0:.6e}'.format(chi2_new))
             if chi2_new < self._chi2:
                 self._update_state(model_new, matrix_new, chi2_new)
                 break
