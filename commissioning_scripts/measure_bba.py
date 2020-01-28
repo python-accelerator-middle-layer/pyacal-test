@@ -27,8 +27,27 @@ class BBAParams:
         self.wait_correctors = 2  # [s]
         self.wait_quadrupole = 2  # [s]
         self.timeout_quad_turnon = 10  # [s]
-        self.wait_sofb = 3  # [s]
+        self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
+
+    def __str__(self):
+        """."""
+        ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
+        dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
+        st = dtmp('bba_method', self.bba_method, '(0-Scan 1-Search)')
+        st += ftmp('dorbx_negative [um]', self.dorbx_negative, '')
+        st += ftmp('dorbx_positive [um]', self.dorbx_positive, '')
+        st += ftmp('dorby_negative [um]', self.dorby_negative, '')
+        st += ftmp('dorby_positive [um]', self.dorby_positive, '')
+        st += ftmp('max_corrstrength [urad]', self.max_corrstrength, '')
+        st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
+        st += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
+        st += ftmp('wait_correctors [s]', self.wait_correctors, '')
+        st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
+        st += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
+        st += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
+        st += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
+        return st
 
 
 class DoBBA(BaseClass):
@@ -78,8 +97,10 @@ class DoBBA(BaseClass):
 
     def initialize_data(self, model, respmat=None):
         respmat_calc = OrbRespmat(model, 'SI')
+        self.respmat_calc = respmat_calc
         bpmnames, quadnames, quadsidx = DoBBA.get_default_quads(
             model, respmat_calc.fam_data)
+        sofb = self.devices['sofb']
 
         if respmat is None:
             respmat = respmat_calc.get_respm()
@@ -92,9 +113,9 @@ class DoBBA(BaseClass):
         nbpms = len(self.data['bpmnames'])
         for i in range(nbpms):
             idxh = indcs[i, 0]
-            idxv = indcs[i+nbpms, 0] - len(self.sofb.data.CH_NAMES)
-            chnames.append(self.sofb.data.CH_NAMES[idxh])
-            cvnames.append(self.sofb.data.CV_NAMES[idxv])
+            idxv = indcs[i+nbpms, 0] - len(sofb.data.CH_NAMES)
+            chnames.append(sofb.data.CH_NAMES[idxh])
+            cvnames.append(sofb.data.CV_NAMES[idxv])
         self.data['chnames'] = chnames
         self.data['cvnames'] = cvnames
 
@@ -102,7 +123,7 @@ class DoBBA(BaseClass):
         respmat_calc.cv = quadsidx
         quadrespmat = respmat_calc.get_respm()
         self.data['quadrespx'] = quadrespmat[:, 1:len(quadsidx)]
-        self.data['quadrespy'] = quadrespmat[:, len(quadsidx):]
+        self.data['quadrespy'] = quadrespmat[:, len(quadsidx):-1]
         self.connect_to_objects()
 
     def check_correctors_range(self):
@@ -142,6 +163,7 @@ class DoBBA(BaseClass):
         idx = self.data['bpmnames'].index(bpmname)
         nbpms = len(self.data['bpmnames'])
         respmat = self.data['respmat']
+        sofb = self.devices['sofb']
 
         indcs = np.flip(np.argsort(np.abs(respmat[:, :-1]), axis=1), axis=1)
         chnames = list()
@@ -150,9 +172,9 @@ class DoBBA(BaseClass):
         cvstreng = respmat[idx+nbpms, indcs[idx+nbpms, :ncorrs]]
         for i in range(ncorrs):
             idxh = indcs[idx, i]
-            idxv = indcs[idx+nbpms, i] - len(self.sofb.data.CH_NAMES)
-            chnames.append(self.sofb.data.CH_NAMES[idxh])
-            cvnames.append(self.sofb.data.CV_NAMES[idxv])
+            idxv = indcs[idx+nbpms, i] - len(sofb.data.CH_NAMES)
+            chnames.append(sofb.data.CH_NAMES[idxh])
+            cvnames.append(sofb.data.CV_NAMES[idxv])
         return chnames, cvnames, chstreng, cvstreng
 
     def _do_bba(self):
@@ -212,22 +234,22 @@ class DoBBA(BaseClass):
             _time.sleep(self.params.wait_quadrupole)
 
             sofb.reset()
-            sofb.wait(self.params.wait_sofb)
+            sofb.wait(self.params.timeout_wait_sofb)
             orb_pos.append(np.hstack([sofb.orbx, sofb.orby]))
 
             quad.strength = korig - deltakl/2
             _time.sleep(self.params.wait_quadrupole)
 
             sofb.reset()
-            sofb.wait(self.params.wait_sofb)
+            sofb.wait(self.params.timeout_wait_sofb)
             orb_neg.append(np.hstack([sofb.orbx, sofb.orby]))
 
             quad.strength = korig
 
             dorb = (orb_pos[-1]-orb_neg[-1])/deltakl
             xcen, ycen = self.calc_offset(bpmname, dorb)
-            rms = np.dot(dorb, dorb)
-            print('    Center ({0:.1f}, {1:.1f}), RMS {2:.2f}'.format(
+            rms = np.sqrt(np.sum(dorb*dorb) / dorb.shape[0])
+            print('    Center ({0:.1f}, {1:.1f}), RMS {2:.2f} um'.format(
                 xcen, ycen, rms))
             if self.params.bba_method == BBAParams.SCAN:
                 xcen, ycen = dorbsx[i], dorbsy[i]
@@ -259,12 +281,15 @@ class DoBBA(BaseClass):
 
     def calc_offset(self, bpmname, dorb):
         idx = self.data['bpmnames'].index(bpmname)
-        respx = self.data['quadrespx'][idx]
-        respy = self.data['quadrespy'][idx]
+        respx = self.data['quadrespx'][:, idx]
+        respy = self.data['quadrespy'][:, idx]
         isskew = '-QS' in self.data['quadnames'][idx]
 
-        mat = np.array([respx, respy]).T
-        x0, y0 = np.linalg.lstsq(mat, dorb)
+        if len(dorb.shape) < 2:
+            dorb = dorb[:, None]
+        mat = np.array([respx, respy])
+        res, *_ = np.linalg.lstsq(mat, dorb)
+        x0, y0 = res
         if isskew:
             return y0, x0
         return x0, y0
@@ -274,9 +299,9 @@ class DoBBA(BaseClass):
         idxv = idxh + len(self.data['bpmnames'])
         chname = self.data['chnames'][idxh]
         cvname = self.data['cvnames'][idxh]
-        chidx = self.sofb.data.CH_NAMES.index(chname)
-        cvidx = self.sofb.data.CV_NAMES.index(cvname)
-        cvidx += len(self.sofb.data.CH_NAMES)
+        chidx = self.devices['sofb'].data.CH_NAMES.index(chname)
+        cvidx = self.devices['sofb'].data.CV_NAMES.index(cvname)
+        cvidx += len(self.devices['sofb'].data.CH_NAMES)
 
         respx = self.data['respmat'][idxh, chidx]
         respy = self.data['respmat'][idxv, cvidx]
@@ -305,20 +330,23 @@ class DoBBA(BaseClass):
         dorby = dorb[:, nbpms:]
         if '-QS' in self.data['quadnames'][idx]:
             dorbx, dorby = dorby, dorbx
+        analysis['xpos'] = xpos
+        analysis['ypos'] = ypos
+
         px = np.polyfit(xpos, dorbx, deg=1)
         py = np.polyfit(ypos, dorby, deg=1)
         x0 = -np.dot(px[0], px[1]) / np.dot(px[0], px[0])
         y0 = -np.dot(py[0], py[1]) / np.dot(py[0], py[0])
-        analysis['xpos'] = xpos
-        analysis['ypos'] = ypos
         analysis['linear_fitting'] = dict()
         analysis['linear_fitting']['coeffsx'] = px
         analysis['linear_fitting']['coeffsy'] = py
         analysis['linear_fitting']['x0'] = x0
         analysis['linear_fitting']['y0'] = y0
 
-        px = np.polyfit(xpos, np.sum(dorbx*dorbx, axis=1), deg=2)
-        py = np.polyfit(ypos, np.sum(dorby*dorby, axis=1), deg=2)
+        rmsx = np.sum(dorbx*dorbx, axis=1) / dorbx.shape[0]
+        rmsy = np.sum(dorby*dorby, axis=1) / dorby.shape[0]
+        px = np.polyfit(xpos, rmsx, deg=2)
+        py = np.polyfit(ypos, rmsy, deg=2)
         x0 = -px[1] / px[0] / 2
         y0 = -py[1] / py[0] / 2
         analysis['quadratic_fitting'] = dict()
@@ -326,12 +354,19 @@ class DoBBA(BaseClass):
         analysis['quadratic_fitting']['coeffsy'] = py
         analysis['quadratic_fitting']['x0'] = x0
         analysis['quadratic_fitting']['y0'] = y0
+
+        dorb = dorb.T/self.params.quad_deltakl
+        x0, y0 = self.calc_offset(bpm, dorb)
+        analysis['model_estimative']['x0'] = x0
+        analysis['model_estimative']['y0'] = x0
         return analysis
 
     @staticmethod
     def get_default_quads(model, fam_data):
         quads_idx = _dcopy(fam_data['QN']['index'])
-        quads_idx.extend(fam_data['QS']['index'])
+        qs_idx = [idx for idx in fam_data['QS']['index'] \
+                  if not model[idx[0]].fam_name.startswith('FC2')]
+        quads_idx.extend(qs_idx)
         quads_idx = np.array([idx[len(idx)//2] for idx in quads_idx])
         quads_pos = np.array(_pyacc.lattice.find_spos(model, quads_idx))
 
