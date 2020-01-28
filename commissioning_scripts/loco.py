@@ -22,7 +22,7 @@ class LOCOUtils:
     @staticmethod
     def apply_bpm_gain(matrix, gain):
         """."""
-        return np.dot(np.diag(gain), matrix)
+        return gain[:, None] * matrix
 
     @staticmethod
     def apply_bpm_roll(matrix, roll):
@@ -36,7 +36,7 @@ class LOCOUtils:
     @staticmethod
     def apply_corr_gain(matrix, gain):
         """."""
-        matrix[:, :-1] = np.dot(matrix[:, :-1], np.diag(gain))
+        matrix[:, :-1] = matrix[:, :-1] * gain[None, :]
         return matrix
 
     @staticmethod
@@ -45,6 +45,23 @@ class LOCOUtils:
         matrix = LOCOUtils.apply_bpm_gain(matrix, gain_bpm)
         matrix = LOCOUtils.apply_bpm_roll(matrix, roll_bpm)
         matrix = LOCOUtils.apply_corr_gain(matrix, gain_corr)
+        return matrix
+
+    @staticmethod
+    def apply_bpm_weight(matrix, weight_bpm):
+        """."""
+        return weight_bpm[:, None] * matrix
+
+    @staticmethod
+    def apply_corr_weight(matrix, weight_corr):
+        """."""
+        return matrix * weight_corr[None, :]
+
+    @staticmethod
+    def apply_all_weight(matrix, weight_bpm, weight_corr):
+        """."""
+        matrix = LOCOUtils.apply_bpm_weight(matrix, weight_bpm)
+        matrix = LOCOUtils.apply_corr_weight(matrix, weight_corr)
         return matrix
 
     @staticmethod
@@ -121,7 +138,7 @@ class LOCOUtils:
             kron = LOCOUtils.kronecker(idx, idx, shape0//2)
             kron = np.tile(kron, (2, 2))
             deltaR = np.dot(kron, dr_alpha)
-            deltaB = np.dot(deltaR, np.diag(g_bpm))
+            deltaB = deltaR * g_bpm[:, None]
             dmdalpha_bpm[:, idx] = np.dot(deltaB, matrix).flatten()
 
         dmdg_corr = np.zeros((shape0*shape1, ncorr))
@@ -209,6 +226,13 @@ class LOCOUtils:
         return jloco
 
     @staticmethod
+    def jloco_apply_weight(jloco, weight_bpm, weight_corr):
+        """."""
+        weight = (weight_bpm[None, :] * weight_corr[:, None]).flatten()
+        return weight[:, None] * jloco
+
+
+    @staticmethod
     def param_select(config, param):
         """."""
         idx = 0
@@ -251,6 +275,7 @@ class LOCOUtils:
         chi2 = np.linalg.norm(dmatrix)**2/dmatrix.size
         return chi2
 
+
 class LOCOConfig:
     """SI LOCO configuration."""
 
@@ -289,8 +314,15 @@ class LOCOConfig:
         self.vector = None
         self.k_indices = None
         self.k_nrsets = None
+        self.weight_bpm = None
+        self.weight_corr = None
 
         self._process_input(kwargs)
+
+    @property
+    def acc(self):
+        """."""
+        raise NotImplementedError
 
     @property
     def nr_bpm(self):
@@ -323,6 +355,7 @@ class LOCOConfig:
         self.update_matrix(self.use_disp)
         self.update_goalmat(self.goalmat, self.use_disp, self.use_coupling)
         self.update_gain()
+        self.update_weight()
         self.update_quad_knobs(self.use_families)
         self.update_svd(self.svd_method, self.svd_sel, self.svd_thre)
 
@@ -389,6 +422,7 @@ class LOCOConfig:
             if isinstance(gain_bpm, (int, float)):
                 self.gain_bpm = np.ones(2*self.nr_bpm) * gain_bpm
             else:
+                print('setting initial bpm gain...')
                 self.gain_bpm = gain_bpm
         if roll_bpm is None:
             if self.roll_bpm is None:
@@ -397,6 +431,7 @@ class LOCOConfig:
             if isinstance(roll_bpm, (int, float)):
                 self.roll_bpm = np.ones(self.nr_bpm) * roll_bpm
             else:
+                print('setting initial bpm roll...')
                 self.roll_bpm = roll_bpm
         # corr
         if gain_corr is None:
@@ -406,6 +441,7 @@ class LOCOConfig:
             if isinstance(gain_corr, (int, float)):
                 self.gain_bpm = np.ones(self.nr_corr) * gain_corr
             else:
+                print('setting initial corrector gain...')
                 self.gain_corr = gain_corr
         if roll_corr is None:
             if self.roll_corr is None:
@@ -422,6 +458,21 @@ class LOCOConfig:
             roll_bpm=self.roll_bpm,
             gain_corr=self.gain_corr)
         self.vector = self.matrix.flatten()
+
+    def update_weight(self):
+        """."""
+        # bpm
+        if self.weight_bpm is None:
+            self.weight_bpm = np.ones(2*self.nr_bpm)
+        elif isinstance(self.weight_bpm, (int, float)):
+            self.weight_bpm = np.ones(2*self.nr_bpm) * \
+                self.weight_bpm / 2 / self.nr_bpm
+        # corr
+        if self.weight_corr is None:
+            self.weight_corr = np.ones(self.nr_corr + 1)
+        elif isinstance(self.weight_corr, (int, float)):
+            self.weight_corr = np.ones(self.nr_corr + 1) * \
+                self.weight_corr / (self.nr_corr + 1)
 
     def update_quad_knobs(self, use_families):
         """."""
@@ -546,11 +597,11 @@ class LOCO:
 
         self._k_inival = None
         self._k_deltas = None
-        self._gain_bpm_inival = None
+        self._gain_bpm_inival = self.config.gain_bpm
         self._gain_bpm_delta = None
-        self._roll_bpm_inival = None
+        self._roll_bpm_inival = self.config.roll_bpm
         self._roll_bpm_delta = None
-        self._gain_corr_inival = None
+        self._gain_corr_inival = self.config.gain_corr
         self._gain_corr_delta = None
 
         self._chi2_init = None
@@ -597,6 +648,10 @@ class LOCO:
         # filter jloco
         self._jloco = LOCOUtils.jloco_param_delete(self.config, self._jloco)
 
+        # apply weight
+        self._jloco = LOCOUtils.jloco_apply_weight(
+            self._jloco, self.config.weight_bpm, self.config.weight_corr)
+
         # calc jloco inv
         self._jloco_u, self._jloco_s, self._jloco_v = \
             np.linalg.svd(self._jloco, full_matrices=False)
@@ -607,7 +662,6 @@ class LOCO:
         inv_s = 1/s
         inv_s[np.isnan(inv_s)] = 0
         inv_s[np.isinf(inv_s)] = 0
-        inv_s = np.diag(inv_s)
 
         if self.config.svd_method == self.config.SVD_METHOD_THRESHOLD:
             bad_sv = s/np.max(s) < self.config.svd_thre
@@ -618,7 +672,7 @@ class LOCO:
             if self.config.svd_sel is not None:
                 inv_s[self.config.svd_sel:] = 0
 
-        self._jloco_inv = np.dot(np.dot(v.T, inv_s), u.T)
+        self._jloco_inv = np.dot(v.T * inv_s[None, :], u.T)
 
     def update_fit(self):
         """."""
@@ -634,14 +688,28 @@ class LOCO:
         self._k_deltas = np.zeros(len(self.config.k_indices))
 
         # bpm inival and deltas
-        self._gain_bpm_inival = np.ones(2*self.config.nr_bpm)
-        self._roll_bpm_inival = np.zeros(self.config.nr_bpm)
+        if self._gain_bpm_inival is None:
+            self._gain_bpm_inival = np.ones(2*self.config.nr_bpm)
+        if self._roll_bpm_inival is None:
+            self._roll_bpm_inival = np.zeros(self.config.nr_bpm)
         self._gain_bpm_delta = np.zeros(2*self.config.nr_bpm)
         self._roll_bpm_delta = np.zeros(self.config.nr_bpm)
 
         # corr inival and deltas
-        self._gain_corr_inival = np.ones(self.config.nr_corr)
+        if self._gain_corr_inival is None:
+            self._gain_corr_inival = np.ones(self.config.nr_corr)
         self._gain_corr_delta = np.zeros(self.config.nr_corr)
+
+        check_case = self._gain_bpm_inival is not None
+        check_case |= self._roll_bpm_inival is not None
+        check_case |= self._gain_corr_inival is not None
+
+        if check_case:
+            self._matrix = LOCOUtils.apply_all_gain(
+                matrix=self._matrix,
+                gain_bpm=self._gain_bpm_inival,
+                roll_bpm=self._roll_bpm_inival,
+                gain_corr=self._gain_corr_inival)
 
         self._chi2 = self.calc_chi2()
         self._chi2_init = self._chi2
@@ -657,6 +725,8 @@ class LOCO:
             print('iter # {}/{}'.format(_iter+1, niter))
 
             matrix_diff = self.config.goalmat - self._matrix
+            matrix_diff = LOCOUtils.apply_all_weight(
+                matrix_diff, self.config.weight_bpm, self.config.weight_corr)
             param_new = np.dot(self._jloco_inv, matrix_diff.flatten())
             model_new, matrix_new = self._calc_model_matrix(param_new)
             chi2_new = self.calc_chi2(matrix_new)
@@ -708,7 +778,7 @@ class LOCO:
         param_dict = LOCOUtils.param_select(config, param)
 
         if 'k' in param_dict:
-            # update delta
+            # update quadrupole delta
             self._k_deltas += param_dict['k']
             # update local model
             if self.config.use_families:
@@ -726,19 +796,19 @@ class LOCO:
             matrix = _dcopy(self.config.matrix)
 
         if 'gain_bpm' in param_dict:
-            # update delta
+            # update gain delta
             self._gain_bpm_delta += param_dict['gain_bpm']
             gain = self._gain_bpm_inival + self._gain_bpm_delta
             matrix = LOCOUtils.apply_bpm_gain(matrix, gain)
 
         if 'roll_bpm' in param_dict:
-            # update delta
+            # update roll delta
             self._roll_bpm_delta += param_dict['roll_bpm']
             roll = self._roll_bpm_inival + self._roll_bpm_delta
             matrix = LOCOUtils.apply_bpm_roll(matrix, roll)
 
         if 'gain_corr' in param_dict:
-            # update delta
+            # update gain delta
             self._gain_corr_delta += param_dict['gain_corr']
             gain = self._gain_corr_inival + self._gain_corr_delta
             matrix = LOCOUtils.apply_corr_gain(matrix, gain)
