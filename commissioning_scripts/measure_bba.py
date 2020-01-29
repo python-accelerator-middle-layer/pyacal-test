@@ -45,7 +45,6 @@ class BBAParams:
         st += ftmp('wait_correctors [s]', self.wait_correctors, '')
         st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
         st += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
-        st += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
         st += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
         return st
 
@@ -181,8 +180,10 @@ class DoBBA(BaseClass):
         self.devices['sofb'].nr_points = self.params.sofb_nrpoints
         for bpm in self._bpms2dobba:
             if self._stopevt.is_set():
+                print('stopped!')
                 return
-            self._dobba_single_bpm_scan(bpm)
+            self._dobba_single_bpm(bpm)
+        print('finished!')
 
     def _dobba_single_bpm(self, bpmname):
         idx = self.data['bpmnames'].index(bpmname)
@@ -217,7 +218,7 @@ class DoBBA(BaseClass):
         corrx_kicks, corry_kicks = [], []
         orb_pos, orb_neg = [], []
         orig_kickx = corrx.strength
-        orig_kicky = corrx.strength
+        orig_kicky = corry.strength
         if self.params.bba_method == BBAParams.SCAN:
             npts = 2*(nrsteps//2) + 1
         else:
@@ -250,16 +251,20 @@ class DoBBA(BaseClass):
             xcen, ycen = self.calc_offset(bpmname, dorb)
             rms = np.sqrt(np.sum(dorb*dorb) / dorb.shape[0])
             print('    Center ({0:.1f}, {1:.1f}), RMS {2:.2f} um'.format(
-                xcen, ycen, rms))
+                xcen[0], ycen[0], rms))
             if self.params.bba_method == BBAParams.SCAN:
                 xcen, ycen = dorbsx[i], dorbsy[i]
+                dkx, dky = self.calc_orbcorr(bpmname, xcen, ycen)
+                kickx = orig_kickx + dkx
+                kicky = orig_kicky + dky
             else:
-                xcen, ycen = -xcen, -ycen
-            dkx, dky = self.calc_orbcorr(bpmname, xcen, ycen)
+                dkx, dky = self.calc_orbcorr(bpmname, -xcen[0], -ycen[0])
+                kickx = corrx.strength + dkx
+                kicky = corry.strength + dky
 
             if i < npts-1:
-                kickx = min(max(-maxkick, orig_kickx + dkx), maxkick)
-                kicky = min(max(-maxkick, orig_kicky + dky), maxkick)
+                kickx = min(max(-maxkick, kickx), maxkick)
+                kicky = min(max(-maxkick, kicky), maxkick)
                 corrx.strength = kickx
                 corry.strength = kicky
                 _time.sleep(self.params.wait_correctors)
@@ -267,12 +272,17 @@ class DoBBA(BaseClass):
         corrx.strength = orig_kickx
         corry.strength = orig_kicky
 
+        if 'measure' not in self.data:
+            self.data['measure'] = dict()
+        if bpmname not in self.data['measure']:
+            self.data['measure'][bpmname] = dict()
+
         self.data['measure'][bpmname]['corrxkicks'] = np.array(corrx_kicks)
         self.data['measure'][bpmname]['corrykicks'] = np.array(corry_kicks)
         self.data['measure'][bpmname]['orbpos'] = np.array(orb_pos)
         self.data['measure'][bpmname]['orbneg'] = np.array(orb_neg)
 
-        print('    turning quadrupole ' + quadname + ' On')
+        print('    turning quadrupole ' + quadname + ' Off')
         quad.turnoff(self.params.timeout_quad_turnon)
         if quad.pwr_state:
             print('    error: quadrupole ' + quadname + ' is still On.')
@@ -287,8 +297,8 @@ class DoBBA(BaseClass):
 
         if len(dorb.shape) < 2:
             dorb = dorb[:, None]
-        mat = np.array([respx, respy])
-        res, *_ = np.linalg.lstsq(mat, dorb)
+        mat = np.array([respx, respy]).T
+        res, *_ = np.linalg.lstsq(mat, dorb, rcond=None)
         x0, y0 = res
         if isskew:
             return y0, x0
@@ -350,6 +360,8 @@ class DoBBA(BaseClass):
         x0 = -px[1] / px[0] / 2
         y0 = -py[1] / py[0] / 2
         analysis['quadratic_fitting'] = dict()
+        analysis['quadratic_fitting']['meansqrx'] = rmsx
+        analysis['quadratic_fitting']['meansqry'] = rmsy
         analysis['quadratic_fitting']['coeffsx'] = px
         analysis['quadratic_fitting']['coeffsy'] = py
         analysis['quadratic_fitting']['x0'] = x0
@@ -357,8 +369,9 @@ class DoBBA(BaseClass):
 
         dorb = dorb.T/self.params.quad_deltakl
         x0, y0 = self.calc_offset(bpm, dorb)
+        analysis['model_estimative'] = dict()
         analysis['model_estimative']['x0'] = x0
-        analysis['model_estimative']['y0'] = x0
+        analysis['model_estimative']['y0'] = y0
         return analysis
 
     @staticmethod
@@ -396,9 +409,8 @@ class DoBBA(BaseClass):
 
     @staticmethod
     def _calc_dorb_scan(dorbneg, dorbpos, nrpts):
-        dorbspos = np.linspace(dorbpos, 0, nrpts)[:-1]
-        dorbsneg = np.linspace(-dorbneg, 0, nrpts)[:-1]
+        dorbspos = np.linspace(dorbpos, 0, nrpts+1)[:-1]
+        dorbsneg = np.linspace(-dorbneg, 0, nrpts+1)[:-1]
         dorbs = np.array([dorbsneg, dorbspos]).T.flatten()
-        dorbs = np.hstack([0, dorbs, 0])
-        dorbs = -np.diff(dorbs)
+        dorbs = np.hstack([dorbs, 0])
         return dorbs
