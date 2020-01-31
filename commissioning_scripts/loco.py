@@ -182,6 +182,39 @@ class LOCOUtils:
         return kmatrix
 
     @staticmethod
+    def jloco_calc_s(config, model):
+        """."""
+        if config.use_families:
+            sindices = []
+            for fam_name in config.famname_sextset:
+                sindices.append(config.respm.fam_data[fam_name]['index'])
+            kvalues = LOCOUtils.get_quads_strengths(
+                config.respm.model, kindices)
+            set_quad_kdelta = LOCOUtils.set_quadset_kdelta
+        else:
+            kindices = config.respm.fam_data['QN']['index']
+            kvalues = np.array(
+                pyaccel.lattice.get_attribute(
+                    config.respm.model, 'K', kindices))
+            set_quad_kdelta = LOCOUtils.set_quadmag_kdelta
+        matrix_nominal = LOCOUtils.respm_calc(
+            model, config.respm, config.use_disp)
+
+        kmatrix = np.zeros((
+            matrix_nominal.shape[0]*matrix_nominal.shape[1], len(kindices)))
+
+        model_this = _dcopy(model)
+        for idx, idx_set in enumerate(kindices):
+            set_quad_kdelta(
+                model_this, idx_set, kvalues[idx], config.DEFAULT_DELTA_K)
+            matrix_this = LOCOUtils.respm_calc(
+                model_this, config.respm, config.use_disp)
+            dmatrix = (matrix_this - matrix_nominal)/config.DEFAULT_DELTA_K
+            kmatrix[:, idx] = dmatrix.flatten()
+            set_quad_kdelta(model_this, idx_set, kvalues[idx], 0)
+        return kmatrix
+
+    @staticmethod
     def jloco_merge_linear(
             config, kmatrix, dmdg_bpm, dmdalpha_bpm, dmdg_corr):
         """."""
@@ -228,7 +261,7 @@ class LOCOUtils:
     @staticmethod
     def jloco_apply_weight(jloco, weight_bpm, weight_corr):
         """."""
-        weight = (weight_bpm[None, :] * weight_corr[:, None]).flatten()
+        weight = (weight_bpm[:, None] * weight_corr[None, :]).flatten()
         return weight[:, None] * jloco
 
 
@@ -537,6 +570,14 @@ class LOCOConfigSI(LOCOConfig):
             'QFA', 'QDA', 'QDB2', 'QFB', 'QDB1', 'QDP2', 'QFP', 'QDP1',
             'Q1', 'Q2', 'Q3', 'Q4']
 
+    @property
+    def famname_sextset(self):
+        """."""
+        return ['SDA0', 'SDB0', 'SDP0', 'SDA1', 'SDB1', 'SDP1',
+                'SDA2', 'SDB2', 'SDP2', 'SDA3', 'SDB3', 'SDP3',
+                'SFA0', 'SFB0', 'SFP0', 'SFA1', 'SFB1', 'SFP1',
+                'SFA2', 'SFB2', 'SFP2', ]
+
 
 class LOCOConfigBO(LOCOConfig):
     """."""
@@ -566,13 +607,18 @@ class LOCOConfigBO(LOCOConfig):
         """."""
         return ['QF', 'QD']
 
+    @property
+    def famname_sextset(self):
+        """."""
+        return ['SF', 'SD']
+
 
 class LOCO:
     """LOCO."""
 
     UTILS = LOCOUtils
     DEFAULT_TOL = 1e-16
-    DEFAULT_REDUC_THRESHOLD = 0.05/100
+    DEFAULT_REDUC_THRESHOLD = 5/100
 
     def __init__(self, config=None):
         """."""
@@ -609,14 +655,18 @@ class LOCO:
         self._tol = None
         self._reduc_threshold = None
 
-    def update(self, fname_jloco_k=None):
+    def update(self, fname_jloco_k=None, inv_jloco_k=None):
         """."""
         print('update config...')
         self.update_config()
-        print('update jloco...')
-        self.update_jloco(fname_jloco_k)
-        print('update svd...')
-        self.update_svd()
+        if inv_jloco_k is not None:
+            print('setting jloco inverse input...')
+            self._jloco_inv = inv_jloco_k
+        else:
+            print('update jloco...')
+            self.update_jloco(fname_jloco_k)
+            print('update svd...')
+            self.update_svd()
         print('update fit...')
         self.update_fit()
 
@@ -730,7 +780,7 @@ class LOCO:
             param_new = np.dot(self._jloco_inv, matrix_diff.flatten())
             model_new, matrix_new = self._calc_model_matrix(param_new)
             chi2_new = self.calc_chi2(matrix_new)
-            print('chi2: {0:.6e}'.format(chi2_new))
+            print('chi2/chi2_init: {0:.6e}'.format(chi2_new/self._chi2_init))
             if np.isnan(chi2_new):
                 print('matrix deviation is NaN!')
                 break
