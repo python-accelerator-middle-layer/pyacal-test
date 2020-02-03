@@ -29,6 +29,11 @@ class BaseClass:
         with open(fname, 'wb') as fil:
             _pickle.dump(data, fil)
 
+    def load_and_apply(self, fname):
+        data = self.load_data(fname)
+        self.data = data['data']
+        self.params = data['params']
+
     @staticmethod
     def load_data(fname):
         """."""
