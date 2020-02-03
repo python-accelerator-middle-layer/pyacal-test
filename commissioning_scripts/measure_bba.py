@@ -17,6 +17,8 @@ class BBAParams:
 
     def __init__(self):
         self.bba_method = 0  # 0 - Scan    1 - Search
+        self.dorbx_stretch = 1.2
+        self.dorby_stretch = 1.2
         self.dorbx_negative = 500  # [um]
         self.dorbx_positive = 500  # [um]
         self.dorby_negative = 500  # [um]
@@ -35,6 +37,12 @@ class BBAParams:
         ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
         st = dtmp('bba_method', self.bba_method, '(0-Scan 1-Search)')
+        st += ftmp(
+            'dorbx_stretch', self.dorbx_stretch,
+            '(apply to Search estimatives)')
+        st += ftmp(
+            'dorby_stretch', self.dorby_stretch,
+            '(apply to Search estimatives)')
         st += ftmp('dorbx_negative [um]', self.dorbx_negative, '')
         st += ftmp('dorbx_positive [um]', self.dorbx_positive, '')
         st += ftmp('dorby_negative [um]', self.dorby_negative, '')
@@ -63,6 +71,25 @@ class DoBBA(BaseClass):
         self._stopevt = _Event()
         self._thread = _Thread(target=self._do_bba, daemon=True)
 
+    def __str__(self):
+        stn = 'Params\n'
+        stp = self.params.__str__()
+        stp = '    ' + stp.replace('\n', '\n    ')
+        stn += stp + '\n'
+        stn += 'Connected?  ' + str(self.connected) + '\n\n'
+
+        stn += '     {:^20s} {:^20s} {:^20s} {:^20s} {:6s} {:6s}\n'.format(
+            'BPM', 'CH', 'CV', 'Quad', 'Xc [um]', 'Yc [um]')
+        tmplt = '{:03d}: {:^20s} {:^20s} {:^20s} {:^20s} {:^6.1f} {:^6.1f}\n'
+        dta = self.data
+        for bpm in self.bpms2dobba:
+            idx = dta['bpmnames'].index(bpm)
+            stn += tmplt.format(
+                idx, dta['bpmnames'][idx], dta['chnames'][idx],
+                dta['cvnames'][idx], dta['quadnames'][idx],
+                dta['scancenterx'][idx], dta['scancentery'][idx])
+        return stn
+
     def start(self):
         if self._thread.is_alive():
             return
@@ -72,6 +99,10 @@ class DoBBA(BaseClass):
 
     def stop(self):
         self._stopevt.set()
+
+    @property
+    def ismeasuring(self):
+        return self._thread.is_alive()
 
     @property
     def bpms2dobba(self):
@@ -121,8 +152,10 @@ class DoBBA(BaseClass):
         respmat_calc.ch = quadsidx
         respmat_calc.cv = quadsidx
         quadrespmat = respmat_calc.get_respm()
-        self.data['quadrespx'] = quadrespmat[:, 1:len(quadsidx)]
+        self.data['quadrespx'] = quadrespmat[:, :len(quadsidx)]
         self.data['quadrespy'] = quadrespmat[:, len(quadsidx):-1]
+        self.data['scancenterx'] = np.zeros(len(bpmnames))
+        self.data['scancentery'] = np.zeros(len(bpmnames))
         self.connect_to_objects()
 
     def check_correctors_range(self):
@@ -130,9 +163,21 @@ class DoBBA(BaseClass):
         doxn = self.params.dorbx_negative
         doyp = self.params.dorby_positive
         doyn = self.params.dorby_negative
+        orb = self._get_orbit()
         for bpm in self.bpms2dobba:
             dkx, dky = self.calc_orbcorr(bpm, 1, 1)
             idx = self.data['bpmnames'].index(bpm)
+
+            xpos = orb[idx]
+            xcen = self.data['scancenterx'][idx]
+            doxpi = abs(max(xpos - (xcen+doxp), 0))
+            doxni = abs(min(xpos - (xcen-doxn), 0))
+
+            ypos = orb[idx+len(self.data['bpmnames'])]
+            ycen = self.data['scancentery'][idx]
+            doypi = abs(max(ypos - (ycen+doyp), 0))
+            doyni = abs(min(ypos - (ycen-doyn), 0))
+
             ch = self.data['chnames'][idx]
             cv = self.data['cvnames'][idx]
             kickx = self.devices[ch].strength
@@ -141,22 +186,30 @@ class DoBBA(BaseClass):
             dkxn = self.params.max_corrstrength + kickx
             dkyp = self.params.max_corrstrength - kicky
             dkyn = self.params.max_corrstrength + kicky
-            dorbxp = abs(dkxp/dkx)
-            dorbxn = abs(dkxn/dkx)
-            dorbyp = abs(dkyp/dky)
-            dorbyn = abs(dkyn/dky)
-            if dorbxp < doxp:
-                print('{0:s}: {1:s} max pos range is {2:.2f} um'.format(
-                    bpm, ch, dorbxp))
-            if dorbxn < doxn:
-                print('{0:s}: {1:s} max neg range is {2:.2f} um'.format(
-                    bpm, ch, dorbxn))
-            if dorbyp < doyp:
-                print('{0:s}: {1:s} max pos range is {2:.2f} um'.format(
-                    bpm, cv, dorbyp))
-            if dorbyn < doyn:
-                print('{0:s}: {1:s} max neg range is {2:.2f} um'.format(
-                    bpm, cv, dorbyn))
+            if dkx > 0:
+                dorbxp = abs(dkxp/dkx)
+                dorbxn = abs(dkxn/dkx)
+            else:
+                dorbxp = abs(dkxn/dkx)
+                dorbxn = abs(dkxp/dkx)
+            if dky > 0:
+                dorbyp = abs(dkyp/dky)
+                dorbyn = abs(dkyn/dky)
+            else:
+                dorbyp = abs(dkyn/dky)
+                dorbyn = abs(dkyp/dky)
+            if dorbxp < doxpi:
+                print('{0:s}: {1:s} +dorb = {2:.2f}, need {3:.2f}'.format(
+                    bpm, ch, dorbxp, doxpi))
+            if dorbxn < doxni:
+                print('{0:s}: {1:s} -dorb = {2:.2f}, need {3:.2f}'.format(
+                    bpm, ch, dorbxn, doxni))
+            if dorbyp < doypi:
+                print('{0:s}: {1:s} +dorb = {2:.2f}, need {3:.2f}'.format(
+                    bpm, cv, dorbyp, doypi))
+            if dorbyn < doyni:
+                print('{0:s}: {1:s} -dorb = {2:.2f}, need {3:.2f}'.format(
+                    bpm, cv, dorbyn, doyni))
 
     def get_correctors_candidates(self, bpmname, ncorrs=10):
         idx = self.data['bpmnames'].index(bpmname)
@@ -176,6 +229,12 @@ class DoBBA(BaseClass):
             cvnames.append(sofb.data.CV_NAMES[idxv])
         return chnames, cvnames, chstreng, cvstreng
 
+    def _get_orbit(self):
+        sofb = self.devices['sofb']
+        sofb.reset()
+        sofb.wait(self.params.timeout_wait_sofb)
+        return np.hstack([sofb.orbx, sofb.orby])
+
     def _do_bba(self):
         self.devices['sofb'].nr_points = self.params.sofb_nrpoints
         for bpm in self._bpms2dobba:
@@ -194,7 +253,7 @@ class DoBBA(BaseClass):
         corrx = self.devices[chname]
         corry = self.devices[cvname]
 
-        print('Doing BBA for BPM : ' + bpmname)
+        print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
         print('    turning quadrupole ' + quadname + ' On')
         quad.turnon(self.params.timeout_quad_turnon)
         if not quad.pwr_state:
@@ -203,7 +262,12 @@ class DoBBA(BaseClass):
             print('    exiting...')
             return
 
-        sofb = self.devices['sofb']
+        orb = self._get_orbit()
+        xcen = self.data['scancenterx'][idx]
+        ycen = self.data['scancentery'][idx]
+        xpos = orb[idx]
+        ypos = orb[idx+len(self.data['bpmnames'])]
+        dkx0, dky0 = self.calc_orbcorr(bpmname, xcen-xpos, ycen-ypos)
 
         nrsteps = self.params.meas_nrsteps
         dorbxneg = self.params.dorbx_negative
@@ -216,9 +280,14 @@ class DoBBA(BaseClass):
         deltakl = self.params.quad_deltakl
 
         corrx_kicks, corry_kicks = [], []
-        orb_pos, orb_neg = [], []
+        orb_ini, orb_pos, orb_neg = [], [], []
         orig_kickx = corrx.strength
         orig_kicky = corry.strength
+
+        corrx.strength = orig_kickx + dkx0
+        corry.strength = orig_kicky + dky0
+        _time.sleep(self.params.wait_correctors)
+
         if self.params.bba_method == BBAParams.SCAN:
             npts = 2*(nrsteps//2) + 1
         else:
@@ -230,35 +299,38 @@ class DoBBA(BaseClass):
             corrx_kicks.append(corrx.strength)
             corry_kicks.append(corry.strength)
 
+            orb_ini.append(self._get_orbit())
+
             korig = quad.strength
             quad.strength = korig + deltakl/2
             _time.sleep(self.params.wait_quadrupole)
 
-            sofb.reset()
-            sofb.wait(self.params.timeout_wait_sofb)
-            orb_pos.append(np.hstack([sofb.orbx, sofb.orby]))
+            orb_pos.append(self._get_orbit())
 
             quad.strength = korig - deltakl/2
             _time.sleep(self.params.wait_quadrupole)
 
-            sofb.reset()
-            sofb.wait(self.params.timeout_wait_sofb)
-            orb_neg.append(np.hstack([sofb.orbx, sofb.orby]))
+            orb_neg.append(self._get_orbit())
 
             quad.strength = korig
 
             dorb = (orb_pos[-1]-orb_neg[-1])/deltakl
             xcen, ycen = self.calc_offset(bpmname, dorb)
             rms = np.sqrt(np.sum(dorb*dorb) / dorb.shape[0])
-            print('    Center ({0:.1f}, {1:.1f}), RMS {2:.2f} um'.format(
-                xcen[0], ycen[0], rms))
+            print('    {0:02d}/{1:02d}:  '.format(i+1, npts), end='')
+            print('x0 = {0:6.1f}  y0 = {1:6.1f}, '.format(
+                xcen[0], ycen[0]), end='')
+            print('rms = {0:8.1f} um'.format(rms))
             if self.params.bba_method == BBAParams.SCAN:
                 xcen, ycen = dorbsx[i], dorbsy[i]
                 dkx, dky = self.calc_orbcorr(bpmname, xcen, ycen)
-                kickx = orig_kickx + dkx
-                kicky = orig_kicky + dky
+                kickx = orig_kickx + dkx0 + dkx
+                kicky = orig_kicky + dky0 + dky
             else:
-                dkx, dky = self.calc_orbcorr(bpmname, -xcen[0], -ycen[0])
+                dkx, dky = self.calc_orbcorr(
+                    bpmname,
+                    -xcen[0]*self.params.dorbx_stretch,
+                    -ycen[0]*self.params.dorby_stretch)
                 kickx = corrx.strength + dkx
                 kicky = corry.strength + dky
 
@@ -279,6 +351,7 @@ class DoBBA(BaseClass):
 
         self.data['measure'][bpmname]['corrxkicks'] = np.array(corrx_kicks)
         self.data['measure'][bpmname]['corrykicks'] = np.array(corry_kicks)
+        self.data['measure'][bpmname]['orbini'] = np.array(orb_ini)
         self.data['measure'][bpmname]['orbpos'] = np.array(orb_pos)
         self.data['measure'][bpmname]['orbneg'] = np.array(orb_neg)
 
@@ -288,6 +361,7 @@ class DoBBA(BaseClass):
             print('    error: quadrupole ' + quadname + ' is still On.')
             self._stopevt.set()
             print('    exiting...')
+        print('')
 
     def calc_offset(self, bpmname, dorb):
         idx = self.data['bpmnames'].index(bpmname)
@@ -301,8 +375,8 @@ class DoBBA(BaseClass):
         res, *_ = np.linalg.lstsq(mat, dorb, rcond=None)
         x0, y0 = res
         if isskew:
-            return y0, x0
-        return x0, y0
+            return -y0, x0
+        return -x0, y0
 
     def calc_orbcorr(self, bpmname, x0, y0):
         idxh = self.data['bpmnames'].index(bpmname)
@@ -321,20 +395,21 @@ class DoBBA(BaseClass):
         return dkx, dky
 
     def process_data(self):
+        analysis = dict()
         if 'analysis' not in self.data:
             self.data['analysis'] = dict()
         for bpm in self.data['measure']:
-            analysis = self.process_data_single_bpm(bpm)
-            self.data['analysis'][bpm] = analysis
+            self.data['analysis'][bpm] = self.process_data_single_bpm(bpm)
 
     def process_data_single_bpm(self, bpm):
         analysis = dict()
         idx = self.data['bpmnames'].index(bpm)
         nbpms = len(self.data['bpmnames'])
+        orbini = self.data['measure'][bpm]['orbini']
         orbpos = self.data['measure'][bpm]['orbpos']
         orbneg = self.data['measure'][bpm]['orbneg']
-        xpos = (orbpos[:, idx] + orbneg[:, idx])/2
-        ypos = (orbpos[:, idx+nbpms] + orbneg[:, idx+nbpms])/2
+        xpos = orbini[:, idx]
+        ypos = orbini[:, idx+nbpms]
         dorb = orbpos - orbneg
         dorbx = dorb[:, :nbpms]
         dorby = dorb[:, nbpms:]
@@ -345,34 +420,91 @@ class DoBBA(BaseClass):
 
         px = np.polyfit(xpos, dorbx, deg=1)
         py = np.polyfit(ypos, dorby, deg=1)
+        x0s = -px[1]/px[0]
+        y0s = -py[1]/py[0]
         x0 = -np.dot(px[0], px[1]) / np.dot(px[0], px[0])
         y0 = -np.dot(py[0], py[1]) / np.dot(py[0], py[0])
+        stdx0 = np.sqrt(np.dot(px[1], px[1]) / np.dot(px[0], px[0]) - x0*x0)
+        stdy0 = np.sqrt(np.dot(py[1], py[1]) / np.dot(py[0], py[0]) - y0*y0)
+        extrapx = not min(xpos) <= x0 <= max(xpos)
+        extrapy = not min(ypos) <= y0 <= max(ypos)
         analysis['linear_fitting'] = dict()
+        analysis['linear_fitting']['dorbx'] = dorbx
+        analysis['linear_fitting']['dorby'] = dorby
         analysis['linear_fitting']['coeffsx'] = px
         analysis['linear_fitting']['coeffsy'] = py
+        analysis['linear_fitting']['x0s'] = x0s
+        analysis['linear_fitting']['y0s'] = y0s
+        analysis['linear_fitting']['extrapolatedx'] = extrapx
+        analysis['linear_fitting']['extrapolatedy'] = extrapy
         analysis['linear_fitting']['x0'] = x0
         analysis['linear_fitting']['y0'] = y0
+        analysis['linear_fitting']['stdx0'] = stdx0
+        analysis['linear_fitting']['stdy0'] = stdy0
 
         rmsx = np.sum(dorbx*dorbx, axis=1) / dorbx.shape[0]
         rmsy = np.sum(dorby*dorby, axis=1) / dorby.shape[0]
-        px = np.polyfit(xpos, rmsx, deg=2)
-        py = np.polyfit(ypos, rmsy, deg=2)
+        if xpos.size > 3:
+            px, covx = np.polyfit(xpos, rmsx, deg=2, cov=True)
+            py, covy = np.polyfit(ypos, rmsy, deg=2, cov=True)
+        else:
+            px = np.polyfit(xpos, rmsx, deg=2, cov=False)
+            py = np.polyfit(ypos, rmsy, deg=2, cov=False)
+            covx = covy = np.zeros((3, 3))
         x0 = -px[1] / px[0] / 2
         y0 = -py[1] / py[0] / 2
+        stdx0 = x0*np.sqrt(np.sum(np.diag(covx)[:2]/px[:2]/px[:2]))
+        stdy0 = y0*np.sqrt(np.sum(np.diag(covy)[:2]/py[:2]/py[:2]))
+        extrapx = not min(xpos) <= x0 <= max(xpos)
+        extrapy = not min(ypos) <= y0 <= max(ypos)
         analysis['quadratic_fitting'] = dict()
         analysis['quadratic_fitting']['meansqrx'] = rmsx
         analysis['quadratic_fitting']['meansqry'] = rmsy
         analysis['quadratic_fitting']['coeffsx'] = px
         analysis['quadratic_fitting']['coeffsy'] = py
+        analysis['quadratic_fitting']['extrapolatedx'] = extrapx
+        analysis['quadratic_fitting']['extrapolatedy'] = extrapy
         analysis['quadratic_fitting']['x0'] = x0
         analysis['quadratic_fitting']['y0'] = y0
+        analysis['quadratic_fitting']['stdx0'] = stdx0
+        analysis['quadratic_fitting']['stdy0'] = stdy0
 
         dorb = dorb.T/self.params.quad_deltakl
         x0, y0 = self.calc_offset(bpm, dorb)
+        extrapx = not min(xpos) <= x0 <= max(xpos)
+        extrapy = not min(ypos) <= y0 <= max(ypos)
         analysis['model_estimative'] = dict()
-        analysis['model_estimative']['x0'] = x0
-        analysis['model_estimative']['y0'] = y0
+        analysis['model_estimative']['x0s'] = xpos-x0
+        analysis['model_estimative']['y0s'] = ypos-y0
+        analysis['model_estimative']['extrapolatedx'] = extrapx
+        analysis['model_estimative']['extrapolatedy'] = extrapy
+        analysis['model_estimative']['x0'] = np.mean(xpos-x0)
+        analysis['model_estimative']['y0'] = np.mean(ypos-y0)
+        analysis['model_estimative']['stdx0'] = np.std(xpos-x0)
+        analysis['model_estimative']['stdy0'] = np.std(ypos-y0)
         return analysis
+
+    def get_bba_results(self, method='linear_fitting', error=False):
+        data = self.data
+        anl = data['analysis']
+        bpms = data['bpmnames']
+        bbax = np.zeros(len(bpms))
+        bbay = np.zeros(len(bpms))
+        if error:
+            bbaxerr = np.zeros(len(bpms))
+            bbayerr = np.zeros(len(bpms))
+        for idx, bpm in enumerate(bpms):
+            if bpm not in anl:
+                continue
+            res = anl[bpm][method]
+            bbax[idx] = res['x0']
+            bbay[idx] = res['y0']
+            if error and 'stdx0' in res:
+                bbaxerr[idx] = res['stdx0']
+                bbayerr[idx] = res['stdy0']
+        if error:
+            return bbax, bbay, bbaxerr, bbayerr
+        return bbax, bbay
 
     @staticmethod
     def get_default_quads(model, fam_data):
