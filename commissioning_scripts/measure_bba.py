@@ -408,6 +408,9 @@ class DoBBA(BaseClass):
         orbini = self.data['measure'][bpm]['orbini']
         orbpos = self.data['measure'][bpm]['orbpos']
         orbneg = self.data['measure'][bpm]['orbneg']
+        corrx = self.data['measure'][bpm]['corrxkicks']
+        corry = self.data['measure'][bpm]['corrykicks']
+
         xpos = orbini[:, idx]
         ypos = orbini[:, idx+nbpms]
         dorb = orbpos - orbneg
@@ -417,6 +420,11 @@ class DoBBA(BaseClass):
             dorbx, dorby = dorby, dorbx
         analysis['xpos'] = xpos
         analysis['ypos'] = ypos
+
+        respmx = np.diff(xpos) / np.diff(corrx)
+        respmy = np.diff(ypos) / np.diff(corry)
+        analysis['respmx'] = respmx
+        analysis['respmy'] = respmy
 
         px = np.polyfit(xpos, dorbx, deg=1)
         py = np.polyfit(ypos, dorby, deg=1)
@@ -470,18 +478,18 @@ class DoBBA(BaseClass):
         analysis['quadratic_fitting']['stdy0'] = stdy0
 
         dorb = dorb.T/self.params.quad_deltakl
-        x0, y0 = self.calc_offset(bpm, dorb)
-        extrapx = not min(xpos) <= x0 <= max(xpos)
-        extrapy = not min(ypos) <= y0 <= max(ypos)
+        x0s, y0s = self.calc_offset(bpm, dorb)
+        extrapx = not min(xpos) <= np.mean(x0s) <= max(xpos)
+        extrapy = not min(ypos) <= np.mean(y0s) <= max(ypos)
         analysis['model_estimative'] = dict()
-        analysis['model_estimative']['x0s'] = xpos-x0
-        analysis['model_estimative']['y0s'] = ypos-y0
+        analysis['model_estimative']['x0s'] = xpos-x0s
+        analysis['model_estimative']['y0s'] = ypos-y0s
         analysis['model_estimative']['extrapolatedx'] = extrapx
         analysis['model_estimative']['extrapolatedy'] = extrapy
-        analysis['model_estimative']['x0'] = np.mean(xpos-x0)
-        analysis['model_estimative']['y0'] = np.mean(ypos-y0)
-        analysis['model_estimative']['stdx0'] = np.std(xpos-x0)
-        analysis['model_estimative']['stdy0'] = np.std(ypos-y0)
+        analysis['model_estimative']['x0'] = np.mean(xpos-x0s)
+        analysis['model_estimative']['y0'] = np.mean(ypos-y0s)
+        analysis['model_estimative']['stdx0'] = np.std(xpos-x0s)
+        analysis['model_estimative']['stdy0'] = np.std(ypos-y0s)
         return analysis
 
     def get_bba_results(self, method='linear_fitting', error=False):
