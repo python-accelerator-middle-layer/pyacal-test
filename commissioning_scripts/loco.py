@@ -2,6 +2,7 @@
 """."""
 
 from copy import deepcopy as _dcopy
+import pickle as _pickle
 import numpy as np
 import pyaccel
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
@@ -9,6 +10,24 @@ from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 
 class LOCOUtils:
     """LOCO utils."""
+
+    @staticmethod
+    def save_data(fname, jloco):
+        """."""
+        data = dict(jloco_kmatrix=jloco)
+        if not fname.endswith('.pickle'):
+            fname += '.pickle'
+        with open(fname, 'wb') as fil:
+            _pickle.dump(data, fil)
+
+    @staticmethod
+    def load_data(fname):
+        """."""
+        if not fname.endswith('.pickle'):
+            fname += '.pickle'
+        with open(fname, 'rb') as fil:
+            data = _pickle.load(fil)
+        return data
 
     @staticmethod
     def respm_calc(model, respm, use_disp):
@@ -373,14 +392,6 @@ class LOCOUtils:
             kron[j, i] = 1
         return kron
 
-    @staticmethod
-    def chi2_calc(matrix1, matrix2):
-        """."""
-        dmatrix = matrix1 - matrix2
-        # chi2 = np.mean(dmatrix**2)
-        chi2 = np.linalg.norm(dmatrix)**2/dmatrix.size
-        return chi2
-
 
 class LOCOConfig:
     """SI LOCO configuration."""
@@ -400,6 +411,9 @@ class LOCOConfig:
         self.dim = None
         self.respm = None
         self.goalmat = None
+        self.delta_kickx_meas = None
+        self.delta_kicky_meas = None
+        self.delta_frequency_meas = None
         self.use_disp = None
         self.use_coupling = None
         self.use_families = None
@@ -616,6 +630,7 @@ class LOCOConfig:
         self.bc_indices = self.respm.fam_data['BC']['index']
 
     def update_dip_knobs(self):
+        """."""
         self.update_b1_knobs()
         self.update_b2_knobs()
         self.update_bc_knobs()
@@ -758,6 +773,7 @@ class LOCO:
         self._jloco_k_bc = None
 
         self._jloco = None
+        self._jloco_inv = None
         self._jtjloco_u = None
         self._jtjloco_s = None
         self._jtjloco_v = None
@@ -780,23 +796,23 @@ class LOCO:
         self._gain_corr_inival = self.config.gain_corr
         self._gain_corr_delta = None
 
-        self._chi2_init = None
-        self._chi2 = None
+        self._chi_init = None
+        self._chi = None
         self._tol = None
         self._reduc_threshold = None
 
     def update(self,
                fname_jloco_k=None,
-               inv_jloco_k=None,
+               fname_inv_jloco_k=None,
                fname_jloco_k_quad=None,
                fname_jloco_k_sext=None,
                fname_jloco_k_dip=None):
         """."""
         print('update config...')
         self.update_config()
-        if inv_jloco_k is not None:
+        if fname_inv_jloco_k is not None:
             print('setting jloco inverse input...')
-            self._jloco_inv = inv_jloco_k
+            self._jloco_inv = LOCOUtils.load_data(fname=fname_inv_jloco_k)
         else:
             print('update jloco...')
             self.update_jloco(
@@ -827,18 +843,20 @@ class LOCO:
             LOCOUtils.jloco_calc_linear(self.config, self._matrix)
 
         if fname_jloco_k is not None:
-            self._jloco_k = np.loadtxt(fname_jloco_k)
+            self._jloco_k = LOCOUtils.load_data(fname_jloco_k)['jloco_kmatrix']
         else:
             # calc jloco K part for quadrupole
             if fname_jloco_k_quad is None:
                 print('calculating quadrupoles kmatrix...')
                 self._jloco_k_quad = LOCOUtils.jloco_calc_k_quad(
                     self.config, self._model)
-                np.savetxt('kmatrix_test.txt', self._jloco_k_quad)
-                print('saved!!!...')
+                # LOCOUtils.save_data(
+                #     'kmatrix_quadrupoles_trims_with_dispersion',
+                #     self._jloco_k_quad)
             else:
-                self._jloco_k_quad = np.loadtxt(fname_jloco_k_quad)
-
+                print('loading quadrupoles kmatrix...')
+                self._jloco_k_quad = LOCOUtils.load_data(
+                    fname_jloco_k_quad)['jloco_kmatrix']
             # calc jloco K part for dipole
             if fname_jloco_k_dip is None:
                 print('calculating b1 kmatrix...')
@@ -854,16 +872,26 @@ class LOCO:
                     self._jloco_k_b1, self._jloco_k_b2))
                 self._jloco_k_dip = np.hstack((
                     self._jloco_k_dip, self._jloco_k_bc))
+                # LOCOUtils.save_data(
+                #     'kmatrix_dipoles_without_dispersion',
+                #     self._jloco_k_dip)
             else:
-                self._jloco_k_dip = np.loadtxt(fname_jloco_k_dip)
+                print('loading dipoles kmatrix...')
+                self._jloco_k_dip = LOCOUtils.load_data(
+                    fname_jloco_k_dip)['jloco_kmatrix']
 
             # calc jloco K part for sextupole
             if fname_jloco_k_sext is None:
                 print('calculating sextupoles kmatrix...')
                 self._jloco_k_sext = LOCOUtils.jloco_calc_k_sextupoles(
                     self.config, self._model)
+                LOCOUtils.save_data(
+                    'kmatrix_sextupoles_with_dispersion',
+                    self._jloco_k_sext)
             else:
-                self._jloco_k_sext = np.loadtxt(fname_jloco_k_sext)
+                print('loading sextupoles kmatrix...')
+                self._jloco_k_sext = LOCOUtils.load_data(
+                    fname_jloco_k_sext)['jloco_kmatrix']
 
             self._jloco_k = np.hstack((self._jloco_k_quad, self._jloco_k_sext))
             self._jloco_k = np.hstack((self._jloco_k, self._jloco_k_dip))
@@ -957,16 +985,16 @@ class LOCO:
                 roll_bpm=self._roll_bpm_inival,
                 gain_corr=self._gain_corr_inival)
 
-        self._chi2 = self.calc_chi2()
-        self._chi2_init = self._chi2
-        print('chi2_init: {:.6e}'.format(self._chi2_init))
+        self._chi = self.calc_chi()
+        self._chi_init = self._chi
+        print('chi_init: {:.6e} um'.format(self._chi_init))
 
         self._tol = LOCO.DEFAULT_TOL
         self._reduc_threshold = LOCO.DEFAULT_REDUC_THRESHOLD
 
     def run_fit(self, niter=1):
         """."""
-        self._chi2 = self._chi2_init
+        self._chi = self._chi_init
         for _iter in range(niter):
             print('iter # {}/{}'.format(_iter+1, niter))
 
@@ -978,31 +1006,34 @@ class LOCO:
                     self._jloco.T, matrix_diff.flatten()))
             param_new = param_new.flatten()
             model_new, matrix_new = self._calc_model_matrix(param_new)
-            chi2_new = self.calc_chi2(matrix_new)
-            print('chi2/chi2_init: {0:.6e}'.format(chi2_new/self._chi2_init))
-            if np.isnan(chi2_new):
+            chi_new = self.calc_chi(matrix_new)
+            print('chi: {0:.6e} um'.format(chi_new))
+            if np.isnan(chi_new):
                 print('matrix deviation is NaN!')
                 break
-            if chi2_new < self._chi2:
-                self._update_state(model_new, matrix_new, chi2_new)
+            if chi_new < self._chi:
+                self._update_state(model_new, matrix_new, chi_new)
             else:
                 factor = \
                     self._try_refactor_param(param_new)
                 if factor <= self._reduc_threshold:
                     # could not converge at current iteration!
                     break
-            if self._chi2 < self._tol:
+            if self._chi < self._tol:
                 break
 
         print('Finished!')
 
-    def calc_chi2(self, matrix=None):
+    def calc_chi(self, matrix=None):
         """."""
         if matrix is None:
             matrix = self._matrix
-        chi2 = LOCOUtils.chi2_calc(
-            self.config.goalmat, matrix)
-        return chi2
+        dmatrix = matrix - self.config.goalmat
+        dmatrix[:, :self.config.nr_ch] *= self.config.delta_kickx_meas
+        dmatrix[:, self.config.nr_ch:-1] *= self.config.delta_kicky_meas
+        dmatrix[:, -1] *= self.config.delta_frequency_meas
+        chi = np.linalg.norm(dmatrix)/dmatrix.size
+        return chi * 1e6
 
     @property
     def jloco_k(self):
@@ -1107,21 +1138,21 @@ class LOCO:
         factor = 0.5
         _iter = 1
         while factor > self._reduc_threshold:
-            print('chi2 was increased! Trial {0:d}'.format(_iter))
+            print('chi was increased! Trial {0:d}'.format(_iter))
             print('applying {0:0.4f} %'.format(100*factor))
             model_new, matrix_new = \
                 self._calc_model_matrix(factor*param_new)
-            chi2_new = self.calc_chi2(matrix_new)
-            print('chi2/chi2_init: {0:.6e}'.format(chi2_new/self._chi2_init))
-            if chi2_new < self._chi2:
-                self._update_state(model_new, matrix_new, chi2_new)
+            chi_new = self.calc_chi(matrix_new)
+            print('chi: {0:.6e} um'.format(chi_new))
+            if chi_new < self._chi:
+                self._update_state(model_new, matrix_new, chi_new)
                 break
             factor /= 2
             _iter += 1
         return factor
 
-    def _update_state(self, model_new, matrix_new, chi2_new):
+    def _update_state(self, model_new, matrix_new, chi_new):
         """."""
         self._model = model_new
         self._matrix = matrix_new
-        self._chi2 = chi2_new
+        self._chi = chi_new
