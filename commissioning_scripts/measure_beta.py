@@ -18,7 +18,7 @@ class TuneFrac:
         """."""
         pre = 'SI-Glob:DI-Tune'
         prop = 'TuneFrac-Mon'
-        prop_wf = 'SpecArray-Mon'
+        prop_wf = 'Trace-Mon'
         self._tunex = PV(pre + '-H:' + prop)
         self._tuney = PV(pre + '-V:' + prop)
         self._tunex_wf = PV(pre + 'Proc-H:' + prop_wf)
