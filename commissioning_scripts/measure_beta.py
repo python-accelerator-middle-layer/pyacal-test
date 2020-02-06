@@ -67,7 +67,7 @@ class BetaParams:
         ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
         st = dtmp(
-            'beta_method', self.beta_method, '(0-One direction 1-Symmetric)')
+            'beta_method', self.beta_method, '(0-Symmetric 1-Unidirectional)')
         st += ftmp('dtunex_max [um]', self.dtunex_max, '')
         st += ftmp('dtuney_max [um]', self.dtuney_max, '')
         st += ftmp('quad_max_deltakl [1/m]', self.quad_max_deltakl, '')
