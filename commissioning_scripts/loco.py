@@ -877,7 +877,8 @@ class LOCO:
                fname_inv_jloco_k=None,
                fname_jloco_k_quad=None,
                fname_jloco_k_sext=None,
-               fname_jloco_k_dip=None):
+               fname_jloco_k_dip=None,
+               fname_jloco_kick_dip=None):
         """."""
         print('update config...')
         self.update_config()
@@ -887,10 +888,11 @@ class LOCO:
         else:
             print('update jloco...')
             self.update_jloco(
-                fname_jloco_k,
-                fname_jloco_k_quad,
-                fname_jloco_k_sext,
-                fname_jloco_k_dip)
+                fname_jloco_k=fname_jloco_k,
+                fname_jloco_k_quad=fname_jloco_k_quad,
+                fname_jloco_k_sext=fname_jloco_k_sext,
+                fname_jloco_k_dip=fname_jloco_k_dip,
+                fname_jloco_kick_dip=fname_jloco_kick_dip)
             print('update svd...')
             self.update_svd()
         print('update fit...')
