@@ -48,15 +48,15 @@ class TuneFrac:
 class BetaParams:
     """."""
 
-    UNI = 0
-    SYM = 1
+    SYM = 0
+    UNI = 1
 
     def __init__(self):
         """."""
-        self.beta_method = 0  # 0 - Unidirectional    1 - Symmetric
-        self.quad_max_deltakl = 0.02  # [1/m]
-        self.dtunex_max = 0.05
-        self.dtuney_max = 0.05
+        self.beta_method = 0  # 0 - Symmetric 1 - Unidirectional
+        self.quad_max_deltakl = 0.01  # [1/m]
+        self.dtunex_max = 0.005
+        self.dtuney_max = 0.005
         self.wait_quadrupole = 2  # [s]
         self.wait_tune = 10  # [s]
         self.timeout_quad_turnon = 10  # [s]
@@ -89,6 +89,10 @@ class MeasBeta(BaseClass):
         self.tunefrac = TuneFrac()
         self.devices['sofb'] = SOFB('SI')
         self.data['quadnames'] = list()
+        self.data['betax_in'] = dict()
+        self.data['betay_in'] = dict()
+        self.data['betax_out'] = dict()
+        self.data['betay_out'] = dict()
         self._quads2meas = list()
         self._stopevt = _Event()
         self._thread = _Thread(target=self._meas_beta, daemon=True)
@@ -126,14 +130,18 @@ class MeasBeta(BaseClass):
         quadnames, quadsidx = MeasBeta.get_default_quads(model, famdata)
         twi, *_ = pyaccel.optics.calc_twiss(model, indices='open')
         for idx, qname in enumerate(quadnames):
-            self.data['betax'][qname] = twi.betax[quadsidx[idx]]
-            self.data['betay'][qname] = twi.betay[quadsidx[idx]]
+            self.data['betax_in'][qname] = twi.betax[quadsidx[idx]]
+            self.data['betay_in'][qname] = twi.betay[quadsidx[idx]]
+            self.data['betax_out'][qname] = twi.betax[quadsidx[idx]+1]
+            self.data['betay_out'][qname] = twi.betay[quadsidx[idx]+1]
         self.data['quadnames'] = quadnames
         self.connect_to_objects()
 
     def _meas_beta(self):
         """."""
         for quadname in self.quads2meas:
+            if self._stopevt.is_set():
+                return
             self._meas_beta_single_quad(quadname)
 
     def _meas_beta_single_quad(self, quadname):
@@ -150,76 +158,89 @@ class MeasBeta(BaseClass):
 
         sofb = self.devices['sofb']
 
-        betax = self.data['betax'][quadname]
-        betay = self.data['betay'][quadname]
+        # betax = self.data['betax_in'][quadname]
+        # betay = self.data['betay_in'][quadname]
 
-        deltaklx = self.params.dtunex_max/betax
-        deltakly = self.params.dtuney_max/betay
-        deltakl = 4 * np.pi * np.min([deltaklx, deltakly])
+        # deltaklx = self.params.dtunex_max/betax
+        # deltakly = self.params.dtuney_max/betay
+        # deltakl = 4 * np.pi * np.min([deltaklx, deltakly])
 
-        if self.params.beta_method == BetaParams.SYM:
-            deltaklmin = deltakl/2
-        else:
-            deltaklmin = deltakl
+        # if self.params.beta_method == BetaParams.SYM:
+        #     deltaklmin = deltakl/2
+        # else:
+        #     deltaklmin = deltakl
 
-        if np.abs(deltaklmin) > self.params.quad_max_deltakl:
-            print(
-                'warning: delta kl quadrupole ' + quadname + ' over max.')
-            print('setting max kl')
-            deltakl = np.sign(deltakl) * self.params.quad_max_deltakl
+        # if 'QD' in quadname:
+        #     deltakl *= -1
+
+        # if np.abs(deltaklmin) > self.params.quad_max_deltakl:
+        #     print(
+        #         'warning: delta kl quadrupole ' + quadname + ' over max.')
+        #     print('setting max kl')
+        #     deltakl = np.sign(deltakl) * self.params.quad_max_deltakl
+
+        deltakl = self.params.quad_max_deltakl
 
         korig = quad.strength
-        tune1, tune2 = [], []
-        tunewf1, tunewf2 = [], []
-        orb1, orb2 = [], []
-
-        if self.params.beta_method == BetaParams.UNI:
-            quad.strength = korig - deltakl/2
-            _time.sleep(self.params.wait_quadrupole)
-
-            sofb.reset()
-            _time.sleep(self.params.wait_tune)
-            tune1.append([self.tunefrac.tunex, self.tunefrac.tuney])
-            tunewf1.append(
-                np.hstack([self.tunefrac.tunex_wf, self.tunefrac.tuney_wf]))
-            orb1.append(np.hstack([sofb.orbx, sofb.orby]))
-
-            quad.strength = korig + deltakl/2
-            _time.sleep(self.params.wait_quadrupole)
-
-            sofb.reset()
-            _time.sleep(self.params.wait_tune)
-            tune2.append([self.tunefrac.tunex, self.tunefrac.tuney])
-            tunewf2.append(
-                np.hstack([self.tunefrac.tunex_wf, self.tunefrac.tuney_wf]))
-            orb2.append(np.hstack([sofb.orbx, sofb.orby]))
+        tune_neg, tune_pos = [], []
+        tunewf_neg, tunewf_pos = [], []
+        orb_neg, orb_pos = [], []
 
         if self.params.beta_method == BetaParams.SYM:
-            sofb.reset()
-            _time.sleep(self.params.wait_tune)
-            tune1.append([self.tunefrac.tunex, self.tunefrac.tuney])
-            tunewf1.append(
-                np.hstack([self.tunefrac.tunex_wf, self.tunefrac.tuney_wf]))
-            orb1.append(np.hstack([sofb.orbx, sofb.orby]))
-
-            quad.strength = korig + deltakl
+            quad.strength = korig - deltakl/2
+            print('setting -deltakl/2 = ' + str(-deltakl/2))
             _time.sleep(self.params.wait_quadrupole)
 
             sofb.reset()
             _time.sleep(self.params.wait_tune)
-            tune2.append([self.tunefrac.tunex, self.tunefrac.tuney])
-            tunewf2.append(
+            tune_neg.append([self.tunefrac.tunex, self.tunefrac.tuney])
+            tunewf_neg.append(
                 np.hstack([self.tunefrac.tunex_wf, self.tunefrac.tuney_wf]))
-            orb2.append(np.hstack([sofb.orbx, sofb.orby]))
+            orb_neg.append(np.hstack([sofb.orbx, sofb.orby]))
+
+            quad.strength = korig + deltakl/2
+            print('setting +deltakl/2 = ' + str(deltakl/2))
+            _time.sleep(self.params.wait_quadrupole)
+
+            sofb.reset()
+            _time.sleep(self.params.wait_tune)
+            tune_pos.append([self.tunefrac.tunex, self.tunefrac.tuney])
+            tunewf_pos.append(
+                np.hstack([self.tunefrac.tunex_wf, self.tunefrac.tuney_wf]))
+            orb_pos.append(np.hstack([sofb.orbx, sofb.orby]))
+
+        if self.params.beta_method == BetaParams.UNI:
+            sofb.reset()
+            _time.sleep(self.params.wait_tune)
+            tune_neg.append([self.tunefrac.tunex, self.tunefrac.tuney])
+            tunewf_neg.append(
+                np.hstack([self.tunefrac.tunex_wf, self.tunefrac.tuney_wf]))
+            orb_neg.append(np.hstack([sofb.orbx, sofb.orby]))
+
+            quad.strength = korig + deltakl
+            print('setting deltakl = ' + str(deltakl))
+            _time.sleep(self.params.wait_quadrupole)
+
+            sofb.reset()
+            _time.sleep(self.params.wait_tune)
+            tune_pos.append([self.tunefrac.tunex, self.tunefrac.tuney])
+            tunewf_pos.append(
+                np.hstack([self.tunefrac.tunex_wf, self.tunefrac.tuney_wf]))
+            orb_pos.append(np.hstack([sofb.orbx, sofb.orby]))
 
         quad.strength = korig
 
-        self.data['measure'][quadname]['tune1'] = np.array(tune1)
-        self.data['measure'][quadname]['tune2'] = np.array(tune2)
-        self.data['measure'][quadname]['tune1_wf'] = np.array(tunewf1)
-        self.data['measure'][quadname]['tune2_wf'] = np.array(tunewf2)
-        self.data['measure'][quadname]['orb1'] = np.array(orb1)
-        self.data['measure'][quadname]['orb2'] = np.array(orb2)
+        if 'measure' not in self.data:
+            self.data['measure'] = dict()
+        if quadname not in self.data['measure']:
+            self.data['measure'][quadname] = dict()
+
+        self.data['measure'][quadname]['tune_neg'] = np.array(tune_neg)
+        self.data['measure'][quadname]['tune_pos'] = np.array(tune_pos)
+        self.data['measure'][quadname]['tune_wf_neg'] = np.array(tunewf_neg)
+        self.data['measure'][quadname]['tune_wf_pos'] = np.array(tunewf_pos)
+        self.data['measure'][quadname]['orb_neg'] = np.array(orb_neg)
+        self.data['measure'][quadname]['orb_pos'] = np.array(orb_pos)
         self.data['measure'][quadname]['delta_kl'] = np.array(deltakl)
 
         print('    turning quadrupole ' + quadname + ' Off')
@@ -233,18 +254,19 @@ class MeasBeta(BaseClass):
         """."""
         if 'analysis' not in self.data:
             self.data['analysis'] = dict()
-        for quad in self.quads2meas:
+        for quad in list(self.data['measure'].keys()):
             analysis = self.calc_beta(quad)
             self.data['analysis'][quad] = analysis
 
     def calc_beta(self, quadname):
         """."""
         analysis = dict()
-        dtune = self.data['measure'][quadname]['delta_tune']
-        dkl = self.data['measure'][quadname]['delta_kl']
+        datameas = self.data['measure'][quadname]
+        dtune = datameas['tune_pos'] - datameas['tune_neg']
+        dkl = datameas['delta_kl']
         beta = 4 * np.pi * dtune / dkl
-        analysis['betax'] = beta[0]
-        analysis['betay'] = beta[1]
+        analysis['betax'] = beta[0][0]
+        analysis['betay'] = -beta[0][1]
         return analysis
 
     @staticmethod
