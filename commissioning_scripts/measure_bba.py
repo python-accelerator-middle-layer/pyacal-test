@@ -5,6 +5,10 @@ from threading import Thread as _Thread, Event as _Event
 from copy import deepcopy as _dcopy
 import numpy as np
 
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as mpl_gs
+import matplotlib.cm as cm
+
 import pyaccel as _pyacc
 from pymodels.middlelayer.devices import SOFB, TrimQuad, Corrector
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
@@ -127,7 +131,6 @@ class DoBBA(BaseClass):
 
     def initialize_data(self, model, respmat=None):
         respmat_calc = OrbRespmat(model, 'SI')
-        self.respmat_calc = respmat_calc
         bpmnames, quadnames, quadsidx = DoBBA.get_default_quads(
             model, respmat_calc.fam_data)
         sofb = self.devices['sofb']
@@ -158,7 +161,7 @@ class DoBBA(BaseClass):
         self.data['scancentery'] = np.zeros(len(bpmnames))
         self.connect_to_objects()
 
-    def check_correctors_range(self):
+    def check_correctors_range(self, do_print=True):
         doxp = self.params.dorbx_positive
         doxn = self.params.dorbx_negative
         doyp = self.params.dorby_positive
@@ -170,13 +173,13 @@ class DoBBA(BaseClass):
 
             xpos = orb[idx]
             xcen = self.data['scancenterx'][idx]
-            doxpi = abs(max(xpos - (xcen+doxp), 0))
-            doxni = abs(min(xpos - (xcen-doxn), 0))
+            doxpi = abs(min(xpos - (xcen+doxp), 0))
+            doxni = abs(max(xpos - (xcen-doxn), 0))
 
             ypos = orb[idx+len(self.data['bpmnames'])]
             ycen = self.data['scancentery'][idx]
-            doypi = abs(max(ypos - (ycen+doyp), 0))
-            doyni = abs(min(ypos - (ycen-doyn), 0))
+            doypi = abs(min(ypos - (ycen+doyp), 0))
+            doyni = abs(max(ypos - (ycen-doyn), 0))
 
             ch = self.data['chnames'][idx]
             cv = self.data['cvnames'][idx]
@@ -186,19 +189,13 @@ class DoBBA(BaseClass):
             dkxn = self.params.max_corrstrength + kickx
             dkyp = self.params.max_corrstrength - kicky
             dkyn = self.params.max_corrstrength + kicky
-            if dkx > 0:
-                dorbxp = abs(dkxp/dkx)
-                dorbxn = abs(dkxn/dkx)
-            else:
-                dorbxp = abs(dkxn/dkx)
-                dorbxn = abs(dkxp/dkx)
-            if dky > 0:
-                dorbyp = abs(dkyp/dky)
-                dorbyn = abs(dkyn/dky)
-            else:
-                dorbyp = abs(dkyn/dky)
-                dorbyn = abs(dkyp/dky)
-            if dorbxp < doxpi:
+
+            dorbxp = abs(dkxp/dkx) if dkx > 0 else abs(dkxn/dkx)
+            dorbxn = abs(dkxn/dkx) if dkx > 0 else abs(dkxp/dkx)
+            dorbyp = abs(dkyp/dky) if dky > 0 else abs(dkyn/dky)
+            dorbyn = abs(dkyn/dky) if dky > 0 else abs(dkyp/dky)
+            ok = dorbxp < doxpi
+            if ok:
                 print('{0:s}: {1:s} +dorb = {2:.2f}, need {3:.2f}'.format(
                     bpm, ch, dorbxp, doxpi))
             if dorbxn < doxni:
@@ -262,13 +259,6 @@ class DoBBA(BaseClass):
             print('    exiting...')
             return
 
-        orb = self._get_orbit()
-        xcen = self.data['scancenterx'][idx]
-        ycen = self.data['scancentery'][idx]
-        xpos = orb[idx]
-        ypos = orb[idx+len(self.data['bpmnames'])]
-        dkx0, dky0 = self.calc_orbcorr(bpmname, xcen-xpos, ycen-ypos)
-
         nrsteps = self.params.meas_nrsteps
         dorbxneg = self.params.dorbx_negative
         dorbxpos = self.params.dorbx_positive
@@ -281,12 +271,9 @@ class DoBBA(BaseClass):
 
         corrx_kicks, corry_kicks = [], []
         orb_ini, orb_pos, orb_neg = [], [], []
-        orig_kickx = corrx.strength
-        orig_kicky = corry.strength
 
-        corrx.strength = orig_kickx + dkx0
-        corry.strength = orig_kicky + dky0
-        _time.sleep(self.params.wait_correctors)
+        dkx0, dky0, kickx0, kicky0 = self._go_to_initial_position(
+            bpmname, idx, corrx, corry)
 
         if self.params.bba_method == BBAParams.SCAN:
             npts = 2*(nrsteps//2) + 1
@@ -315,17 +302,20 @@ class DoBBA(BaseClass):
             quad.strength = korig
 
             dorb = (orb_pos[-1]-orb_neg[-1])/deltakl
+            dorbx = dorb[:len(self.data['bpmnames'])]
+            dorby = dorb[len(self.data['bpmnames']):]
             xcen, ycen = self.calc_offset(bpmname, dorb)
-            rms = np.sqrt(np.sum(dorb*dorb) / dorb.shape[0])
+            rmsx = np.sqrt(np.sum(dorbx*dorbx) / dorbx.shape[0])
+            rmsy = np.sqrt(np.sum(dorby*dorby) / dorby.shape[0])
             print('    {0:02d}/{1:02d}:  '.format(i+1, npts), end='')
             print('x0 = {0:6.1f}  y0 = {1:6.1f}, '.format(
                 xcen[0], ycen[0]), end='')
-            print('rms = {0:8.1f} um'.format(rms))
+            print('rmsx = {:8.1f} rmsy = {:8.1f} um'.format(rmsx, rmsy))
             if self.params.bba_method == BBAParams.SCAN:
                 xcen, ycen = dorbsx[i], dorbsy[i]
                 dkx, dky = self.calc_orbcorr(bpmname, xcen, ycen)
-                kickx = orig_kickx + dkx0 + dkx
-                kicky = orig_kicky + dky0 + dky
+                kickx = kickx0 + dkx0 + dkx
+                kicky = kicky0 + dky0 + dky
             else:
                 dkx, dky = self.calc_orbcorr(
                     bpmname,
@@ -341,8 +331,8 @@ class DoBBA(BaseClass):
                 corry.strength = kicky
                 _time.sleep(self.params.wait_correctors)
 
-        corrx.strength = orig_kickx
-        corry.strength = orig_kicky
+        corrx.strength = kickx0
+        corry.strength = kicky0
 
         if 'measure' not in self.data:
             self.data['measure'] = dict()
@@ -362,6 +352,33 @@ class DoBBA(BaseClass):
             self._stopevt.set()
             print('    exiting...')
         print('')
+
+    def _go_to_initial_position(self, bpmname, idx, corrx, corry):
+        print('    sending orbit to initial position ...', end='')
+        kickx0 = corrx.strength
+        kicky0 = corry.strength
+        xcen = self.data['scancenterx'][idx]
+        ycen = self.data['scancentery'][idx]
+        for i in range(5):
+            orb = self._get_orbit()
+            xpos = orb[idx]
+            ypos = orb[idx+len(self.data['bpmnames'])]
+            dorbx = xpos - xcen
+            dorby = ypos - ycen
+            fmet = max(abs(dorbx), abs(dorby))
+            if fmet < 20:
+                print( 'Ok! it took {:d} iterations'.format(i))
+                break
+            dkx, dky = self.calc_orbcorr(bpmname, -dorbx, -dorby)
+            corrx.strength += dkx
+            corry.strength += dky
+            _time.sleep(self.params.wait_correctors)
+        else:
+            print('NOT Ok!: dorb is {:.1f} um'.format(fmet))
+
+        dkx0 = corrx.strength - kickx0
+        dky0 = corry.strength - kicky0
+        return dkx0, dky0, kickx0, kicky0
 
     def calc_offset(self, bpmname, dorb):
         idx = self.data['bpmnames'].index(bpmname)
@@ -394,14 +411,15 @@ class DoBBA(BaseClass):
         dky = y0/respy
         return dkx, dky
 
-    def process_data(self):
+    def process_data(self, nbpms_linfit=None):
         analysis = dict()
         if 'analysis' not in self.data:
             self.data['analysis'] = dict()
         for bpm in self.data['measure']:
-            self.data['analysis'][bpm] = self.process_data_single_bpm(bpm)
+            self.data['analysis'][bpm] = self.process_data_single_bpm(
+                bpm, nbpms_linfit=nbpms_linfit)
 
-    def process_data_single_bpm(self, bpm):
+    def process_data_single_bpm(self, bpm, nbpms_linfit=None):
         analysis = dict()
         idx = self.data['bpmnames'].index(bpm)
         nbpms = len(self.data['bpmnames'])
@@ -428,6 +446,9 @@ class DoBBA(BaseClass):
 
         px = np.polyfit(xpos, dorbx, deg=1)
         py = np.polyfit(ypos, dorby, deg=1)
+        sidx = np.argsort(np.abs(px[0]))
+        sidy = np.argsort(np.abs(py[0]))
+        # sidx = sidx[]
         x0s = -px[1]/px[0]
         y0s = -py[1]/py[0]
         x0 = -np.dot(px[0], px[1]) / np.dot(px[0], px[0])
@@ -461,8 +482,8 @@ class DoBBA(BaseClass):
             covx = covy = np.zeros((3, 3))
         x0 = -px[1] / px[0] / 2
         y0 = -py[1] / py[0] / 2
-        stdx0 = x0*np.sqrt(np.sum(np.diag(covx)[:2]/px[:2]/px[:2]))
-        stdy0 = y0*np.sqrt(np.sum(np.diag(covy)[:2]/py[:2]/py[:2]))
+        stdx0 = np.abs(x0)*np.sqrt(np.sum(np.diag(covx)[:2]/px[:2]/px[:2]))
+        stdy0 = np.abs(y0)*np.sqrt(np.sum(np.diag(covy)[:2]/py[:2]/py[:2]))
         extrapx = not min(xpos) <= x0 <= max(xpos)
         extrapy = not min(ypos) <= y0 <= max(ypos)
         analysis['quadratic_fitting'] = dict()
@@ -554,3 +575,498 @@ class DoBBA(BaseClass):
         dorbs = np.array([dorbsneg, dorbspos]).T.flatten()
         dorbs = np.hstack([dorbs, 0])
         return dorbs
+
+    @staticmethod
+    def list_bpm_subsections(bpms):
+        subinst = [bpm[5:7]+bpm[14:] for bpm in bpms]
+        sec = [bpm[2:4] for bpm in bpms]
+        subsecs = {typ: [] for typ in subinst}
+        for sub, sec, bpm in zip(subinst, sec, bpms):
+            subsecs[sub].append(bpm)
+        return subsecs
+
+    def combine_bbas(self, bbalist):
+        items = [
+            'chnames', 'cvnames', 'quadnames', 'scancenterx', 'scancentery',
+            'quadrespx', 'quadrespy']
+        dobba = DoBBA()
+        dobba.params = self.params
+        dobba.data = _dcopy(self.data)
+        for bba in bbalist:
+            for bpm, data in bba.data['measure'].items():
+                dobba.data['measure'][bpm] = _dcopy(data)
+                idx = dobba.data['bpmnames'].index(bpm)
+                for item in items:
+                    dobba.data[item][idx] = bba.data[item][idx]
+        return dobba
+
+    def filter_problems(self, maxstd=100, maxorb=9, maxrms=100,
+                        method='lin quad', probtype='std', pln='xy'):
+        bpms = []
+        islin = 'lin' in method
+        isquad = 'quad' in method
+        for bpm in self.data['bpmnames']:
+            anal = self.data['analysis'].get(bpm)
+            if not anal:
+                continue
+            concx = anal['quadratic_fitting']['coeffsx'][0]
+            concy = anal['quadratic_fitting']['coeffsy'][0]
+            probc = False
+            if 'x' in pln:
+                probc |= concx < 0
+            if 'y' in pln:
+                probc |= concy < 0
+
+            rmsx = anal['quadratic_fitting']['meansqrx']
+            rmsy = anal['quadratic_fitting']['meansqry']
+            probmaxrms = False
+            if 'x' in pln:
+                probmaxrms |= np.max(rmsx) < maxrms
+            if 'y' in pln:
+                probmaxrms |= np.max(rmsy) < maxrms
+
+            extqx = isquad and anal['quadratic_fitting']['extrapolatedx']
+            extqy = isquad and anal['quadratic_fitting']['extrapolatedy']
+            extlx = islin and anal['linear_fitting']['extrapolatedx']
+            extly = islin and anal['linear_fitting']['extrapolatedy']
+            probe = False
+            if 'x' in pln:
+                probe |= extqx or extlx
+            if 'y' in pln:
+                probe |= extqy or extly
+
+            stdqx = isquad and anal['quadratic_fitting']['stdx0'] > maxstd
+            stdqy = isquad and anal['quadratic_fitting']['stdy0'] > maxstd
+            stdlx = islin and anal['linear_fitting']['stdx0'] > maxstd
+            stdly = islin and anal['linear_fitting']['stdy0'] > maxstd
+            probs = False
+            if 'x' in pln:
+                probs |= stdqx or stdlx
+            if 'y' in pln:
+                probs |= stdqy or stdly
+
+            dorbx = anal['linear_fitting']['dorbx']
+            dorby = anal['linear_fitting']['dorby']
+            probmaxorb = False
+            if 'x' in pln:
+                probmaxorb |= np.max(np.abs(dorbx)) < maxorb
+            if 'y' in pln:
+                probmaxorb |= np.max(np.abs(dorby)) < maxorb
+
+            prob = False
+            if 'std'in probtype:
+                prob |= probs
+            if 'ext' in probtype:
+                prob |= probe
+            if 'conc'in probtype:
+                prob |= probc
+            if 'rms'in probtype:
+                prob |= probmaxrms
+            if 'orb'in probtype:
+                prob |= probmaxorb
+            if 'all' in probtype:
+                prob = probs and probe and probc and probmaxrms and probmaxorb
+            if 'any' in probtype:
+                prob = probs or probe or probc or probmaxrms or probmaxorb
+            if prob:
+                bpms.append(bpm)
+        return bpms
+
+    def bpm_summary(self, bpm, save=False):
+        f  = plt.figure(figsize=(9.5, 9))
+        gs = mpl_gs.GridSpec(3, 2)
+        gs.update(left=0.11, right=0.98, bottom=0.1, top=0.9, hspace=0.35, wspace=0.35)
+
+        f.suptitle(bpm, fontsize=20)
+
+        alx = plt.subplot(gs[0, 0])
+        aly = plt.subplot(gs[0, 1])
+        aqx = plt.subplot(gs[1, 0])
+        aqy = plt.subplot(gs[1, 1])
+        adt = plt.subplot(gs[2, 0])
+        axy = plt.subplot(gs[2, 1])
+
+        allax = [alx, aly, aqx, aqy, axy]
+
+        for ax in allax:
+            ax.grid(True)
+
+        data = self.data['analysis'][bpm]
+        xpos = data['xpos']
+        ypos = data['ypos']
+        sxpos = np.sort(xpos)
+        sypos = np.sort(ypos)
+        respmx = data['respmx']
+        respmy = data['respmy']
+
+        adt.set_frame_on(False)
+        adt.axes.get_yaxis().set_visible(False)
+        adt.axes.get_xaxis().set_visible(False)
+        idx = self.data['bpmnames'].index(bpm)
+        xini = self.data['scancenterx'][idx]
+        yini = self.data['scancentery'][idx]
+        tmp = '{:5s}: {:15s}'
+        tmp2 = tmp + ' (dKL={:.4f} 1/m)'
+        adt.text(0, 0, 'Initial Search values = ({:.2f}, {:.2f})'.format(xini, yini), fontsize=10)
+        adt.text(0, 1, tmp2.format('Quad', self.data['quadnames'][idx], self.params.quad_deltakl), fontsize=10)
+
+        tmp2 = '      RM0={:5.2f},  RM={:5.2f}+-{:5.2f}  m/rad'
+        dkx, dky = self.calc_orbcorr(bpm, 1, 1)
+        adt.text(0, 3, tmp.format('CH', self.data['chnames'][idx]), fontsize=10)
+        adt.text(0, 2, tmp2.format(1/dkx, np.mean(respmx), np.std(respmx)), fontsize=10)
+
+        adt.text(0, 5, tmp.format('CV', self.data['cvnames'][idx]), fontsize=10)
+        adt.text(0, 4, tmp2.format(1/dky, np.mean(respmy), np.std(respmy)), fontsize=10)
+        adt.set_xlim([0,8])
+        adt.set_ylim([0,8])
+
+        rmsx = data['quadratic_fitting']['meansqrx']
+        rmsy = data['quadratic_fitting']['meansqry']
+        px = data['quadratic_fitting']['coeffsx']
+        py = data['quadratic_fitting']['coeffsy']
+        x0 = data['quadratic_fitting']['x0']
+        y0 = data['quadratic_fitting']['y0']
+        stdx0 = data['quadratic_fitting']['stdx0']
+        stdy0 = data['quadratic_fitting']['stdy0']
+        fitx = np.polyval(px, sxpos)
+        fity = np.polyval(py, sypos)
+        fitx0 = np.polyval(px, x0)
+        fity0 = np.polyval(py, y0)
+
+        aqx.plot(xpos, rmsx, 'bo')
+        aqx.plot(sxpos, fitx, 'b')
+        aqx.errorbar(x0, fitx0, xerr=stdx0, fmt='kx', markersize=20)
+        aqy.plot(ypos, rmsy, 'ro')
+        aqy.plot(sypos, fity, 'r')
+        aqy.errorbar(y0, fity0, xerr=stdy0, fmt='kx', markersize=20)
+        axy.errorbar(x0, y0, xerr=stdx0, yerr=stdy0, fmt='gx', markersize=20, label='parabollic')
+
+        dorbx = data['linear_fitting']['dorbx']
+        dorby = data['linear_fitting']['dorby']
+        x0 = data['linear_fitting']['x0']
+        y0 = data['linear_fitting']['y0']
+        stdx0 = data['linear_fitting']['stdx0']
+        stdy0 = data['linear_fitting']['stdy0']
+        x0s = data['linear_fitting']['x0s']
+        y0s = data['linear_fitting']['y0s']
+        px = data['linear_fitting']['coeffsx']
+        py = data['linear_fitting']['coeffsy']
+        sidx = np.argsort(np.abs(px[0]))
+        sidy = np.argsort(np.abs(py[0]))
+        pvx, pvy = [], []
+        npts = 6
+        for ii in range(npts):
+            pvx.append(np.polyval(px[:, sidx[-ii-1]], sxpos))
+            pvy.append(np.polyval(py[:, sidy[-ii-1]], sypos))
+        pvx, pvy = np.array(pvx), np.array(pvy)
+        alx.plot(xpos, dorbx[:, sidx[-npts:]], 'b.')
+        alx.plot(sxpos, pvx.T, 'b', linewidth=1)
+        alx.errorbar(x0, 0, xerr=stdx0, fmt='kx', markersize=20)
+        aly.plot(ypos, dorby[:, sidy[-npts:]], 'r.')
+        aly.plot(sypos, pvy.T, 'r', linewidth=1)
+        aly.errorbar(y0, 0, xerr=stdy0, fmt='kx', markersize=20)
+        axy.errorbar(x0, y0, xerr=stdx0, yerr=stdy0, fmt='mx', markersize=20, label='linear')
+
+        axy.legend(loc='best', fontsize='x-small')
+        axy.set_xlabel('X0 [$\mu$m]')
+        axy.set_ylabel('Y0 [$\mu$m]')
+        alx.set_xlabel('X [$\mu$m]')
+        alx.set_ylabel('$\Delta$ COD [$\mu$m]')
+        aly.set_xlabel('Y [$\mu$m]')
+        aly.set_ylabel('$\Delta$ COD [$\mu$m]')
+        aqx.set_xlabel('X [$\mu$m]')
+        aqx.set_ylabel('RMS COD [$\mu$m$^2$]')
+        aqy.set_xlabel('Y [$\mu$m]')
+        aqy.set_ylabel('RMS COD [$\mu$m$^2$]')
+
+        if save:
+            f.savefig(bpm+'.svg')
+            plt.close()
+        else:
+            f.show()
+
+    def make_quadfit_figures(self, bpms=None, fname='', title=''):
+        f  = plt.figure(figsize=(9.5, 9))
+        gs = mpl_gs.GridSpec(2, 1)
+        gs.update(left=0.1, right=0.78, bottom=0.15, top=0.9, hspace=0.5, wspace=0.35)
+
+        if title:
+            f.suptitle(title)
+
+        axx = plt.subplot(gs[0, 0])
+        ayy = plt.subplot(gs[1, 0])
+
+        bpms = bpms or self.data['bpmnames']
+        indcs = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms])
+        colors = cm.brg(np.linspace(0, 1, len(bpms)))
+        for i, bpm in enumerate(bpms):
+            if bpm not in self.data['analysis']:
+                print('Data not found for ', bpm)
+                continue
+            data = self.data['analysis'][bpm]
+            rmsx = data['quadratic_fitting']['meansqrx']
+            rmsy = data['quadratic_fitting']['meansqry']
+
+            px = data['quadratic_fitting']['coeffsx']
+            py = data['quadratic_fitting']['coeffsy']
+
+            x0 = data['quadratic_fitting']['x0']
+            y0 = data['quadratic_fitting']['y0']
+
+            sxpos = np.sort(data['xpos'])
+            sypos = np.sort(data['ypos'])
+            fitx = np.polyval(px, sxpos)
+            fity = np.polyval(py, sypos)
+
+            axx.plot(data['xpos']-x0, rmsx, 'o', color=colors[i], label=bpm)
+            axx.plot(sxpos-x0, fitx, color=colors[i])
+            ayy.plot(data['ypos']-y0, rmsy, 'o', color=colors[i], label=bpm)
+            ayy.plot(sypos-y0, fity, color=colors[i])
+
+        axx.legend(bbox_to_anchor=(1.0, 1.1), fontsize='xx-small')
+        axx.grid(True)
+        ayy.grid(True)
+        axx.set_xlabel('X - X0 [um]')
+        axx.set_ylabel('$\Delta$ COD')
+        ayy.set_xlabel('Y - Y0 [um]')
+        ayy.set_ylabel('$\Delta$ COD')
+        if fname:
+            f.savefig(fname+'.svg')
+            plt.close()
+        else:
+            f.show()
+
+    def make_modelestimate_figures(self, bpms=None):
+        f  = plt.figure(figsize=(9.5, 5))
+        gs = mpl_gs.GridSpec(2, 1)
+        gs.update(left=0.1, right=0.78, bottom=0.15, top=0.9, hspace=0.5, wspace=0.35)
+
+        axx = plt.subplot(gs[0, 0])
+        axy = plt.subplot(gs[1, 0])
+
+        bpms = bpms or self.data['bpmnames']
+        indcs = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms])
+        colors = cm.brg(np.linspace(0, 1, len(bpms)))
+        for i, bpm in enumerate(bpms):
+            if bpm not in self.data['analysis']:
+                print('Data not found for ', bpm)
+                continue
+            data = self.data['analysis'][bpm]
+
+            x0s = data['model_estimative']['x0s']
+            y0s = data['model_estimative']['y0s']
+            x0 = data['model_estimative']['x0']
+            y0 = data['model_estimative']['y0']
+            stdx0 = data['model_estimative']['stdx0']
+            stdy0 = data['model_estimative']['stdy0']
+
+            xpos = data['xpos']
+            ypos = data['ypos']
+            sxpos = np.sort(xpos)
+            sypos = np.sort(ypos)
+
+            axx.plot(xpos-x0, x0s, 'o', color=colors[i], label=bpm)
+            axy.plot(ypos-y0, y0s, 'o', color=colors[i], label=bpm)
+
+        axx.legend(bbox_to_anchor=(1.0, 1.1), fontsize='xx-small')
+        axx.grid(True)
+        axy.grid(True)
+        f.show()
+
+    def make_linfit_figures(self, bpms=None, fname='', title=''):
+        f  = plt.figure(figsize=(9.5, 9))
+        gs = mpl_gs.GridSpec(2, 1)
+        gs.update(left=0.1, right=0.78, bottom=0.15, top=0.9, hspace=0.5, wspace=0.35)
+
+        axx = plt.subplot(gs[0, 0])
+        axy = plt.subplot(gs[1, 0])
+
+        bpms = bpms or self.data['bpmnames']
+        indcs = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms])
+        colors = cm.brg(np.linspace(0, 1, len(bpms)))
+        for i, bpm in enumerate(bpms):
+            if bpm not in self.data['analysis']:
+                print('Data not found for ', bpm)
+                continue
+            data = self.data['analysis'][bpm]
+            x0 = data['linear_fitting']['x0']
+            y0 = data['linear_fitting']['y0']
+            stdx0 = data['linear_fitting']['stdx0']
+            stdy0 = data['linear_fitting']['stdy0']
+
+            x0s = data['linear_fitting']['x0s']
+            y0s = data['linear_fitting']['y0s']
+            px = data['linear_fitting']['coeffsx']
+            py = data['linear_fitting']['coeffsy']
+
+            sidx = np.argsort(np.abs(px[0]))
+            sidy = np.argsort(np.abs(py[0]))
+
+            xpos = data['xpos']
+            ypos = data['ypos']
+            sxpos = np.sort(xpos)
+            sypos = np.sort(ypos)
+
+            pvx, pvy = [], []
+            for ii in range(3):
+                pvx.append(np.polyval(px[:, sidx[ii]], sxpos))
+                pvy.append(np.polyval(py[:, sidy[ii]], sypos))
+            pvx, pvy = np.array(pvx), np.array(pvy)
+
+            axx.plot(sxpos, pvx.T, color=colors[i])
+            axx.plot(x0, 0, 'x', markersize=20, color=colors[i], label=bpm)
+            axy.plot(sypos, pvy.T, color=colors[i])
+            axy.plot(y0, 0, 'x', markersize=20, color=colors[i], label=bpm)
+
+        axx.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize='xx-small')
+        axx.grid(True)
+        axy.grid(True)
+        f.show()
+
+    def make_figures_compare_methods(self, bpms_ok=None, bpms_nok=None,
+                                     fname='', title=''):
+        f  = plt.figure(figsize=(9.2, 9))
+        gs = mpl_gs.GridSpec(3, 2)
+        gs.update(left=0.15, right=0.98, bottom=0.19, top=0.9, hspace=0, wspace=0.35)
+
+        if title:
+            f.suptitle(title)
+
+        axx = plt.subplot(gs[0, :])
+        ayy = plt.subplot(gs[1, :], sharex=axx)
+        axy = plt.subplot(gs[2, 0])
+        pos = list(axy.get_position().bounds)
+        pos[1] += -0.05
+        axy.set_position(pos)
+
+        bpms_ok = bpms_ok or self.data['bpmnames']
+        bpms_nok = bpms_nok or []
+        idc_ok = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms_ok])
+        idc_nok = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms_nok])
+
+        labels = ['linear', 'quadratic']
+        cors = cm.brg(np.linspace(0, 1, 3))
+
+        x0l, y0l, stdx0l, stdy0l = self.get_bba_results(method='linear_fitting', error=True)
+        x0q, y0q, stdx0q, stdy0q = self.get_bba_results(method='quadratic_fitting', error=True)
+        minx = np.min([x0q, x0l])*1.1
+        maxx = np.max([x0q, x0l])*1.1
+        miny = np.min([y0q, y0l])*1.1
+        maxy = np.max([y0q, y0l])*1.1
+
+        axx.errorbar(idc_ok, x0l[idc_ok], yerr=stdx0l[idc_ok], fmt='o', color=cors[0])
+        axx.errorbar(idc_ok, x0q[idc_ok], yerr=stdx0q[idc_ok], fmt='o', color=cors[1])
+        ayy.errorbar(idc_ok, y0l[idc_ok], yerr=stdy0l[idc_ok], fmt='o', color=cors[0], label=labels[0])
+        ayy.errorbar(idc_ok, y0q[idc_ok], yerr=stdy0q[idc_ok], fmt='o', color=cors[1], label=labels[1])
+        axy.errorbar(
+            x0l[idc_ok], y0l[idc_ok], xerr=stdx0l[idc_ok], yerr=stdy0l[idc_ok], fmt='o', color=cors[0],
+            label='Reliable')
+        axy.errorbar(
+            x0q[idc_ok], y0q[idc_ok], xerr=stdx0q[idc_ok], yerr=stdy0q[idc_ok], fmt='o', color=cors[1],
+            label='Reliable')
+
+        axx.errorbar(idc_nok, x0l[idc_nok], yerr=stdx0l[idc_nok], fmt='x', color=cors[0])
+        axx.errorbar(idc_nok, x0q[idc_nok], yerr=stdx0q[idc_nok], fmt='x', color=cors[1])
+        ayy.errorbar(idc_nok, y0l[idc_nok], yerr=stdy0l[idc_nok], fmt='x', color=cors[0], label=labels[0])
+        ayy.errorbar(idc_nok, y0q[idc_nok], yerr=stdy0q[idc_nok], fmt='x', color=cors[1], label=labels[1])
+        axy.errorbar(
+            x0l[idc_nok], y0l[idc_nok], xerr=stdx0l[idc_nok], yerr=stdy0l[idc_nok], fmt='x', color=cors[0],
+            label='Not Reliable')
+        axy.errorbar(
+            x0q[idc_nok], y0q[idc_nok], xerr=stdx0q[idc_nok], yerr=stdy0q[idc_nok], fmt='x', color=cors[1],
+            label='Not Reliable')
+
+        ayy.legend(loc='upper right', bbox_to_anchor=(0.6, -0.4), fontsize='xx-small')
+        axy.legend(loc='upper right', bbox_to_anchor=(1.8, 0.4), fontsize='xx-small')
+        axx.grid(True)
+        ayy.grid(True)
+        axx.set_ylabel('X0 [um]')
+        ayy.set_ylabel('Y0 [um]')
+        axx.set_ylim([minx, maxx])
+        ayy.set_ylim([miny, maxy])
+
+        axy.grid(True)
+        axy.set_xlabel('X0 [um]')
+        axy.set_ylabel('Y0 [um]')
+        axy.set_ylim([minx, maxx])
+        axy.set_ylim([miny, maxy])
+
+        if fname:
+            f.savefig(fname+'.svg')
+            plt.close()
+        else:
+            f.show()
+
+    @staticmethod
+    def make_figures_compare_bbas(bbalist, method='linear_fitting', labels=[],
+                                  bpms_ok=None, bpms_nok=None, fname='',
+                                  title=''):
+        f  = plt.figure(figsize=(9.2, 9))
+        gs = mpl_gs.GridSpec(3, 2)
+        gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
+
+        if title:
+            f.suptitle(title)
+
+        axx = plt.subplot(gs[0, :])
+        ayy = plt.subplot(gs[1, :], sharex=axx)
+        axy = plt.subplot(gs[2, 0])
+        pos = list(axy.get_position().bounds)
+        pos[1] += -0.05
+        axy.set_position(pos)
+
+        bpms_ok = bpms_ok or bbalist[0].data['bpmnames']
+        bpms_nok = bpms_nok or []
+        idc_ok = np.array(
+            [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpms_ok],
+            dtype=int)
+        idc_nok = np.array(
+            [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpms_nok],
+            dtype=int)
+
+        if not labels:
+            labels = [str(i) for i in range(len(bbalist))]
+        cors = cm.brg(np.linspace(0, 1, len(bbalist)))
+
+        minx = miny = np.inf
+        maxx = maxy = -np.inf
+        for i, dobba in enumerate(bbalist):
+            x0l, y0l, stdx0l, stdy0l = dobba.get_bba_results(method=method, error=True)
+            minx = np.min(np.hstack([minx, x0l.flatten()]))*1.1
+            maxx = np.max(np.hstack([maxx, x0l.flatten()]))*1.1
+            miny = np.min(np.hstack([miny, y0l.flatten()]))*1.1
+            maxy = np.max(np.hstack([maxy, y0l.flatten()]))*1.1
+
+            axx.errorbar(idc_ok, x0l[idc_ok], yerr=stdx0l[idc_ok], fmt='o', color=cors[i])
+            ayy.errorbar(idc_ok, y0l[idc_ok], yerr=stdy0l[idc_ok], fmt='o', color=cors[i], label=labels[i])
+            axy.errorbar(
+                x0l[idc_ok], y0l[idc_ok], xerr=stdx0l[idc_ok], yerr=stdy0l[idc_ok], fmt='o', color=cors[i],
+                label='Reliable')
+
+            axx.errorbar(idc_nok, x0l[idc_nok], yerr=stdx0l[idc_nok], fmt='x', color=cors[i])
+            ayy.errorbar(idc_nok, y0l[idc_nok], yerr=stdy0l[idc_nok], fmt='x', color=cors[i], label=labels[i])
+            axy.errorbar(
+                x0l[idc_nok], y0l[idc_nok], xerr=stdx0l[idc_nok], yerr=stdy0l[idc_nok], fmt='x', color=cors[i],
+                label='Not Reliable')
+
+
+        ayy.legend(loc='upper right', bbox_to_anchor=(0.6, -0.4), fontsize='xx-small')
+        axy.legend(loc='upper right', bbox_to_anchor=(1.8, 0.2), fontsize='xx-small')
+        axx.grid(True)
+        ayy.grid(True)
+        axx.set_ylabel('X0 [um]')
+        ayy.set_ylabel('Y0 [um]')
+        axx.set_ylim([minx, maxx])
+        ayy.set_ylim([miny, maxy])
+
+        axy.grid(True)
+        axy.set_xlabel('X0 [um]')
+        axy.set_ylabel('Y0 [um]')
+        axy.set_ylim([minx, maxx])
+        axy.set_ylim([miny, maxy])
+
+        if fname:
+            f.savefig(fname+'.svg')
+            plt.close()
+        else:
+            f.show()
