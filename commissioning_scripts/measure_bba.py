@@ -10,54 +10,209 @@ import matplotlib.gridspec as mpl_gs
 import matplotlib.cm as cm
 
 import pyaccel as _pyacc
-from pymodels.middlelayer.devices import SOFB, TrimQuad, Corrector
+from pymodels.middlelayer.devices import SOFB, Quadrupole, Corrector
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 from .base import BaseClass
 
 
 class BBAParams:
-    SCAN = 0
-    SEARCH = 1
+
+    BPMNAMES = (
+        'SI-01M2:DI-BPM', 'SI-01C1:DI-BPM-1',
+        'SI-01C1:DI-BPM-2', 'SI-01C2:DI-BPM',
+        'SI-01C3:DI-BPM-1', 'SI-01C3:DI-BPM-2',
+        'SI-01C4:DI-BPM', 'SI-02M1:DI-BPM',
+        'SI-02M2:DI-BPM', 'SI-02C1:DI-BPM-1',
+        'SI-02C1:DI-BPM-2', 'SI-02C2:DI-BPM',
+        'SI-02C3:DI-BPM-1', 'SI-02C3:DI-BPM-2',
+        'SI-02C4:DI-BPM', 'SI-03M1:DI-BPM',
+        'SI-03M2:DI-BPM', 'SI-03C1:DI-BPM-1',
+        'SI-03C1:DI-BPM-2', 'SI-03C2:DI-BPM',
+        'SI-03C3:DI-BPM-1', 'SI-03C3:DI-BPM-2',
+        'SI-03C4:DI-BPM', 'SI-04M1:DI-BPM',
+        'SI-04M2:DI-BPM', 'SI-04C1:DI-BPM-1',
+        'SI-04C1:DI-BPM-2', 'SI-04C2:DI-BPM',
+        'SI-04C3:DI-BPM-1', 'SI-04C3:DI-BPM-2',
+        'SI-04C4:DI-BPM', 'SI-05M1:DI-BPM',
+        'SI-05M2:DI-BPM', 'SI-05C1:DI-BPM-1',
+        'SI-05C1:DI-BPM-2', 'SI-05C2:DI-BPM',
+        'SI-05C3:DI-BPM-1', 'SI-05C3:DI-BPM-2',
+        'SI-05C4:DI-BPM', 'SI-06M1:DI-BPM',
+        'SI-06M2:DI-BPM', 'SI-06C1:DI-BPM-1',
+        'SI-06C1:DI-BPM-2', 'SI-06C2:DI-BPM',
+        'SI-06C3:DI-BPM-1', 'SI-06C3:DI-BPM-2',
+        'SI-06C4:DI-BPM', 'SI-07M1:DI-BPM',
+        'SI-07M2:DI-BPM', 'SI-07C1:DI-BPM-1',
+        'SI-07C1:DI-BPM-2', 'SI-07C2:DI-BPM',
+        'SI-07C3:DI-BPM-1', 'SI-07C3:DI-BPM-2',
+        'SI-07C4:DI-BPM', 'SI-08M1:DI-BPM',
+        'SI-08M2:DI-BPM', 'SI-08C1:DI-BPM-1',
+        'SI-08C1:DI-BPM-2', 'SI-08C2:DI-BPM',
+        'SI-08C3:DI-BPM-1', 'SI-08C3:DI-BPM-2',
+        'SI-08C4:DI-BPM', 'SI-09M1:DI-BPM',
+        'SI-09M2:DI-BPM', 'SI-09C1:DI-BPM-1',
+        'SI-09C1:DI-BPM-2', 'SI-09C2:DI-BPM',
+        'SI-09C3:DI-BPM-1', 'SI-09C3:DI-BPM-2',
+        'SI-09C4:DI-BPM', 'SI-10M1:DI-BPM',
+        'SI-10M2:DI-BPM', 'SI-10C1:DI-BPM-1',
+        'SI-10C1:DI-BPM-2', 'SI-10C2:DI-BPM',
+        'SI-10C3:DI-BPM-1', 'SI-10C3:DI-BPM-2',
+        'SI-10C4:DI-BPM', 'SI-11M1:DI-BPM',
+        'SI-11M2:DI-BPM', 'SI-11C1:DI-BPM-1',
+        'SI-11C1:DI-BPM-2', 'SI-11C2:DI-BPM',
+        'SI-11C3:DI-BPM-1', 'SI-11C3:DI-BPM-2',
+        'SI-11C4:DI-BPM', 'SI-12M1:DI-BPM',
+        'SI-12M2:DI-BPM', 'SI-12C1:DI-BPM-1',
+        'SI-12C1:DI-BPM-2', 'SI-12C2:DI-BPM',
+        'SI-12C3:DI-BPM-1', 'SI-12C3:DI-BPM-2',
+        'SI-12C4:DI-BPM', 'SI-13M1:DI-BPM',
+        'SI-13M2:DI-BPM', 'SI-13C1:DI-BPM-1',
+        'SI-13C1:DI-BPM-2', 'SI-13C2:DI-BPM',
+        'SI-13C3:DI-BPM-1', 'SI-13C3:DI-BPM-2',
+        'SI-13C4:DI-BPM', 'SI-14M1:DI-BPM',
+        'SI-14M2:DI-BPM', 'SI-14C1:DI-BPM-1',
+        'SI-14C1:DI-BPM-2', 'SI-14C2:DI-BPM',
+        'SI-14C3:DI-BPM-1', 'SI-14C3:DI-BPM-2',
+        'SI-14C4:DI-BPM', 'SI-15M1:DI-BPM',
+        'SI-15M2:DI-BPM', 'SI-15C1:DI-BPM-1',
+        'SI-15C1:DI-BPM-2', 'SI-15C2:DI-BPM',
+        'SI-15C3:DI-BPM-1', 'SI-15C3:DI-BPM-2',
+        'SI-15C4:DI-BPM', 'SI-16M1:DI-BPM',
+        'SI-16M2:DI-BPM', 'SI-16C1:DI-BPM-1',
+        'SI-16C1:DI-BPM-2', 'SI-16C2:DI-BPM',
+        'SI-16C3:DI-BPM-1', 'SI-16C3:DI-BPM-2',
+        'SI-16C4:DI-BPM', 'SI-17M1:DI-BPM',
+        'SI-17M2:DI-BPM', 'SI-17C1:DI-BPM-1',
+        'SI-17C1:DI-BPM-2', 'SI-17C2:DI-BPM',
+        'SI-17C3:DI-BPM-1', 'SI-17C3:DI-BPM-2',
+        'SI-17C4:DI-BPM', 'SI-18M1:DI-BPM',
+        'SI-18M2:DI-BPM', 'SI-18C1:DI-BPM-1',
+        'SI-18C1:DI-BPM-2', 'SI-18C2:DI-BPM',
+        'SI-18C3:DI-BPM-1', 'SI-18C3:DI-BPM-2',
+        'SI-18C4:DI-BPM', 'SI-19M1:DI-BPM',
+        'SI-19M2:DI-BPM', 'SI-19C1:DI-BPM-1',
+        'SI-19C1:DI-BPM-2', 'SI-19C2:DI-BPM',
+        'SI-19C3:DI-BPM-1', 'SI-19C3:DI-BPM-2',
+        'SI-19C4:DI-BPM', 'SI-20M1:DI-BPM',
+        'SI-20M2:DI-BPM', 'SI-20C1:DI-BPM-1',
+        'SI-20C1:DI-BPM-2', 'SI-20C2:DI-BPM',
+        'SI-20C3:DI-BPM-1', 'SI-20C3:DI-BPM-2',
+        'SI-20C4:DI-BPM', 'SI-01M1:DI-BPM',
+        )
+    QUADNAMES = (
+        'SI-01M2:PS-QS', 'SI-01C1:PS-Q1',
+        'SI-01C1:PS-QS', 'SI-01C2:PS-Q4',
+        'SI-01C3:PS-Q4', 'SI-01C3:PS-QS',
+        'SI-01C4:PS-Q1', 'SI-02M1:PS-QDB2',
+        'SI-02M2:PS-QDB2', 'SI-02C1:PS-Q1',
+        'SI-02C1:PS-QS', 'SI-02C2:PS-Q4',
+        'SI-02C3:PS-Q4', 'SI-02C3:PS-QS',
+        'SI-02C4:PS-Q1', 'SI-03M1:PS-QDP2',
+        'SI-03M2:PS-QDP2', 'SI-03C1:PS-Q1',
+        'SI-03C1:PS-QS', 'SI-03C2:PS-Q4',
+        'SI-03C3:PS-Q4', 'SI-03C3:PS-QS',
+        'SI-03C4:PS-Q1', 'SI-04M1:PS-QDB2',
+        'SI-04M2:PS-QDB2', 'SI-04C1:PS-Q1',
+        'SI-04C1:PS-QS', 'SI-04C2:PS-Q4',
+        'SI-04C3:PS-Q4', 'SI-04C3:PS-QS',
+        'SI-04C4:PS-Q1', 'SI-05M1:PS-QS',
+        'SI-05M2:PS-QS', 'SI-05C1:PS-Q1',
+        'SI-05C1:PS-QS', 'SI-05C2:PS-Q4',
+        'SI-05C3:PS-Q4', 'SI-05C3:PS-QS',
+        'SI-05C4:PS-Q1', 'SI-06M1:PS-QDB2',
+        'SI-06M2:PS-QDB2', 'SI-06C1:PS-Q1',
+        'SI-06C1:PS-QS', 'SI-06C2:PS-Q4',
+        'SI-06C3:PS-Q4', 'SI-06C3:PS-QS',
+        'SI-06C4:PS-Q1', 'SI-07M1:PS-QDP2',
+        'SI-07M2:PS-QDP2', 'SI-07C1:PS-Q1',
+        'SI-07C1:PS-QS', 'SI-07C2:PS-Q4',
+        'SI-07C3:PS-Q4', 'SI-07C3:PS-QS',
+        'SI-07C4:PS-Q1', 'SI-08M1:PS-QDB2',
+        'SI-08M2:PS-QDB2', 'SI-08C1:PS-Q1',
+        'SI-08C1:PS-QS', 'SI-08C2:PS-Q4',
+        'SI-08C3:PS-Q4', 'SI-08C3:PS-QS',
+        'SI-08C4:PS-Q1', 'SI-09M1:PS-QS',
+        'SI-09M2:PS-QS', 'SI-09C1:PS-Q1',
+        'SI-09C1:PS-QS', 'SI-09C2:PS-Q4',
+        'SI-09C3:PS-Q4', 'SI-09C3:PS-QS',
+        'SI-09C4:PS-Q1', 'SI-10M1:PS-QDB2',
+        'SI-10M2:PS-QDB2', 'SI-10C1:PS-Q1',
+        'SI-10C1:PS-QS', 'SI-10C2:PS-Q4',
+        'SI-10C3:PS-Q4', 'SI-10C3:PS-QS',
+        'SI-10C4:PS-Q1', 'SI-11M1:PS-QDP2',
+        'SI-11M2:PS-QDP2', 'SI-11C1:PS-Q1',
+        'SI-11C1:PS-QS', 'SI-11C2:PS-Q4',
+        'SI-11C3:PS-Q4', 'SI-11C3:PS-QS',
+        'SI-11C4:PS-Q1', 'SI-12M1:PS-QDB2',
+        'SI-12M2:PS-QDB2', 'SI-12C1:PS-Q1',
+        'SI-12C1:PS-QS', 'SI-12C2:PS-Q4',
+        'SI-12C3:PS-Q4', 'SI-12C3:PS-QS',
+        'SI-12C4:PS-Q1', 'SI-13M1:PS-QS',
+        'SI-13M2:PS-QS', 'SI-13C1:PS-Q1',
+        'SI-13C1:PS-QS', 'SI-13C2:PS-Q4',
+        'SI-13C3:PS-Q4', 'SI-13C3:PS-QS',
+        'SI-13C4:PS-Q1', 'SI-14M1:PS-QDB2',
+        'SI-14M2:PS-QDB2', 'SI-14C1:PS-Q1',
+        'SI-14C1:PS-QS', 'SI-14C2:PS-Q4',
+        'SI-14C3:PS-Q4', 'SI-14C3:PS-QS',
+        'SI-14C4:PS-Q1', 'SI-15M1:PS-QDP2',
+        'SI-15M2:PS-QDP2', 'SI-15C1:PS-Q1',
+        'SI-15C1:PS-QS', 'SI-15C2:PS-Q4',
+        'SI-15C3:PS-Q4', 'SI-15C3:PS-QS',
+        'SI-15C4:PS-Q1', 'SI-16M1:PS-QDB2',
+        'SI-16M2:PS-QDB2', 'SI-16C1:PS-Q1',
+        'SI-16C1:PS-QS', 'SI-16C2:PS-Q4',
+        'SI-16C3:PS-Q4', 'SI-16C3:PS-QS',
+        'SI-16C4:PS-Q1', 'SI-17M1:PS-QS',
+        'SI-17M2:PS-QS', 'SI-17C1:PS-Q1',
+        'SI-17C1:PS-QS', 'SI-17C2:PS-Q4',
+        'SI-17C3:PS-Q4', 'SI-17C3:PS-QS',
+        'SI-17C4:PS-Q1', 'SI-18M1:PS-QDB2',
+        'SI-18M2:PS-QDB2', 'SI-18C1:PS-Q1',
+        'SI-18C1:PS-QS', 'SI-18C2:PS-Q4',
+        'SI-18C3:PS-Q4', 'SI-18C3:PS-QS',
+        'SI-18C4:PS-Q1', 'SI-19M1:PS-QDP2',
+        'SI-19M2:PS-QDP2', 'SI-19C1:PS-Q1',
+        'SI-19C1:PS-QS', 'SI-19C2:PS-Q4',
+        'SI-19C3:PS-Q4', 'SI-19C3:PS-QS',
+        'SI-19C4:PS-Q1', 'SI-20M1:PS-QDB2',
+        'SI-20M2:PS-QDB2', 'SI-20C1:PS-Q1',
+        'SI-20C1:PS-QS', 'SI-20C2:PS-Q4',
+        'SI-20C3:PS-Q4', 'SI-20C3:PS-QS',
+        'SI-20C4:PS-Q1', 'SI-01M1:PS-QS',
+        )
 
     def __init__(self):
-        self.bba_method = 0  # 0 - Scan    1 - Search
-        self.dorbx_stretch = 1.2
-        self.dorby_stretch = 1.2
-        self.dorbx_negative = 500  # [um]
-        self.dorbx_positive = 500  # [um]
-        self.dorby_negative = 500  # [um]
-        self.dorby_positive = 500  # [um]
-        self.max_corrstrength = 300  # [urad]
-        self.meas_nrsteps = 10
+        self.deltaorbx = 400  # [um]
+        self.deltaorby = 400  # [um]
+        self.meas_nrsteps = 8
         self.quad_deltakl = 0.02  # [1/m]
-        self.wait_correctors = 2  # [s]
-        self.wait_quadrupole = 2  # [s]
-        self.timeout_quad_turnon = 10  # [s]
+        self.wait_sofb = 0.3  # [s]
+        self.wait_correctors = 1  # [s]
+        self.wait_quadrupole = 1  # [s]
+        self.timeout_quad_turnon = 5  # [s]
         self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
+        self.sofb_maxcorriter = 5
+        self.sofb_maxorberr = 10  # [um]
 
     def __str__(self):
         """."""
         ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
-        st = dtmp('bba_method', self.bba_method, '(0-Scan 1-Search)')
-        st += ftmp(
-            'dorbx_stretch', self.dorbx_stretch,
-            '(apply to Search estimatives)')
-        st += ftmp(
-            'dorby_stretch', self.dorby_stretch,
-            '(apply to Search estimatives)')
-        st += ftmp('dorbx_negative [um]', self.dorbx_negative, '')
-        st += ftmp('dorbx_positive [um]', self.dorbx_positive, '')
-        st += ftmp('dorby_negative [um]', self.dorby_negative, '')
-        st += ftmp('dorby_positive [um]', self.dorby_positive, '')
-        st += ftmp('max_corrstrength [urad]', self.max_corrstrength, '')
+        st = ftmp('deltaorbx [um]', self.deltaorbx, '')
+        st += ftmp('deltaorby [um]', self.deltaorby, '')
         st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
         st += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
+        st += ftmp('wait_sofb [s]', self.wait_sofb, '(time to process calcs)')
         st += ftmp('wait_correctors [s]', self.wait_correctors, '')
         st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
         st += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
+        st += ftmp(
+            'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)')
         st += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
+        st += dtmp('sofb_maxcorriter', self.sofb_maxcorriter, '')
+        st += ftmp('sofb_maxorberr [um]', self.sofb_maxorberr, '')
         return st
 
 
@@ -70,10 +225,18 @@ class DoBBA(BaseClass):
         self.data['quadnames'] = list()
         self._bpms2dobba = list()
         self.devices['sofb'] = SOFB('SI')
-        for chname in self.devices['SOFB'].data.CH_NAMES:
+        for chname in self.devices['sofb'].data.CH_NAMES:
             self.devices[chname] = Corrector(chname)
-        for cvname in self.devices['SOFB'].data.CV_NAMES:
+        for cvname in self.devices['sofb'].data.CV_NAMES:
             self.devices[cvname] = Corrector(cvname)
+        self.data['bpmnames'] = list(BBAParams.BPMNAMES)
+        self.data['quadnames'] = list(BBAParams.QUADNAMES)
+        self.data['scancenterx'] = np.zeros(len(BBAParams.BPMNAMES))
+        self.data['scancentery'] = np.zeros(len(BBAParams.BPMNAMES))
+        self.data['measure'] = dict()
+        self.analysis = dict()
+        self.connect_to_quadrupoles()
+
         self._stopevt = _Event()
         self._thread = _Thread(target=self._do_bba, daemon=True)
 
@@ -84,20 +247,19 @@ class DoBBA(BaseClass):
         stn += stp + '\n'
         stn += 'Connected?  ' + str(self.connected) + '\n\n'
 
-        stn += '     {:^20s} {:^20s} {:^20s} {:^20s} {:6s} {:6s}\n'.format(
-            'BPM', 'CH', 'CV', 'Quad', 'Xc [um]', 'Yc [um]')
-        tmplt = '{:03d}: {:^20s} {:^20s} {:^20s} {:^20s} {:^6.1f} {:^6.1f}\n'
+        stn += '     {:^20s} {:^20s} {:6s} {:6s}\n'.format(
+            'BPM', 'Quad', 'Xc [um]', 'Yc [um]')
+        tmplt = '{:03d}: {:^20s} {:^20s} {:^6.1f} {:^6.1f}\n'
         dta = self.data
         for bpm in self.bpms2dobba:
             idx = dta['bpmnames'].index(bpm)
             stn += tmplt.format(
-                idx, dta['bpmnames'][idx], dta['chnames'][idx],
-                dta['cvnames'][idx], dta['quadnames'][idx],
+                idx, dta['bpmnames'][idx], dta['quadnames'][idx],
                 dta['scancenterx'][idx], dta['scancentery'][idx])
         return stn
 
     def start(self):
-        if self._thread.is_alive():
+        if self.ismeasuring:
             return
         self._stopevt.clear()
         self._thread = _Thread(target=self._do_bba, daemon=True)
@@ -112,31 +274,20 @@ class DoBBA(BaseClass):
 
     @property
     def bpms2dobba(self):
-        return self._bpms2dobba or self.data['bpmnames']
+        return self._bpms2dobba or _dcopy(self.data['bpmnames'])
 
     @bpms2dobba.setter
     def bpms2dobba(self, bpmlist):
         self._bpms2dobba = _dcopy(bpmlist)
 
-    def connect_to_objects(self):
+    def connect_to_quadrupoles(self):
         for bpm in self.bpms2dobba:
             idx = self.data['bpmnames'].index(bpm)
             qname = self.data['quadnames'][idx]
             if qname and qname not in self.devices:
-                self.devices[qname] = TrimQuad(qname)
+                self.devices[qname] = Quadrupole(qname)
 
-    def initialize_data(self, model):
-        respmat_calc = OrbRespmat(model, 'SI')
-        bpmnames, quadnames, quadsidx = DoBBA.get_default_quads(
-            model, respmat_calc.fam_data)
-        sofb = self.devices['sofb']
-        self.data['bpmnames'] = bpmnames
-        self.data['quadnames'] = quadnames
-        self.data['scancenterx'] = np.zeros(len(bpmnames))
-        self.data['scancentery'] = np.zeros(len(bpmnames))
-        self.connect_to_objects()
-
-    def _get_orbit(self):
+    def get_orbit(self):
         sofb = self.devices['sofb']
         sofb.reset()
         sofb.wait(self.params.timeout_wait_sofb)
@@ -154,7 +305,10 @@ class DoBBA(BaseClass):
     def _dobba_single_bpm(self, bpmname):
         idx = self.data['bpmnames'].index(bpmname)
         quadname = self.data['quadnames'][idx]
+        x0 = self.data['scancenterx'][idx]
+        y0 = self.data['scancentery'][idx]
         quad = self.devices[quadname]
+        sofb = self.devices['sofb']
 
         print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
         print('    turning quadrupole ' + quadname + ' On')
@@ -166,70 +320,69 @@ class DoBBA(BaseClass):
             return
 
         nrsteps = self.params.meas_nrsteps
-        dorbxneg = self.params.dorbx_negative
-        dorbxpos = self.params.dorbx_positive
-        dorbyneg = self.params.dorby_negative
-        dorbypos = self.params.dorby_positive
-        maxkick = self.params.max_corrstrength
-        dorbsx = self._calc_dorb_scan(dorbxneg, dorbxpos, nrsteps//2)
-        dorbsy = self._calc_dorb_scan(dorbyneg, dorbypos, nrsteps//2)
+        dorbsx = self._calc_dorb_scan(self.params.deltaorbx, nrsteps//2)
+        dorbsy = self._calc_dorb_scan(self.params.deltaorby, nrsteps//2)
         deltakl = self.params.quad_deltakl
 
-        orb_ini, orb_pos, orb_neg = [], [], []
+        refx0, refy0 = sofb.refx, sofb.refy
+        enblx0, enbly0 = sofb.bpmxenbl, sofb.bpmyenbl
+        ch0, cv0 = sofb.kickch, sofb.kickcv
+        korig = quad.strength
 
-        dkx0, dky0, kickx0, kicky0 = self._go_to_initial_position(
-            bpmname, idx)
+        enblx, enbly = 0*enblx0, 0*enbly0
+        enblx[idx], enbly[idx] = 1, 1
+        sofb.bpmxenbl, sofb.bpmyenbl = enblx, enbly
+        _time.sleep(self.params.wait_sofb)
 
-        if self.params.bba_method == BBAParams.SCAN:
-            npts = 2*(nrsteps//2) + 1
-        else:
-            npts = nrsteps
+        orbini, orbpos, orbneg = [], [], []
+        npts = 2*(nrsteps//2) + 1
+        tmpl = '{:25s}'.format
         for i in range(npts):
             if self._stopevt.is_set():
                 print('   exiting...')
                 break
-            orb_ini.append(self._get_orbit())
+            print('    {0:02d}/{1:02d} --> '.format(i+1, npts), end='')
 
-            korig = quad.strength
+            print('orbit corr: ', end='')
+            ret, fmet = self.correct_orbit(bpmname, x0+dorbsx[i], y0+dorbsy[i])
+            if ret:
+                txt = tmpl('Ok! in {:02d} iters'.format(ret))
+            else:
+                txt = tmpl('NOT Ok! dorb={:5.1f} um'.format(fmet))
+            print(txt, end='')
+
+            orbini.append(self.get_orbit())
+
             quad.strength = korig + deltakl/2
             _time.sleep(self.params.wait_quadrupole)
-
-            orb_pos.append(self._get_orbit())
+            orbpos.append(self.get_orbit())
 
             quad.strength = korig - deltakl/2
             _time.sleep(self.params.wait_quadrupole)
-
-            orb_neg.append(self._get_orbit())
+            orbneg.append(self.get_orbit())
 
             quad.strength = korig
+            _time.sleep(self.params.wait_quadrupole)
 
-            dorb = (orb_pos[-1]-orb_neg[-1])
+            dorb = orbpos[-1] - orbneg[-1]
             dorbx = dorb[:len(self.data['bpmnames'])]
             dorby = dorb[len(self.data['bpmnames']):]
             rmsx = np.sqrt(np.sum(dorbx*dorbx) / dorbx.shape[0])
             rmsy = np.sqrt(np.sum(dorby*dorby) / dorby.shape[0])
-            print('    {0:02d}/{1:02d}:  '.format(i+1, npts), end='')
             print('rmsx = {:8.1f} rmsy = {:8.1f} um'.format(rmsx, rmsy))
-            if self.params.bba_method == BBAParams.SCAN:
-                xcen, ycen = dorbsx[i], dorbsy[i]
-                dkx, dky = self.calc_orbcorr(bpmname, xcen, ycen)
-            else:
-                dkx, dky = self.calc_orbcorr(
-                    bpmname,
-                    -xcen[0]*self.params.dorbx_stretch,
-                    -ycen[0]*self.params.dorby_stretch)
 
-                _time.sleep(self.params.wait_correctors)
+        self.data['measure'][bpmname] = {
+            'orbini': np.array(orbini), 'orbpos': np.array(orbpos),
+            'orbneg': np.array(orbneg), 'deltakl': deltakl}
 
-
-        if 'measure' not in self.data:
-            self.data['measure'] = dict()
-        if bpmname not in self.data['measure']:
-            self.data['measure'][bpmname] = dict()
-
-        self.data['measure'][bpmname]['orbini'] = np.array(orb_ini)
-        self.data['measure'][bpmname]['orbpos'] = np.array(orb_pos)
-        self.data['measure'][bpmname]['orbneg'] = np.array(orb_neg)
+        print('    restoring initial conditions.')
+        sofb.refx, sofb.refy = refx0, refy0
+        sofb.bpmxenbl, sofb.bpmyenbl = enblx0, enbly0
+        for ch, v0 in zip(sofb.data.CH_NAMES, ch0):
+            self.devices[ch].strength = v0
+        for cv, v0 in zip(sofb.data.CV_NAMES, cv0):
+            self.devices[cv].strength = v0
+        _time.sleep(self.params.wait_correctors)
 
         print('    turning quadrupole ' + quadname + ' Off')
         quad.turnoff(self.params.timeout_quad_turnon)
@@ -239,38 +392,27 @@ class DoBBA(BaseClass):
             print('    exiting...')
         print('')
 
-    def _go_to_initial_position(self, bpmname, idx, corrx, corry):
-        print('    sending orbit to initial position ...', end='')
-        xcen = self.data['scancenterx'][idx]
-        ycen = self.data['scancentery'][idx]
-        for i in range(5):
-            orb = self._get_orbit()
-            xpos = orb[idx]
-            ypos = orb[idx+len(self.data['bpmnames'])]
-            dorbx = xpos - xcen
-            dorby = ypos - ycen
-            fmet = max(abs(dorbx), abs(dorby))
-            if fmet < 20:
-                print( 'Ok! it took {:d} iterations'.format(i))
-                break
-            dkx, dky = self.calc_orbcorr(bpmname, -dorbx, -dorby)
-            _time.sleep(self.params.wait_correctors)
-        else:
-            print('NOT Ok!: dorb is {:.1f} um'.format(fmet))
+    def correct_orbit(self, bpmname, x0, y0):
+        sofb = self.devices['sofb']
+        idxx = self.data['bpmnames'].index(bpmname)
+        idxy = idxx + len(self.data['bpmnames'])
+        sofb.refx[idxx] = x0
+        sofb.refy[idxx] = y0
+        _time.sleep(self.params.wait_sofb)
+        for i in range(self.params.sofb_maxcorriter+1):
+            orb = self.get_orbit()
+            fmet = max(abs(orb[idxx] - x0), abs(orb[idxy] - y0))
+            if fmet < self.params.sofb_maxorberr:
+                return i, fmet
 
-        return dkx0, dky0, kickx0, kicky0
-
-    def calc_orbcorr(self, bpmname, x0, y0):
-        idxh = self.data['bpmnames'].index(bpmname)
-        idxv = idxh + len(self.data['bpmnames'])
-        chidx = self.devices['sofb'].data.CH_NAMES.index(chname)
-        cvidx = self.devices['sofb'].data.CV_NAMES.index(cvname)
-        cvidx += len(self.devices['sofb'].data.CH_NAMES)
-
-        return dkx, dky
+            if i < self.params.sofb_maxcorriter:
+                sofb.calccor()
+                _time.sleep(self.params.wait_sofb)
+                sofb.applycor()
+                _time.sleep(self.params.wait_correctors)
+        return -1, fmet
 
     def process_data(self, nbpms_linfit=None, thres=None):
-        analysis = dict()
         if 'analysis' not in self.data:
             self.data['analysis'] = dict()
         for bpm in self.data['measure']:
@@ -317,8 +459,8 @@ class DoBBA(BaseClass):
 
         x0s = -pxc[1]/pxc[0]
         y0s = -pyc[1]/pyc[0]
-        x0 = -np.dot(pxc[0], pxc[1]) / np.dot(pxc[0], pxc[0])
-        y0 = -np.dot(pyc[0], pyc[1]) / np.dot(pyc[0], pyc[0])
+        x0 = np.dot(pxc[0], -pxc[1]) / np.dot(pxc[0], pxc[0])
+        y0 = np.dot(pyc[0], -pyc[1]) / np.dot(pyc[0], pyc[0])
         stdx0 = np.sqrt(
             np.dot(pxc[1], pxc[1]) / np.dot(pxc[0], pxc[0]) - x0*x0)
         stdy0 = np.sqrt(
@@ -365,7 +507,6 @@ class DoBBA(BaseClass):
         analysis['quadratic_fitting']['y0'] = y0
         analysis['quadratic_fitting']['stdx0'] = stdx0
         analysis['quadratic_fitting']['stdy0'] = stdy0
-
         return analysis
 
     def get_bba_results(self, method='linear_fitting', error=False):
@@ -405,7 +546,7 @@ class DoBBA(BaseClass):
     @staticmethod
     def get_default_quads(model, fam_data):
         quads_idx = _dcopy(fam_data['QN']['index'])
-        qs_idx = [idx for idx in fam_data['QS']['index'] \
+        qs_idx = [idx for idx in fam_data['QS']['index']
                   if not model[idx[0]].fam_name.startswith('FC2')]
         quads_idx.extend(qs_idx)
         quads_idx = np.array([idx[len(idx)//2] for idx in quads_idx])
@@ -436,11 +577,11 @@ class DoBBA(BaseClass):
         return bpmnames, qnames, quads_bba_idx
 
     @staticmethod
-    def _calc_dorb_scan(dorbneg, dorbpos, nrpts):
-        dorbspos = np.linspace(dorbpos, 0, nrpts+1)[:-1]
-        dorbsneg = np.linspace(-dorbneg, 0, nrpts+1)[:-1]
+    def _calc_dorb_scan(deltaorb, nrpts):
+        dorbspos = np.linspace(deltaorb, 0, nrpts+1)[:-1]
+        dorbsneg = np.linspace(-deltaorb, 0, nrpts+1)[:-1]
         dorbs = np.array([dorbsneg, dorbspos]).T.flatten()
-        dorbs = np.hstack([dorbs, 0])
+        dorbs = np.hstack([0, dorbs])
         return dorbs
 
     @staticmethod
@@ -537,10 +678,13 @@ class DoBBA(BaseClass):
                 bpms.append(bpm)
         return bpms
 
-    def bpm_summary(self, bpm, save=False):
-        f  = plt.figure(figsize=(9.5, 9))
+    # ##### Make Figures #####
+    def make_figure_bpm_summary(self, bpm, save=False):
+        f = plt.figure(figsize=(9.5, 9))
         gs = mpl_gs.GridSpec(3, 2)
-        gs.update(left=0.11, right=0.98, bottom=0.1, top=0.9, hspace=0.35, wspace=0.35)
+        gs.update(
+            left=0.11, right=0.98, bottom=0.1, top=0.9,
+            hspace=0.35, wspace=0.35)
 
         f.suptitle(bpm, fontsize=20)
 
@@ -570,11 +714,15 @@ class DoBBA(BaseClass):
         yini = self.data['scancentery'][idx]
         tmp = '{:5s}: {:15s}'
         tmp2 = tmp + ' (dKL={:.4f} 1/m)'
-        adt.text(0, 0, 'Initial Search values = ({:.2f}, {:.2f})'.format(xini, yini), fontsize=10)
-        adt.text(0, 1, tmp2.format('Quad', self.data['quadnames'][idx], self.params.quad_deltakl), fontsize=10)
+        adt.text(0, 0, 'Initial Search values = ({:.2f}, {:.2f})'.format(
+            xini, yini), fontsize=10)
+        adt.text(
+            0, 1, tmp2.format(
+                'Quad', self.data['quadnames'][idx], self.params.quad_deltakl),
+            fontsize=10)
 
-        adt.set_xlim([0,8])
-        adt.set_ylim([0,8])
+        adt.set_xlim([0, 8])
+        adt.set_ylim([0, 8])
 
         rmsx = data['quadratic_fitting']['meansqrx']
         rmsy = data['quadratic_fitting']['meansqry']
@@ -595,7 +743,9 @@ class DoBBA(BaseClass):
         aqy.plot(ypos, rmsy, 'ro')
         aqy.plot(sypos, fity, 'r')
         aqy.errorbar(y0, fity0, xerr=stdy0, fmt='kx', markersize=20)
-        axy.errorbar(x0, y0, xerr=stdx0, yerr=stdy0, fmt='gx', markersize=20, label='parabollic')
+        axy.errorbar(
+            x0, y0, xerr=stdx0, yerr=stdy0, fmt='gx', markersize=20,
+            label='parabollic')
 
         dorbx = data['linear_fitting']['dorbx']
         dorby = data['linear_fitting']['dorby']
@@ -621,19 +771,21 @@ class DoBBA(BaseClass):
         aly.plot(ypos, dorby[:, sidy[-npts:]], 'r.')
         aly.plot(sypos, pvy.T, 'r', linewidth=1)
         aly.errorbar(y0, 0, xerr=stdy0, fmt='kx', markersize=20)
-        axy.errorbar(x0, y0, xerr=stdx0, yerr=stdy0, fmt='mx', markersize=20, label='linear')
+        axy.errorbar(
+            x0, y0, xerr=stdx0, yerr=stdy0, fmt='mx', markersize=20,
+            label='linear')
 
         axy.legend(loc='best', fontsize='x-small')
-        axy.set_xlabel('X0 [$\mu$m]')
-        axy.set_ylabel('Y0 [$\mu$m]')
-        alx.set_xlabel('X [$\mu$m]')
-        alx.set_ylabel('$\Delta$ COD [$\mu$m]')
-        aly.set_xlabel('Y [$\mu$m]')
-        aly.set_ylabel('$\Delta$ COD [$\mu$m]')
-        aqx.set_xlabel('X [$\mu$m]')
-        aqx.set_ylabel('RMS COD [$\mu$m$^2$]')
-        aqy.set_xlabel('Y [$\mu$m]')
-        aqy.set_ylabel('RMS COD [$\mu$m$^2$]')
+        axy.set_xlabel(r'X0 [$\mu$m]')
+        axy.set_ylabel(r'Y0 [$\mu$m]')
+        alx.set_xlabel(r'X [$\mu$m]')
+        alx.set_ylabel(r'$\Delta$ COD [$\mu$m]')
+        aly.set_xlabel(r'Y [$\mu$m]')
+        aly.set_ylabel(r'$\Delta$ COD [$\mu$m]')
+        aqx.set_xlabel(r'X [$\mu$m]')
+        aqx.set_ylabel(r'RMS COD [$\mu$m$^2$]')
+        aqy.set_xlabel(r'Y [$\mu$m]')
+        aqy.set_ylabel(r'RMS COD [$\mu$m$^2$]')
 
         if save:
             f.savefig(bpm+'.svg')
@@ -641,11 +793,12 @@ class DoBBA(BaseClass):
         else:
             f.show()
 
-    # ##### Make Figures #####
-    def make_quadfit_figures(self, bpms=None, fname='', title=''):
-        f  = plt.figure(figsize=(9.5, 9))
+    def make_figure_quadfit(self, bpms=None, fname='', title=''):
+        f = plt.figure(figsize=(9.5, 9))
         gs = mpl_gs.GridSpec(2, 1)
-        gs.update(left=0.1, right=0.78, bottom=0.15, top=0.9, hspace=0.5, wspace=0.35)
+        gs.update(
+            left=0.1, right=0.78, bottom=0.15, top=0.9,
+            hspace=0.5, wspace=0.35)
 
         if title:
             f.suptitle(title)
@@ -654,7 +807,6 @@ class DoBBA(BaseClass):
         ayy = plt.subplot(gs[1, 0])
 
         bpms = bpms or self.data['bpmnames']
-        indcs = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms])
         colors = cm.brg(np.linspace(0, 1, len(bpms)))
         for i, bpm in enumerate(bpms):
             if bpm not in self.data['analysis']:
@@ -684,19 +836,21 @@ class DoBBA(BaseClass):
         axx.grid(True)
         ayy.grid(True)
         axx.set_xlabel('X - X0 [um]')
-        axx.set_ylabel('$\Delta$ COD')
+        axx.set_ylabel(r'$\Delta$ COD')
         ayy.set_xlabel('Y - Y0 [um]')
-        ayy.set_ylabel('$\Delta$ COD')
+        ayy.set_ylabel(r'$\Delta$ COD')
         if fname:
             f.savefig(fname+'.svg')
             plt.close()
         else:
             f.show()
 
-    def make_linfit_figures(self, bpms=None, fname='', title=''):
-        f  = plt.figure(figsize=(9.5, 9))
+    def make_figure_linfit(self, bpms=None, fname='', title=''):
+        f = plt.figure(figsize=(9.5, 9))
         gs = mpl_gs.GridSpec(2, 1)
-        gs.update(left=0.1, right=0.78, bottom=0.15, top=0.9, hspace=0.5, wspace=0.35)
+        gs.update(
+            left=0.1, right=0.78, bottom=0.15, top=0.9,
+            hspace=0.5, wspace=0.35)
 
         axx = plt.subplot(gs[0, 0])
         axy = plt.subplot(gs[1, 0])
@@ -743,7 +897,7 @@ class DoBBA(BaseClass):
         axy.grid(True)
         f.show()
 
-    def make_figures_compare_methods(self, bpmsok=None, bpmsnok=None,
+    def make_figure_compare_methods(self, bpmsok=None, bpmsnok=None,
                                      xlim=0, ylim=0, fname='', title=''):
         f  = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(3, 3)
@@ -839,7 +993,7 @@ class DoBBA(BaseClass):
             f.show()
 
     @staticmethod
-    def make_figures_compare_bbas(bbalist, method='linear_fitting', labels=[],
+    def make_figure_compare_bbas(bbalist, method='linear_fitting', labels=[],
                                   bpmsok=None, bpmsnok=None, fname='',
                                   title=''):
         f  = plt.figure(figsize=(9.2, 9))
