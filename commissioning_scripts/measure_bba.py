@@ -188,8 +188,8 @@ class BBAParams:
         self.meas_nrsteps = 8
         self.quad_deltakl = 0.02  # [1/m]
         self.wait_sofb = 0.3  # [s]
-        self.wait_correctors = 1  # [s]
-        self.wait_quadrupole = 1  # [s]
+        self.wait_correctors = 2  # [s]
+        self.wait_quadrupole = 2  # [s]
         self.timeout_quad_turnon = 5  # [s]
         self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
@@ -295,10 +295,11 @@ class DoBBA(BaseClass):
 
     def _do_bba(self):
         self.devices['sofb'].nr_points = self.params.sofb_nrpoints
-        for bpm in self._bpms2dobba:
+        for i, bpm in enumerate(self._bpms2dobba):
             if self._stopevt.is_set():
                 print('stopped!')
                 return
+            print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
             self._dobba_single_bpm(bpm)
         print('finished!')
 
@@ -345,7 +346,7 @@ class DoBBA(BaseClass):
 
             print('orbit corr: ', end='')
             ret, fmet = self.correct_orbit(bpmname, x0+dorbsx[i], y0+dorbsy[i])
-            if ret:
+            if ret >= 0:
                 txt = tmpl('Ok! in {:02d} iters'.format(ret))
             else:
                 txt = tmpl('NOT Ok! dorb={:5.1f} um'.format(fmet))
@@ -396,8 +397,10 @@ class DoBBA(BaseClass):
         sofb = self.devices['sofb']
         idxx = self.data['bpmnames'].index(bpmname)
         idxy = idxx + len(self.data['bpmnames'])
-        sofb.refx[idxx] = x0
-        sofb.refy[idxx] = y0
+        refx, refy = sofb.refx, sofb.refy
+        refx[idxx], refy[idxx] = x0, y0
+        sofb.refx = refx
+        sofb.refy = refy
         _time.sleep(self.params.wait_sofb)
         for i in range(self.params.sofb_maxcorriter+1):
             orb = self.get_orbit()
@@ -406,21 +409,20 @@ class DoBBA(BaseClass):
                 return i, fmet
 
             if i < self.params.sofb_maxcorriter:
-                sofb.calccor()
+                sofb.calccorr()
                 _time.sleep(self.params.wait_sofb)
-                sofb.applycor()
+                sofb.applycorr()
                 _time.sleep(self.params.wait_correctors)
         return -1, fmet
 
-    def process_data(self, nbpms_linfit=None, thres=None):
-        if 'analysis' not in self.data:
-            self.data['analysis'] = dict()
+    def process_data(self, nbpms_linfit=None, thres=None, mode='symm'):
         for bpm in self.data['measure']:
-            self.data['analysis'][bpm] = self.process_data_single_bpm(
-                bpm, nbpms_linfit=nbpms_linfit, thres=thres)
+            self.analysis[bpm] = self.process_data_single_bpm(
+                bpm, nbpms_linfit=nbpms_linfit, thres=thres, mode=mode)
 
-    def process_data_single_bpm(self, bpm, nbpms_linfit=None, thres=None):
-        analysis = dict()
+    def process_data_single_bpm(self, bpm, nbpms_linfit=None, thres=None,
+                                mode='symm'):
+        anl = dict()
         idx = self.data['bpmnames'].index(bpm)
         nbpms = len(self.data['bpmnames'])
         orbini = self.data['measure'][bpm]['orbini']
@@ -429,13 +431,18 @@ class DoBBA(BaseClass):
 
         xpos = orbini[:, idx]
         ypos = orbini[:, idx+nbpms]
-        dorb = orbpos - orbneg
+        if mode.lower().startswith('symm'):
+            dorb = orbpos - orbneg
+        elif mode.lower().startswith('pos'):
+            dorb = orbpos - orbini
+        else:
+            dorb = orbini - orbneg
         dorbx = dorb[:, :nbpms]
         dorby = dorb[:, nbpms:]
         if '-QS' in self.data['quadnames'][idx]:
             dorbx, dorby = dorby, dorbx
-        analysis['xpos'] = xpos
-        analysis['ypos'] = ypos
+        anl['xpos'] = xpos
+        anl['ypos'] = ypos
 
         px = np.polyfit(xpos, dorbx, deg=1)
         py = np.polyfit(ypos, dorby, deg=1)
@@ -467,19 +474,19 @@ class DoBBA(BaseClass):
             np.dot(pyc[1], pyc[1]) / np.dot(pyc[0], pyc[0]) - y0*y0)
         extrapx = not min(xpos) <= x0 <= max(xpos)
         extrapy = not min(ypos) <= y0 <= max(ypos)
-        analysis['linear_fitting'] = dict()
-        analysis['linear_fitting']['dorbx'] = dorbx
-        analysis['linear_fitting']['dorby'] = dorby
-        analysis['linear_fitting']['coeffsx'] = px
-        analysis['linear_fitting']['coeffsy'] = py
-        analysis['linear_fitting']['x0s'] = x0s
-        analysis['linear_fitting']['y0s'] = y0s
-        analysis['linear_fitting']['extrapolatedx'] = extrapx
-        analysis['linear_fitting']['extrapolatedy'] = extrapy
-        analysis['linear_fitting']['x0'] = x0
-        analysis['linear_fitting']['y0'] = y0
-        analysis['linear_fitting']['stdx0'] = stdx0
-        analysis['linear_fitting']['stdy0'] = stdy0
+        anl['linear_fitting'] = dict()
+        anl['linear_fitting']['dorbx'] = dorbx
+        anl['linear_fitting']['dorby'] = dorby
+        anl['linear_fitting']['coeffsx'] = px
+        anl['linear_fitting']['coeffsy'] = py
+        anl['linear_fitting']['x0s'] = x0s
+        anl['linear_fitting']['y0s'] = y0s
+        anl['linear_fitting']['extrapolatedx'] = extrapx
+        anl['linear_fitting']['extrapolatedy'] = extrapy
+        anl['linear_fitting']['x0'] = x0
+        anl['linear_fitting']['y0'] = y0
+        anl['linear_fitting']['stdx0'] = stdx0
+        anl['linear_fitting']['stdy0'] = stdy0
 
         rmsx = np.sum(dorbx*dorbx, axis=1) / dorbx.shape[0]
         rmsy = np.sum(dorby*dorby, axis=1) / dorby.shape[0]
@@ -496,22 +503,21 @@ class DoBBA(BaseClass):
         stdy0 = np.abs(y0)*np.sqrt(np.sum(np.diag(covy)[:2]/py[:2]/py[:2]))
         extrapx = not min(xpos) <= x0 <= max(xpos)
         extrapy = not min(ypos) <= y0 <= max(ypos)
-        analysis['quadratic_fitting'] = dict()
-        analysis['quadratic_fitting']['meansqrx'] = rmsx
-        analysis['quadratic_fitting']['meansqry'] = rmsy
-        analysis['quadratic_fitting']['coeffsx'] = px
-        analysis['quadratic_fitting']['coeffsy'] = py
-        analysis['quadratic_fitting']['extrapolatedx'] = extrapx
-        analysis['quadratic_fitting']['extrapolatedy'] = extrapy
-        analysis['quadratic_fitting']['x0'] = x0
-        analysis['quadratic_fitting']['y0'] = y0
-        analysis['quadratic_fitting']['stdx0'] = stdx0
-        analysis['quadratic_fitting']['stdy0'] = stdy0
-        return analysis
+        anl['quadratic_fitting'] = dict()
+        anl['quadratic_fitting']['meansqrx'] = rmsx
+        anl['quadratic_fitting']['meansqry'] = rmsy
+        anl['quadratic_fitting']['coeffsx'] = px
+        anl['quadratic_fitting']['coeffsy'] = py
+        anl['quadratic_fitting']['extrapolatedx'] = extrapx
+        anl['quadratic_fitting']['extrapolatedy'] = extrapy
+        anl['quadratic_fitting']['x0'] = x0
+        anl['quadratic_fitting']['y0'] = y0
+        anl['quadratic_fitting']['stdx0'] = stdx0
+        anl['quadratic_fitting']['stdy0'] = stdy0
+        return anl
 
     def get_bba_results(self, method='linear_fitting', error=False):
         data = self.data
-        anl = data['analysis']
         bpms = data['bpmnames']
         bbax = np.zeros(len(bpms))
         bbay = np.zeros(len(bpms))
@@ -519,9 +525,10 @@ class DoBBA(BaseClass):
             bbaxerr = np.zeros(len(bpms))
             bbayerr = np.zeros(len(bpms))
         for idx, bpm in enumerate(bpms):
-            if bpm not in anl:
+            anl = self.analysis.get(bpm)
+            if not anl:
                 continue
-            res = anl[bpm][method]
+            res = anl[method]
             bbax[idx] = res['x0']
             bbay[idx] = res['y0']
             if error and 'stdx0' in res:
@@ -533,13 +540,13 @@ class DoBBA(BaseClass):
 
     def get_analysis_properties(self, propty, method='linear_fitting'):
         data = self.data
-        anl = data['analysis']
         bpms = data['bpmnames']
         prop = [[], ] * len(bpms)
         for idx, bpm in enumerate(bpms):
-            if bpm not in anl:
+            anl = self.analysis.get(bpm)
+            if not anl:
                 continue
-            res = anl[bpm][method]
+            res = anl[method]
             prop[idx] = res[propty]
         return prop
 
@@ -612,47 +619,47 @@ class DoBBA(BaseClass):
         islin = 'lin' in method
         isquad = 'quad' in method
         for bpm in self.data['bpmnames']:
-            anal = self.data['analysis'].get(bpm)
-            if not anal:
+            anl = self.analysis.get(bpm)
+            if not anl:
                 continue
-            concx = anal['quadratic_fitting']['coeffsx'][0]
-            concy = anal['quadratic_fitting']['coeffsy'][0]
+            concx = anl['quadratic_fitting']['coeffsx'][0]
+            concy = anl['quadratic_fitting']['coeffsy'][0]
             probc = False
             if 'x' in pln:
                 probc |= concx < 0
             if 'y' in pln:
                 probc |= concy < 0
 
-            rmsx = anal['quadratic_fitting']['meansqrx']
-            rmsy = anal['quadratic_fitting']['meansqry']
+            rmsx = anl['quadratic_fitting']['meansqrx']
+            rmsy = anl['quadratic_fitting']['meansqry']
             probmaxrms = False
             if 'x' in pln:
                 probmaxrms |= np.max(rmsx) < maxrms
             if 'y' in pln:
                 probmaxrms |= np.max(rmsy) < maxrms
 
-            extqx = isquad and anal['quadratic_fitting']['extrapolatedx']
-            extqy = isquad and anal['quadratic_fitting']['extrapolatedy']
-            extlx = islin and anal['linear_fitting']['extrapolatedx']
-            extly = islin and anal['linear_fitting']['extrapolatedy']
+            extqx = isquad and anl['quadratic_fitting']['extrapolatedx']
+            extqy = isquad and anl['quadratic_fitting']['extrapolatedy']
+            extlx = islin and anl['linear_fitting']['extrapolatedx']
+            extly = islin and anl['linear_fitting']['extrapolatedy']
             probe = False
             if 'x' in pln:
                 probe |= extqx or extlx
             if 'y' in pln:
                 probe |= extqy or extly
 
-            stdqx = isquad and anal['quadratic_fitting']['stdx0'] > maxstd
-            stdqy = isquad and anal['quadratic_fitting']['stdy0'] > maxstd
-            stdlx = islin and anal['linear_fitting']['stdx0'] > maxstd
-            stdly = islin and anal['linear_fitting']['stdy0'] > maxstd
+            stdqx = isquad and anl['quadratic_fitting']['stdx0'] > maxstd
+            stdqy = isquad and anl['quadratic_fitting']['stdy0'] > maxstd
+            stdlx = islin and anl['linear_fitting']['stdx0'] > maxstd
+            stdly = islin and anl['linear_fitting']['stdy0'] > maxstd
             probs = False
             if 'x' in pln:
                 probs |= stdqx or stdlx
             if 'y' in pln:
                 probs |= stdqy or stdly
 
-            dorbx = anal['linear_fitting']['dorbx']
-            dorby = anal['linear_fitting']['dorby']
+            dorbx = anl['linear_fitting']['dorbx']
+            dorby = anl['linear_fitting']['dorby']
             probmaxorb = False
             if 'x' in pln:
                 probmaxorb |= np.max(np.abs(dorbx)) < maxorb
@@ -700,9 +707,12 @@ class DoBBA(BaseClass):
         for ax in allax:
             ax.grid(True)
 
-        data = self.data['analysis'][bpm]
-        xpos = data['xpos']
-        ypos = data['ypos']
+        anl = self.analysis.get(bpm)
+        if not anl:
+            print('no dada found for ' + bpm)
+            return
+        xpos = anl['xpos']
+        ypos = anl['ypos']
         sxpos = np.sort(xpos)
         sypos = np.sort(ypos)
 
@@ -724,14 +734,14 @@ class DoBBA(BaseClass):
         adt.set_xlim([0, 8])
         adt.set_ylim([0, 8])
 
-        rmsx = data['quadratic_fitting']['meansqrx']
-        rmsy = data['quadratic_fitting']['meansqry']
-        px = data['quadratic_fitting']['coeffsx']
-        py = data['quadratic_fitting']['coeffsy']
-        x0 = data['quadratic_fitting']['x0']
-        y0 = data['quadratic_fitting']['y0']
-        stdx0 = data['quadratic_fitting']['stdx0']
-        stdy0 = data['quadratic_fitting']['stdy0']
+        rmsx = anl['quadratic_fitting']['meansqrx']
+        rmsy = anl['quadratic_fitting']['meansqry']
+        px = anl['quadratic_fitting']['coeffsx']
+        py = anl['quadratic_fitting']['coeffsy']
+        x0 = anl['quadratic_fitting']['x0']
+        y0 = anl['quadratic_fitting']['y0']
+        stdx0 = anl['quadratic_fitting']['stdx0']
+        stdy0 = anl['quadratic_fitting']['stdy0']
         fitx = np.polyval(px, sxpos)
         fity = np.polyval(py, sypos)
         fitx0 = np.polyval(px, x0)
@@ -747,16 +757,16 @@ class DoBBA(BaseClass):
             x0, y0, xerr=stdx0, yerr=stdy0, fmt='gx', markersize=20,
             label='parabollic')
 
-        dorbx = data['linear_fitting']['dorbx']
-        dorby = data['linear_fitting']['dorby']
-        x0 = data['linear_fitting']['x0']
-        y0 = data['linear_fitting']['y0']
-        stdx0 = data['linear_fitting']['stdx0']
-        stdy0 = data['linear_fitting']['stdy0']
-        x0s = data['linear_fitting']['x0s']
-        y0s = data['linear_fitting']['y0s']
-        px = data['linear_fitting']['coeffsx']
-        py = data['linear_fitting']['coeffsy']
+        dorbx = anl['linear_fitting']['dorbx']
+        dorby = anl['linear_fitting']['dorby']
+        x0 = anl['linear_fitting']['x0']
+        y0 = anl['linear_fitting']['y0']
+        stdx0 = anl['linear_fitting']['stdx0']
+        stdy0 = anl['linear_fitting']['stdy0']
+        x0s = anl['linear_fitting']['x0s']
+        y0s = anl['linear_fitting']['y0s']
+        px = anl['linear_fitting']['coeffsx']
+        py = anl['linear_fitting']['coeffsy']
         sidx = np.argsort(np.abs(px[0]))
         sidy = np.argsort(np.abs(py[0]))
         pvx, pvy = [], []
@@ -809,27 +819,27 @@ class DoBBA(BaseClass):
         bpms = bpms or self.data['bpmnames']
         colors = cm.brg(np.linspace(0, 1, len(bpms)))
         for i, bpm in enumerate(bpms):
-            if bpm not in self.data['analysis']:
-                print('Data not found for ', bpm)
+            anl = self.analysis.get(bpm)
+            if not anl:
+                print('Data not found for ' + bpm)
                 continue
-            data = self.data['analysis'][bpm]
-            rmsx = data['quadratic_fitting']['meansqrx']
-            rmsy = data['quadratic_fitting']['meansqry']
+            rmsx = anl['quadratic_fitting']['meansqrx']
+            rmsy = anl['quadratic_fitting']['meansqry']
 
-            px = data['quadratic_fitting']['coeffsx']
-            py = data['quadratic_fitting']['coeffsy']
+            px = anl['quadratic_fitting']['coeffsx']
+            py = anl['quadratic_fitting']['coeffsy']
 
-            x0 = data['quadratic_fitting']['x0']
-            y0 = data['quadratic_fitting']['y0']
+            x0 = anl['quadratic_fitting']['x0']
+            y0 = anl['quadratic_fitting']['y0']
 
-            sxpos = np.sort(data['xpos'])
-            sypos = np.sort(data['ypos'])
+            sxpos = np.sort(anl['xpos'])
+            sypos = np.sort(anl['ypos'])
             fitx = np.polyval(px, sxpos)
             fity = np.polyval(py, sypos)
 
-            axx.plot(data['xpos']-x0, rmsx, 'o', color=colors[i], label=bpm)
+            axx.plot(anl['xpos']-x0, rmsx, 'o', color=colors[i], label=bpm)
             axx.plot(sxpos-x0, fitx, color=colors[i])
-            ayy.plot(data['ypos']-y0, rmsy, 'o', color=colors[i], label=bpm)
+            ayy.plot(anl['ypos']-y0, rmsy, 'o', color=colors[i], label=bpm)
             ayy.plot(sypos-y0, fity, color=colors[i])
 
         axx.legend(bbox_to_anchor=(1.0, 1.1), fontsize='xx-small')
@@ -859,25 +869,25 @@ class DoBBA(BaseClass):
         indcs = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms])
         colors = cm.brg(np.linspace(0, 1, len(bpms)))
         for i, bpm in enumerate(bpms):
-            if bpm not in self.data['analysis']:
-                print('Data not found for ', bpm)
+            anl = self.analysis.get(bpm)
+            if not anl:
+                print('Data not found for ' + bpm)
                 continue
-            data = self.data['analysis'][bpm]
-            x0 = data['linear_fitting']['x0']
-            y0 = data['linear_fitting']['y0']
-            stdx0 = data['linear_fitting']['stdx0']
-            stdy0 = data['linear_fitting']['stdy0']
+            x0 = anl['linear_fitting']['x0']
+            y0 = anl['linear_fitting']['y0']
+            stdx0 = anl['linear_fitting']['stdx0']
+            stdy0 = anl['linear_fitting']['stdy0']
 
-            x0s = data['linear_fitting']['x0s']
-            y0s = data['linear_fitting']['y0s']
-            px = data['linear_fitting']['coeffsx']
-            py = data['linear_fitting']['coeffsy']
+            x0s = anl['linear_fitting']['x0s']
+            y0s = anl['linear_fitting']['y0s']
+            px = anl['linear_fitting']['coeffsx']
+            py = anl['linear_fitting']['coeffsy']
 
             sidx = np.argsort(np.abs(px[0]))
             sidy = np.argsort(np.abs(py[0]))
 
-            xpos = data['xpos']
-            ypos = data['ypos']
+            xpos = anl['xpos']
+            ypos = anl['ypos']
             sxpos = np.sort(xpos)
             sypos = np.sort(ypos)
 
@@ -898,7 +908,7 @@ class DoBBA(BaseClass):
         f.show()
 
     def make_figure_compare_methods(self, bpmsok=None, bpmsnok=None,
-                                     xlim=0, ylim=0, fname='', title=''):
+                                    xlim=0, ylim=0, fname='', title=''):
         f  = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(3, 3)
         gs.update(
@@ -949,7 +959,7 @@ class DoBBA(BaseClass):
             x0q[iok], y0q[iok], xerr=stdx0q[iok], yerr=stdy0q[iok],
             fmt='o', color=cors[1])
 
-        if inok:
+        if inok.size:
             axx.errorbar(
                 inok, x0l[inok], yerr=stdx0l[inok], fmt='x', color=cors[0])
             axx.errorbar(
@@ -994,8 +1004,8 @@ class DoBBA(BaseClass):
 
     @staticmethod
     def make_figure_compare_bbas(bbalist, method='linear_fitting', labels=[],
-                                  bpmsok=None, bpmsnok=None, fname='',
-                                  title=''):
+                                 bpmsok=None, bpmsnok=None, fname='',
+                                 title=''):
         f  = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(3, 2)
         gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
@@ -1038,15 +1048,22 @@ class DoBBA(BaseClass):
                 x0l[iok], y0l[iok], xerr=stdx0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i],
                 label='Reliable')
 
+            if not inok.size:
+                continue
+
             axx.errorbar(inok, x0l[inok], yerr=stdx0l[inok], fmt='x', color=cors[i])
             ayy.errorbar(inok, y0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[i], label=labels[i])
             axy.errorbar(
                 x0l[inok], y0l[inok], xerr=stdx0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[i],
                 label='Not Reliable')
 
+        if inok.size:
+            axy.legend(
+                loc='upper right', bbox_to_anchor=(1.8, 0.2),
+                fontsize='xx-small')
 
-        ayy.legend(loc='upper right', bbox_to_anchor=(0.6, -0.4), fontsize='xx-small')
-        axy.legend(loc='upper right', bbox_to_anchor=(1.8, 0.2), fontsize='xx-small')
+        ayy.legend(
+            loc='upper right', bbox_to_anchor=(0.6, -0.4), fontsize='xx-small')
         axx.grid(True)
         ayy.grid(True)
         axx.set_ylabel('X0 [um]')
@@ -1057,6 +1074,98 @@ class DoBBA(BaseClass):
         axy.grid(True)
         axy.set_xlabel('X0 [um]')
         axy.set_ylabel('Y0 [um]')
+        axy.set_ylim([minx, maxx])
+        axy.set_ylim([miny, maxy])
+
+        if fname:
+            f.savefig(fname+'.svg')
+            plt.close()
+        else:
+            f.show()
+
+    @staticmethod
+    def make_figure_compare_bbas_diff(bbalist, method='linear_fitting',
+                                      labels=[], bpmsok=None, bpmsnok=None,
+                                      fname='', title=''):
+        f  = plt.figure(figsize=(9.2, 9))
+        gs = mpl_gs.GridSpec(3, 2)
+        gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
+
+        if title:
+            f.suptitle(title)
+
+        axx = plt.subplot(gs[0, :])
+        ayy = plt.subplot(gs[1, :], sharex=axx)
+        axy = plt.subplot(gs[2, 0])
+        pos = list(axy.get_position().bounds)
+        pos[1] += -0.05
+        axy.set_position(pos)
+
+        bpmsok = bpmsok or bbalist[0].data['bpmnames']
+        bpmsnok = bpmsnok or []
+        iok = np.array(
+            [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpmsok],
+            dtype=int)
+        inok = np.array(
+            [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpmsnok],
+            dtype=int)
+
+        if not labels:
+            labels = [str(i) for i in range(len(bbalist))]
+        cors = cm.brg(np.linspace(0, 1, len(bbalist)))
+
+        minx = miny = np.inf
+        maxx = maxy = -np.inf
+        x0li, y0li, stdx0li, stdy0li = bbalist[0].get_bba_results(
+            method=method, error=True)
+        for i, dobba in enumerate(bbalist):
+            x0l, y0l, stdx0l, stdy0l = dobba.get_bba_results(
+                method=method, error=True)
+            x0l -= x0li
+            y0l -= y0li
+            minx = np.min(np.hstack([minx, x0l.flatten()]))*1.1
+            maxx = np.max(np.hstack([maxx, x0l.flatten()]))*1.1
+            miny = np.min(np.hstack([miny, y0l.flatten()]))*1.1
+            maxy = np.max(np.hstack([maxy, y0l.flatten()]))*1.1
+
+            axx.errorbar(
+                iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[i])
+            ayy.errorbar(
+                iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i],
+                label=labels[i])
+            axy.errorbar(
+                x0l[iok], y0l[iok], xerr=stdx0l[iok], yerr=stdy0l[iok],
+                fmt='o', color=cors[i], label='Reliable')
+
+            if not inok.size:
+                continue
+
+            axx.errorbar(
+                inok, x0l[inok], yerr=stdx0l[inok], fmt='x', color=cors[i])
+            ayy.errorbar(
+                inok, y0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[i],
+                label=labels[i])
+            axy.errorbar(
+                x0l[inok], y0l[inok], xerr=stdx0l[inok], yerr=stdy0l[inok],
+                fmt='x', color=cors[i], label='Not Reliable')
+
+        if inok.size:
+            axy.legend(
+                loc='upper right', bbox_to_anchor=(1.8, 0.2),
+                fontsize='xx-small')
+
+        ayy.legend(
+            loc='upper right', bbox_to_anchor=(0.6, -0.4), fontsize='xx-small')
+        axx.grid(True)
+        ayy.grid(True)
+        axx.set_ylabel(r'$\Delta$X0 [$\mu$m]')
+        ayy.set_ylabel(r'$\Delta$Y0 [$\mu$m]')
+        axx.set_ylim([minx, maxx])
+        ayy.set_ylim([miny, maxy])
+
+        axy.grid(True)
+        axy.set_xlabel(r'$\Delta$X0 [$\mu$m]')
+        axy.set_ylabel(r'$\Delta$Y0 [$\mu$m]')
         axy.set_ylim([minx, maxx])
         axy.set_ylim([miny, maxy])
 
