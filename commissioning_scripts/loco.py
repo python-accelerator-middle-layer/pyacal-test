@@ -966,8 +966,9 @@ class LOCO:
     """LOCO."""
 
     UTILS = LOCOUtils
-    DEFAULT_TOL = 1e-16
+    DEFAULT_TOL = 1e-3
     DEFAULT_REDUC_THRESHOLD = 5/100
+    JLOCO_INVERSION = 'normal'
 
     def __init__(self, config=None):
         """."""
@@ -1010,6 +1011,9 @@ class LOCO:
         self._jtjloco_s = None
         self._jtjloco_v = None
         self._jtjloco_inv = None
+        self._jloco_u = None
+        self._jloco_s = None
+        self._jloco_v = None
 
         self._quad_k_inival = None
         self._quad_k_deltas = None
@@ -1161,21 +1165,27 @@ class LOCO:
                     fname_jloco_ks_quad)['jloco_kmatrix']
 
             # calc jloco Ks part for dipole
-            case = False
+            case_b1 = False
+            case_b2 = False
+            case_bc = False
             if not self.config.fit_b1_coupling:
                 self._jloco_ks_b1 = np.zeros(
                     (self._matrix.size, len(self.config.b1_indices)))
-                case = True
+                case_b1 = True
 
             if not self.config.fit_b2_coupling:
                 self._jloco_ks_b2 = np.zeros(
                     (self._matrix.size, len(self.config.b2_indices)))
-                case = True
+                case_b2 = True
 
             if not self.config.fit_bc_coupling:
                 self._jloco_ks_bc = np.zeros(
                     (self._matrix.size, len(self.config.bc_indices)))
-                case = True
+                case_bc = True
+
+            case = case_b1
+            case &= case_b2
+            case &= case_bc
 
             if not case:
                 if fname_jloco_ks_dip is None:
@@ -1226,22 +1236,28 @@ class LOCO:
                 self._jloco_k_quad = LOCOUtils.load_data(
                     fname_jloco_k_quad)['jloco_kmatrix']
 
+            case_b1 = False
+            case_b2 = False
+            case_bc = False
             # calc jloco K part for dipole
-            case = False
-            if not self.config.fit_b1_coupling:
+            if not self.config.fit_b1:
                 self._jloco_k_b1 = np.zeros(
                     (self._matrix.size, len(self.config.b1_indices)))
-                case = True
+                case_b1 = True
 
-            if not self.config.fit_b2_coupling:
+            if not self.config.fit_b2:
                 self._jloco_k_b2 = np.zeros(
                     (self._matrix.size, len(self.config.b2_indices)))
-                case = True
+                case_b2 = True
 
-            if not self.config.fit_bc_coupling:
+            if not self.config.fit_bc:
                 self._jloco_k_bc = np.zeros(
                     (self._matrix.size, len(self.config.bc_indices)))
-                case = True
+                case_bc = True
+
+            case = case_b1
+            case &= case_b2
+            case &= case_bc
 
             if not case:
                 if fname_jloco_k_dip is None:
@@ -1301,8 +1317,14 @@ class LOCO:
             self._jloco, self.config.weight_bpm, self.config.weight_corr)
 
         # calc jloco inv
-        self._jtjloco_u, self._jtjloco_s, self._jtjloco_v = \
-            np.linalg.svd(self._jloco.T @ self._jloco, full_matrices=False)
+        if LOCO.JLOCO_INVERSION == 'transpose':
+            print('svd decomposition Jt * J')
+            self._jtjloco_u, self._jtjloco_s, self._jtjloco_v = \
+                np.linalg.svd(self._jloco.T @ self._jloco, full_matrices=False)
+        elif LOCO.JLOCO_INVERSION == 'normal':
+            print('svd decomposition J')
+            self._jloco_u, self._jloco_s, self._jloco_v = \
+                np.linalg.svd(self._jloco, full_matrices=False)
 
     def jloco_calc_energy_shift(self):
         """."""
@@ -1317,11 +1339,13 @@ class LOCO:
             energy_shift[c] = 0
         return dm_energy_shift
 
-
-
     def update_svd(self, svd_thre=None, svd_sel=None):
         """."""
-        u, s, v = self._jtjloco_u, self._jtjloco_s, self._jtjloco_v
+        if LOCO.JLOCO_INVERSION == 'transpose':
+            u, s, v = self._jtjloco_u, self._jtjloco_s, self._jtjloco_v
+        elif LOCO.JLOCO_INVERSION == 'normal':
+            u, s, v = self._jloco_u, self._jloco_s, self._jloco_v
+
         inv_s = 1/s
         inv_s[np.isnan(inv_s)] = 0
         inv_s[np.isinf(inv_s)] = 0
@@ -1339,7 +1363,10 @@ class LOCO:
         elif self.config.svd_method == self.config.SVD_METHOD_SELECTION:
             inv_s[svd_sel:] = 0
 
-        self._jtjloco_inv = np.dot(v.T * inv_s[None, :], u.T)
+        if LOCO.JLOCO_INVERSION == 'transpose':
+            self._jtjloco_inv = np.dot(v.T * inv_s[None, :], u.T)
+        elif LOCO.JLOCO_INVERSION == 'normal':
+            self._jloco_inv = np.dot(v.T * inv_s[None, :], u.T)
 
     def update_fit(self):
         """."""
@@ -1367,7 +1394,7 @@ class LOCO:
 
         self._quad_ks_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'Ks', self.config.quad_indices))
+                    self._model, 'Ks', self.config.respm.fam_data['QN']['index']))
         self._sext_ks_inival = np.array(
                 pyaccel.lattice.get_attribute(
                     self._model, 'Ks', self.config.sext_indices))
@@ -1443,14 +1470,15 @@ class LOCO:
         self._chi = self._chi_init
         for _iter in range(niter):
             print('iter # {}/{}'.format(_iter+1, niter))
-
-
             matrix_diff = self.config.goalmat - self._matrix
             matrix_diff = LOCOUtils.apply_all_weight(
                 matrix_diff, self.config.weight_bpm, self.config.weight_corr)
-            param_new = np.dot(
-                self._jtjloco_inv, np.dot(
-                    self._jloco.T, matrix_diff.flatten()))
+            if LOCO.JLOCO_INVERSION == 'transpose':
+                param_new = np.dot(
+                    self._jtjloco_inv, np.dot(
+                        self._jloco.T, matrix_diff.flatten()))
+            elif LOCO.JLOCO_INVERSION == 'normal':
+                param_new = np.dot(self._jloco_inv, matrix_diff.flatten())
             param_new = param_new.flatten()
             model_new, matrix_new = self._calc_model_matrix(param_new)
             chi_new = self.calc_chi(matrix_new)
