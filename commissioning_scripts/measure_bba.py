@@ -183,8 +183,8 @@ class BBAParams:
         )
 
     def __init__(self):
-        self.deltaorbx = 400  # [um]
-        self.deltaorby = 400  # [um]
+        self.deltaorbx = 100  # [um]
+        self.deltaorby = 100  # [um]
         self.meas_nrsteps = 8
         self.quad_deltakl = 0.02  # [1/m]
         self.wait_sofb = 0.3  # [s]
