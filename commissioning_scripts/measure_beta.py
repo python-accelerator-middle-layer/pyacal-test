@@ -5,7 +5,7 @@ from threading import Thread as _Thread, Event as _Event
 from copy import deepcopy as _dcopy
 import numpy as np
 
-from pymodels.middlelayer.devices import TrimQuad, SOFB
+from pymodels.middlelayer.devices import Quadrupole, SOFB
 import pyaccel
 from siriuspy.epics import PV
 from .base import BaseClass
@@ -123,7 +123,7 @@ class MeasBeta(BaseClass):
         """."""
         for qname in self.quads2meas:
             if qname and qname not in self.devices:
-                self.devices[qname] = TrimQuad(qname)
+                self.devices[qname] = Quadrupole(qname)
 
     def initialize_data(self, model, famdata):
         """."""
