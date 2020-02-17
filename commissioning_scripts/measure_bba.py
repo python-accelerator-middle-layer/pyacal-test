@@ -421,13 +421,15 @@ class DoBBA(BaseClass):
                 _time.sleep(self.params.wait_correctors)
         return -1, fmet
 
-    def process_data(self, nbpms_linfit=None, thres=None, mode='symm'):
+    def process_data(self, nbpms_linfit=None, thres=None, mode='symm',
+                     discardpoints=None):
         for bpm in self.data['measure']:
             self.analysis[bpm] = self.process_data_single_bpm(
-                bpm, nbpms_linfit=nbpms_linfit, thres=thres, mode=mode)
+                bpm, nbpms_linfit=nbpms_linfit, thres=thres, mode=mode,
+                discardpoints=discardpoints)
 
     def process_data_single_bpm(self, bpm, nbpms_linfit=None, thres=None,
-                                mode='symm'):
+                                mode='symm', discardpoints=None):
         anl = dict()
         idx = self.data['bpmnames'].index(bpm)
         nbpms = len(self.data['bpmnames'])
@@ -443,8 +445,13 @@ class DoBBA(BaseClass):
             dorb = orbpos - orbini
         else:
             dorb = orbini - orbneg
-        dorbx = dorb[:, :nbpms]
-        dorby = dorb[:, nbpms:]
+
+        usepts = set(range(dorb.shape[0]))
+        if discardpoints is not None:
+            usepts = set(usepts) - set(discardpoints)
+        usepts = sorted(usepts)
+        dorbx = dorb[usepts, :nbpms]
+        dorby = dorb[usepts, nbpms:]
         if '-QS' in self.data['quadnames'][idx]:
             dorbx, dorby = dorby, dorbx
         anl['xpos'] = xpos
