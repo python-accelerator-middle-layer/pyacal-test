@@ -10,7 +10,7 @@ import matplotlib.gridspec as mpl_gs
 import matplotlib.cm as cm
 
 import pyaccel as _pyacc
-from pymodels.middlelayer.devices import SOFB, Quadrupole, Corrector
+from pymodels.middlelayer.devices import SOFB, Quadrupole
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 from .base import BaseClass
 
