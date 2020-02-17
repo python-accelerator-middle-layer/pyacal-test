@@ -437,8 +437,13 @@ class DoBBA(BaseClass):
         orbpos = self.data['measure'][bpm]['orbpos']
         orbneg = self.data['measure'][bpm]['orbneg']
 
-        xpos = orbini[:, idx]
-        ypos = orbini[:, idx+nbpms]
+        usepts = set(range(orbini.shape[0]))
+        if discardpoints is not None:
+            usepts = set(usepts) - set(discardpoints)
+        usepts = sorted(usepts)
+
+        xpos = orbini[usepts, idx]
+        ypos = orbini[usepts, idx+nbpms]
         if mode.lower().startswith('symm'):
             dorb = orbpos - orbneg
         elif mode.lower().startswith('pos'):
@@ -446,10 +451,6 @@ class DoBBA(BaseClass):
         else:
             dorb = orbini - orbneg
 
-        usepts = set(range(dorb.shape[0]))
-        if discardpoints is not None:
-            usepts = set(usepts) - set(discardpoints)
-        usepts = sorted(usepts)
         dorbx = dorb[usepts, :nbpms]
         dorby = dorb[usepts, nbpms:]
         if '-QS' in self.data['quadnames'][idx]:
