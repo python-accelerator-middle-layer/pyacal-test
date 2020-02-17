@@ -187,6 +187,7 @@ class BBAParams:
         self.deltaorby = 100  # [um]
         self.meas_nrsteps = 8
         self.quad_deltakl = 0.02  # [1/m]
+        self.quad_nrcycles = 1
         self.wait_sofb = 0.3  # [s]
         self.wait_correctors = 2  # [s]
         self.wait_quadrupole = 2  # [s]
@@ -204,6 +205,7 @@ class BBAParams:
         st += ftmp('deltaorby [um]', self.deltaorby, '')
         st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
         st += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
+        st += ftmp('quad_nrcycles', self.quad_nrcycles, '')
         st += ftmp('wait_sofb [s]', self.wait_sofb, '(time to process calcs)')
         st += ftmp('wait_correctors [s]', self.wait_correctors, '')
         st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
@@ -308,23 +310,35 @@ class DoBBA(BaseClass):
         sofb = self.devices['sofb']
 
         print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
-        print('    turning quadrupole ' + quadname + ' On')
+        print('    turning quadrupole ' + quadname + ' On', end='')
         quad.turnon(self.params.timeout_quad_turnon)
         if not quad.pwr_state:
-            print('    error: quadrupole ' + quadname + ' is Off.')
+            print('\n    error: quadrupole ' + quadname + ' is Off.')
             self._stopevt.set()
             print('    exiting...')
             return
 
+        korig = quad.strength
+        deltakl = self.params.quad_deltakl
+
+        print(' and cycling it: ', end='')
+        for _ in range(self.params.quad_nrcycles):
+            print('.', end='')
+            quad.strength = korig + deltakl/2
+            _time.sleep(self.params.wait_quadrupole)
+            quad.strength = korig - deltakl/2
+            _time.sleep(self.params.wait_quadrupole)
+            quad.strength = korig
+            _time.sleep(self.params.wait_quadrupole)
+        print(' Ok!')
+
         nrsteps = self.params.meas_nrsteps
         dorbsx = self._calc_dorb_scan(self.params.deltaorbx, nrsteps//2)
         dorbsy = self._calc_dorb_scan(self.params.deltaorby, nrsteps//2)
-        deltakl = self.params.quad_deltakl
 
         refx0, refy0 = sofb.refx, sofb.refy
         enblx0, enbly0 = sofb.bpmxenbl, sofb.bpmyenbl
         ch0, cv0 = sofb.kickch, sofb.kickcv
-        korig = quad.strength
 
         enblx, enbly = 0*enblx0, 0*enbly0
         enblx[idx], enbly[idx] = 1, 1
@@ -502,8 +516,8 @@ class DoBBA(BaseClass):
         anl['linear_fitting']['stdx0'] = stdx0
         anl['linear_fitting']['stdy0'] = stdy0
 
-        rmsx = np.sum(dorbx*dorbx, axis=1) / dorbx.shape[0]
-        rmsy = np.sum(dorby*dorby, axis=1) / dorby.shape[0]
+        rmsx = np.sum(dorbx*dorbx, axis=1) / dorbx.shape[1]
+        rmsy = np.sum(dorby*dorby, axis=1) / dorby.shape[1]
         if xpos.size > 3:
             px, covx = np.polyfit(xpos, rmsx, deg=2, cov=True)
             py, covy = np.polyfit(ypos, rmsy, deg=2, cov=True)
