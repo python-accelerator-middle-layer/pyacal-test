@@ -225,10 +225,6 @@ class DoBBA(BaseClass):
         self.data['quadnames'] = list()
         self._bpms2dobba = list()
         self.devices['sofb'] = SOFB('SI')
-        for chname in self.devices['sofb'].data.CH_NAMES:
-            self.devices[chname] = Corrector(chname)
-        for cvname in self.devices['sofb'].data.CV_NAMES:
-            self.devices[cvname] = Corrector(cvname)
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
         self.data['scancenterx'] = np.zeros(len(BBAParams.BPMNAMES))
@@ -379,11 +375,21 @@ class DoBBA(BaseClass):
         print('    restoring initial conditions.')
         sofb.refx, sofb.refy = refx0, refy0
         sofb.bpmxenbl, sofb.bpmyenbl = enblx0, enbly0
-        for ch, v0 in zip(sofb.data.CH_NAMES, ch0):
-            self.devices[ch].strength = v0
-        for cv, v0 in zip(sofb.data.CV_NAMES, cv0):
-            self.devices[cv].strength = v0
-        _time.sleep(self.params.wait_correctors)
+
+        # restore correctors gently to do not kill the beam.
+        factch, factcv = sofb.deltafactorch, sofb.deltafactorcv
+        chn, cvn = sofb.kickch, sofb.kickcv
+        dch, dcv = ch0 - chn, cv0 - cvn
+        sofb.deltakickch, sofb.deltakickcv = dch, dcv
+        nrsteps = np.ceil(max(np.abs(dch).max(), np.abs(dcv).max()) / 1.0)
+        for i in range(nrsteps):
+            sofb.deltafactorch = (i+1)/nrsteps * 100
+            sofb.deltafactorcv = (i+1)/nrsteps * 100
+            _time.sleep(self.params.wait_sofb)
+            sofb.applycorr()
+            _time.sleep(self.params.wait_correctors)
+        sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
+        sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
 
         print('    turning quadrupole ' + quadname + ' Off')
         quad.turnoff(self.params.timeout_quad_turnon)
