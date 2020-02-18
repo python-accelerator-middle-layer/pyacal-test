@@ -94,19 +94,34 @@ class LOCOUtils:
         return matrix_out
 
     @staticmethod
+    def add_dispersion_to_respm(matrix, energy_shift, dispersion):
+        """."""
+        matrix_out = _dcopy(matrix)
+        matrix_out[:, :-1] += dispersion[:, None] * energy_shift[None, :]
+        return matrix_out
+
+    @staticmethod
     def get_quads_strengths(model, indices):
         """."""
         kquads = []
         for qidx in indices:
             kquads.append(pyaccel.lattice.get_attribute(
                 model, 'K', qidx))
-        return kquads
+        return np.array(kquads)
 
     @staticmethod
     def set_quadmag_kdelta(model, idx_mag, kvalues, kdelta):
         """."""
-        pyaccel.lattice.set_attribute(
-            model, 'K', idx_mag, kvalues + kdelta)
+        for idx, idx_seg in enumerate(idx_mag):
+            pyaccel.lattice.set_attribute(
+                model, 'K', idx_seg, kvalues[idx] + kdelta)
+
+    @staticmethod
+    def set_quadset_kdelta(model, idx_set, kvalues, kdelta):
+        """."""
+        for idx, idx_mag in enumerate(idx_set):
+            LOCOUtils.set_quadmag_kdelta(
+                model, idx_mag, kvalues[idx], kdelta)
 
     @staticmethod
     def set_dipmag_kdelta(model, idx_mag, kvalues, kdelta):
@@ -145,13 +160,6 @@ class LOCOUtils:
         angle /= np.sum(angle)
         pyaccel.lattice.set_attribute(
             model, 'hkick_polynom', idx_mag, kick_values + kick_delta * angle)
-
-    @staticmethod
-    def set_quadset_kdelta(model, idx_set, kvalues, kdelta):
-        """."""
-        for idx, idx_mag in enumerate(idx_set):
-            LOCOUtils.set_quadmag_kdelta(
-                model, idx_mag, kvalues[idx], kdelta)
 
     @staticmethod
     def jloco_calc_linear(config, matrix):
@@ -227,7 +235,8 @@ class LOCOUtils:
         model_this = _dcopy(model)
         for idx, idx_set in enumerate(kindices):
             set_quad_kdelta(
-                model_this, idx_set, kvalues[idx], config.DEFAULT_DELTA_K)
+                model_this, idx_set,
+                kvalues[idx], config.DEFAULT_DELTA_K)
             matrix_this = LOCOUtils.respm_calc(
                 model_this, config.respm, config.use_disp)
             dmatrix = (matrix_this - matrix_nominal)/config.DEFAULT_DELTA_K
@@ -400,9 +409,23 @@ class LOCOUtils:
         return dip_kick_matrix
 
     @staticmethod
+    def jloco_calc_energy_shift(config, model):
+        """."""
+        matrix0 = LOCOUtils.respm_calc(
+            model, config.respm, config.use_disp)
+        energy_shift = np.zeros(config.nr_corr + 1)
+        dm_energy_shift = np.zeros((matrix0.size, config.nr_corr))
+        for c in range(config.nr_corr):
+            energy_shift[c] = 1
+            matrix_shift = config.measured_dispersion[:, None] * energy_shift[None, :]
+            dm_energy_shift[:, c] = matrix_shift.flatten()
+            energy_shift[c] = 0
+        return dm_energy_shift
+
+    @staticmethod
     def jloco_merge_linear(
             config, kmatrix, ksmatrix, dmdg_bpm, dmdalpha_bpm, dmdg_corr,
-            kick_dip):
+            kick_dip, energy_shift):
         """."""
         nbpm = config.nr_bpm
         nch = config.nr_ch
@@ -410,13 +433,14 @@ class LOCOUtils:
         knobs_k = kmatrix.shape[1]
         knobs_ks = ksmatrix.shape[1]
         nfam = knobs_k + knobs_ks
-        jloco = np.zeros((kmatrix.shape[0], nfam + 3*nbpm + nch + ncv + 3))
+        jloco = np.zeros((kmatrix.shape[0], nfam + 3*nbpm + 2*(nch + ncv) + 3))
         jloco[:, :knobs_k] = kmatrix
         jloco[:, knobs_k:nfam] = ksmatrix
         jloco[:, nfam:nfam+2*nbpm] = dmdg_bpm
         jloco[:, nfam+2*nbpm:nfam+3*nbpm] = dmdalpha_bpm
         jloco[:, nfam+3*nbpm:nfam+3*nbpm+nch+ncv] = dmdg_corr
-        jloco[:, nfam+3*nbpm+nch+ncv:] = kick_dip
+        jloco[:, nfam+3*nbpm+nch+ncv:nfam+3*nbpm+nch+ncv+3] = kick_dip
+        jloco[:, nfam+3*nbpm+nch+ncv+3:] = energy_shift
         return jloco
 
     @staticmethod
@@ -536,6 +560,12 @@ class LOCOUtils:
             print('removing kick bc...')
         else:
             idx += 1
+        if not config.fit_energy_shift:
+            jloco = np.delete(jloco, slice(idx, idx + config.nr_corr), axis=1)
+            print('removing energy shift...')
+        else:
+            idx += config.nr_corr
+
         return jloco
 
     @staticmethod
@@ -622,6 +652,10 @@ class LOCOUtils:
             size = 1
             param_dict['kick_bc'] = param[idx:idx+size]
             idx += size
+        if config.fit_energy_shift:
+            size = config.nr_corr
+            param_dict['energy_shift'] = param[idx:idx+size]
+            idx += size
 
         return param_dict
 
@@ -657,6 +691,7 @@ class LOCOConfig:
         self.dim = None
         self.respm = None
         self.goalmat = None
+        self.measured_dispersion = None
         self.delta_kickx_meas = None
         self.delta_kicky_meas = None
         self.delta_frequency_meas = None
@@ -682,6 +717,7 @@ class LOCOConfig:
         self.fit_kick_b1 = None
         self.fit_kick_b2 = None
         self.fit_kick_bc = None
+        self.fit_energy_shift = None
         self.cavidx = None
         self.matrix = None
         self.idx_cav = None
@@ -1041,6 +1077,8 @@ class LOCO:
         self._jloco_kick_bc = None
         self._jloco_kick_dip = None
 
+        self._jloco_energy_shift = None
+
         self._jloco = None
         self._jloco_inv = None
         self._jtjloco_u = None
@@ -1080,6 +1118,9 @@ class LOCO:
         self._b2_kick_deltas = None
         self._bc_kick_deltas = None
 
+        self._energy_shift_inival = None
+        self._energy_shift_deltas = None
+
         self._gain_bpm_inival = self.config.gain_bpm
         self._gain_bpm_delta = None
         self._roll_bpm_inival = self.config.roll_bpm
@@ -1089,8 +1130,16 @@ class LOCO:
 
         self._chi_init = None
         self._chi = None
+        self._chi_history = []
         self._tol = None
         self._reduc_threshold = None
+
+        self.fitmodel = None
+        self.chi_history = None
+        self.bpm_gain = None
+        self.bpm_roll = None
+        self.corr_gain = None
+        self.energy_shift = None
 
     def update(self,
                fname_jloco_k=None,
@@ -1130,54 +1179,6 @@ class LOCO:
         # reset model
         self._model = _dcopy(self.config.model)
         self._matrix = _dcopy(self.config.matrix)
-
-    def _handle_dip_fit_kick(self, fname_jloco_kick_dip=None):
-        # calculate kick jacobian for dipole
-        case_b1 = False
-        case_b2 = False
-        case_bc = False
-        if not self.config.fit_kick_b1:
-            self._jloco_kick_b1 = np.zeros(
-                (self._matrix.size, 1))
-            case_b1 = True
-
-        if not self.config.fit_kick_b2:
-            self._jloco_kick_b2 = np.zeros(
-                (self._matrix.size, 1))
-            case_b2 = True
-
-        if not self.config.fit_kick_bc:
-            self._jloco_kick_bc = np.zeros(
-                (self._matrix.size, 1))
-            case_bc = True
-
-        case = case_b1
-        case &= case_b2
-        case &= case_bc
-
-        if not case:
-            if fname_jloco_kick_dip is None:
-                print('calculating B1 kick matrix...')
-                self._jloco_kick_b1 = LOCOUtils.jloco_calc_kick_dipoles(
-                    self.config, self._model, 'B1')
-                print('calculating B2 kick matrix...')
-                self._jloco_kick_b2 = LOCOUtils.jloco_calc_kick_dipoles(
-                    self.config, self._model, 'B2')
-                print('calculating BC kick matrix...')
-                self._jloco_kick_bc = LOCOUtils.jloco_calc_kick_dipoles(
-                    self.config, self._model, 'BC')
-                case = True
-            else:
-                print('loading dipole kick matrix...')
-                self._jloco_kick_dip = LOCOUtils.load_data(
-                    fname_jloco_kick_dip)['jloco_kmatrix']
-
-        if case:
-            self._jloco_kick_dip = np.hstack((
-                self._jloco_kick_b1, self._jloco_kick_b2))
-            self._jloco_kick_dip = np.hstack((
-                self._jloco_kick_dip, self._jloco_kick_bc))
-            LOCOUtils.save_data('kickmatrix_dipoles', self._jloco_kick_dip)
 
     def _handle_dip_fit_k(self, fname_jloco_k_dip):
         # calculate K jacobian for dipole
@@ -1237,7 +1238,6 @@ class LOCO:
                 self._jloco_k_b1, self._jloco_k_b2))
             self._jloco_k_dip = np.hstack((
                 self._jloco_k_dip, self._jloco_k_bc))
-            LOCOUtils.save_data('kmatrix_dipoles_families', self._jloco_k_dip)
 
     def _handle_quad_fit_k(self, fname_jloco_k_quad):
         # calculate K jacobian for quadrupole
@@ -1248,7 +1248,6 @@ class LOCO:
             print('calculating quadrupoles kmatrix...')
             self._jloco_k_quad = LOCOUtils.jloco_calc_k_quad(
                 self.config, self._model)
-            LOCOUtils.save_data('kmatrix_quadrupoles', self._jloco_k_quad)
         else:
             print('loading quadrupoles kmatrix...')
             self._jloco_k_quad = LOCOUtils.load_data(
@@ -1263,7 +1262,6 @@ class LOCO:
             print('calculating sextupoles kmatrix...')
             self._jloco_k_sext = LOCOUtils.jloco_calc_k_sextupoles(
                 self.config, self._model)
-            LOCOUtils.save_data('kmatrix_sextupoles', self._jloco_k_sext)
         else:
             print('loading sextupoles kmatrix...')
             self._jloco_k_sext = LOCOUtils.load_data(
@@ -1315,8 +1313,6 @@ class LOCO:
                 self._jloco_ks_b1, self._jloco_ks_b2))
             self._jloco_ks_dip = np.hstack((
                 self._jloco_ks_dip, self._jloco_ks_bc))
-            LOCOUtils.save_data(
-                'withdisp_ksmatrix_dipoles', self._jloco_ks_dip)
 
     def _handle_quad_fit_ks(self, fname_jloco_ks_quad):
         # calculate Ks jacobian for quadrupole
@@ -1327,8 +1323,6 @@ class LOCO:
             print('calculating quadrupoles ksmatrix...')
             self._jloco_ks_quad = LOCOUtils.jloco_calc_ks_quad(
                 self.config, self._model)
-            LOCOUtils.save_data(
-                'withdisp_ksmatrix_quadrupoles', self._jloco_ks_quad)
         else:
             print('loading quadrupoles ksmatrix...')
             self._jloco_ks_quad = LOCOUtils.load_data(
@@ -1343,12 +1337,57 @@ class LOCO:
             print('calculating sextupoles ksmatrix...')
             self._jloco_ks_sext = LOCOUtils.jloco_calc_ks_sextupoles(
                 self.config, self._model)
-            LOCOUtils.save_data(
-                'withdisp_ksmatrix_sextupoles', self._jloco_ks_sext)
         else:
             print('loading sextupoles ksmatrix...')
             self._jloco_ks_sext = LOCOUtils.load_data(
                 fname_jloco_ks_sext)['jloco_kmatrix']
+
+    def _handle_dip_fit_kick(self, fname_jloco_kick_dip=None):
+        # calculate kick jacobian for dipole
+        case_b1 = False
+        case_b2 = False
+        case_bc = False
+        if not self.config.fit_kick_b1:
+            self._jloco_kick_b1 = np.zeros(
+                (self._matrix.size, 1))
+            case_b1 = True
+
+        if not self.config.fit_kick_b2:
+            self._jloco_kick_b2 = np.zeros(
+                (self._matrix.size, 1))
+            case_b2 = True
+
+        if not self.config.fit_kick_bc:
+            self._jloco_kick_bc = np.zeros(
+                (self._matrix.size, 1))
+            case_bc = True
+
+        case = case_b1
+        case &= case_b2
+        case &= case_bc
+
+        if not case:
+            if fname_jloco_kick_dip is None:
+                print('calculating B1 kick matrix...')
+                self._jloco_kick_b1 = LOCOUtils.jloco_calc_kick_dipoles(
+                    self.config, self._model, 'B1')
+                print('calculating B2 kick matrix...')
+                self._jloco_kick_b2 = LOCOUtils.jloco_calc_kick_dipoles(
+                    self.config, self._model, 'B2')
+                print('calculating BC kick matrix...')
+                self._jloco_kick_bc = LOCOUtils.jloco_calc_kick_dipoles(
+                    self.config, self._model, 'BC')
+                case = True
+            else:
+                print('loading dipole kick matrix...')
+                self._jloco_kick_dip = LOCOUtils.load_data(
+                    fname_jloco_kick_dip)['jloco_kmatrix']
+
+        if case:
+            self._jloco_kick_dip = np.hstack((
+                self._jloco_kick_b1, self._jloco_kick_b2))
+            self._jloco_kick_dip = np.hstack((
+                self._jloco_kick_dip, self._jloco_kick_bc))
 
     def update_jloco(self,
                      fname_jloco_k=None,
@@ -1377,6 +1416,18 @@ class LOCO:
             self._handle_quad_fit_ks(fname_jloco_ks_quad)
             self._handle_sext_fit_ks(fname_jloco_ks_sext)
 
+            # LOCOUtils.save_data(
+            #     '4d_gradient_quadrupoles_trims', self._jloco_k_quad)
+            # LOCOUtils.save_data(
+            #     '4d_gradient_dipoles_families', self._jloco_k_dip)
+            # LOCOUtils.save_data(
+            #     '4d_gradient_sextupoles', self._jloco_k_sext)
+            LOCOUtils.save_data(
+                '4d_skewgradient_quadrupoles_families', self._jloco_ks_quad)
+            LOCOUtils.save_data(
+                '4d_skewgradient_sextupoles', self._jloco_ks_sext)
+            LOCOUtils.save_data('4d_skewgradient_dipoles', self._jloco_ks_dip)
+
             self._jloco_k = np.hstack((self._jloco_k_quad, self._jloco_k_sext))
             self._jloco_k = np.hstack((self._jloco_k, self._jloco_k_dip))
 
@@ -1385,11 +1436,16 @@ class LOCO:
             self._jloco_ks = np.hstack(
                 (self._jloco_ks, self._jloco_ks_dip))
 
+        print('calculating energy shift matrix...')
+        self._jloco_energy_shift = LOCOUtils.jloco_calc_energy_shift(
+            self.config, self._model)
+
         # merge J submatrices
         self._jloco = LOCOUtils.jloco_merge_linear(
             self.config, self._jloco_k, self._jloco_ks,
             self._jloco_gain_bpm, self._jloco_roll_bpm,
-            self._jloco_gain_corr, self._jloco_kick_dip)
+            self._jloco_gain_corr, self._jloco_kick_dip,
+            self._jloco_energy_shift)
 
         # filter jloco
         self._jloco = LOCOUtils.jloco_param_delete(self.config, self._jloco)
@@ -1407,18 +1463,6 @@ class LOCO:
             print('svd decomposition J')
             self._jloco_u, self._jloco_s, self._jloco_v = \
                 np.linalg.svd(self._jloco, full_matrices=False)
-
-    def jloco_calc_energy_shift(self):
-        """."""
-        matrix0 = _dcopy(self._matrix)
-        energy_shift = np.zeros((self.config.nr_corr, 1))
-        dm_energy_shift = np.zeros((matrix0.size, self.config.nr_corr))
-        for c in range(self.config.nr_corr):
-            energy_shift[c] = 1
-            matrix_shift = energy_shift[:, None] * self.disp_meas[None, :]
-            dm_energy_shift[:, c] = matrix_shift.flatten()
-            energy_shift[c] = 0
-        return dm_energy_shift
 
     def update_svd(self, svd_thre=None, svd_sel=None):
         """."""
@@ -1499,6 +1543,9 @@ class LOCO:
                 pyaccel.lattice.get_attribute(
                     self._model, 'hkick_polynom', self.config.bc_indices))
 
+        self._energy_shift_inival = np.zeros(self.config.nr_corr)
+        self._energy_shift_deltas = np.zeros(self.config.nr_corr)
+
         self._quad_k_deltas = np.zeros(len(self.config.quad_indices))
         self._sext_k_deltas = np.zeros(len(self.config.sext_indices))
         self._b1_k_deltas = np.zeros(len(self.config.b1_indices))
@@ -1550,6 +1597,7 @@ class LOCO:
         """."""
         self._chi = self._chi_init
         for _iter in range(niter):
+            self._chi_history.append(self._chi)
             print('iter # {}/{}'.format(_iter+1, niter))
             matrix_diff = self.config.goalmat - self._matrix
             matrix_diff = LOCOUtils.apply_all_weight(
@@ -1565,10 +1613,14 @@ class LOCO:
             chi_new = self.calc_chi(matrix_new)
             print('chi: {0:.4f} um'.format(chi_new))
             if np.isnan(chi_new):
-                print('matrix deviation is NaN!')
+                print('chi is NaN!')
                 break
             if chi_new < self._chi:
-                self._update_state(model_new, matrix_new, chi_new)
+                if np.abs(chi_new - self._chi) < self._tol:
+                    print('chi reduction is lower than tolerance...')
+                    break
+                else:
+                    self._update_state(model_new, matrix_new, chi_new)
             else:
                 # print('recalculating jloco...')
                 # self.update_jloco()
@@ -1579,8 +1631,9 @@ class LOCO:
                     # could not converge at current iteration!
                     break
             if self._chi < self._tol:
+                print('chi is lower than specified tolerance!')
                 break
-
+        self._create_output_vars()
         print('Finished!')
 
     def calc_chi(self, matrix=None):
@@ -1594,21 +1647,14 @@ class LOCO:
         chi = np.linalg.norm(dmatrix)/np.sqrt(dmatrix.size)
         return chi * 1e6
 
-    @property
-    def jloco_k(self):
+    def _create_output_vars(self):
         """."""
-        if self._jloco_k is None:
-            self._jloco_k = LOCOUtils.jloco_calc_k_quad(
-                self.config, self._model)
-        return self._jloco_k
-
-    def save_jloco_k(self, fname):
-        """."""
-        np.savetxt(fname, self.jloco_k)
-
-    def save_jloco(self, fname):
-        """."""
-        np.savetxt(fname, self._jloco)
+        self.fitmodel = _dcopy(self._model)
+        self.chi_history = self._chi_history
+        self.bpm_gain = self._gain_bpm_inival + self._gain_bpm_delta
+        self.bpm_roll = self._roll_bpm_inival + self._roll_bpm_delta
+        self.corr_gain = self._gain_corr_inival + self._gain_corr_delta
+        self.energy_shift = self._energy_shift_inival + self._energy_shift_deltas
 
     def _calc_model_matrix(self, param):
         """."""
@@ -1748,6 +1794,13 @@ class LOCO:
                         model, idx_set,
                         self._bc_kick_inival[idx], self._bc_kick_deltas[idx])
             matrix = LOCOUtils.respm_calc(model, config.respm, config.use_disp)
+            if 'energy_shift' in param_dict:
+                # update energy shift
+                self._energy_shift_deltas += param_dict['energy_shift']
+                matrix = LOCOUtils.add_dispersion_to_respm(
+                    matrix,
+                    self._energy_shift_inival + self._energy_shift_deltas,
+                    config.measured_dispersion)
         else:
             matrix = _dcopy(self.config.matrix)
 
