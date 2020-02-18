@@ -1122,7 +1122,7 @@ class DoBBA(BaseClass):
     def make_figure_compare_bbas_diff(bbalist, method='linear_fitting',
                                       labels=[], bpmsok=None, bpmsnok=None,
                                       fname='', title=''):
-        f  = plt.figure(figsize=(9.2, 9))
+        f = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(3, 2)
         gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
 

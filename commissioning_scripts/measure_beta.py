@@ -5,11 +5,12 @@ import math
 
 from copy import deepcopy as _dcopy
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as mpl_gs
 
 from pymodels.middlelayer.devices import Quadrupole, SITune
 from pymodels import si
 import pyaccel
-from siriuspy.epics import PV
 from .base import BaseClass
 
 
@@ -54,6 +55,8 @@ class MeasBeta(BaseClass):
         self.data['quadnames'] = list()
         self.data['betax_in'] = dict()
         self.data['betay_in'] = dict()
+        self.data['betax_mid'] = dict()
+        self.data['betay_mid'] = dict()
         self.data['betax_out'] = dict()
         self.data['betay_out'] = dict()
         self.data['measure'] = dict()
@@ -109,18 +112,20 @@ class MeasBeta(BaseClass):
         """."""
         quadnames, quadsidx = MeasBeta.get_quads(self.model, self.famdata)
         twi, *_ = pyaccel.optics.calc_twiss(self.model, indices='open')
-        for idx, qname in enumerate(quadnames):
+        for idx, qname in zip(quadsidx, quadnames):
             L = self.model[idx].length/2
             K = self.model[idx].K
             Kr = np.sqrt(abs(K))
             Cx = math.cos(Kr*L) if K > 0 else math.cosh(Kr*L)
-            Sx = (math.sin(Kr*L) if K > 0 else math.sinh(Kr*L)) / Kr
-            Cy = math.cosh(Kr*L) if K > 0 else math.cos(Kr*L)
-            Sy = (math.sinh(Kr*L) if K > 0 else math.sin(Kr*L)) / Kr
-            bxi = twi.betax[quadsidx[idx]]
-            byi = twi.betay[quadsidx[idx]]
-            axi = twi.alphax[quadsidx[idx]]
-            ayi = twi.alphay[quadsidx[idx]]
+            Sx = math.sin(Kr*L) if K > 0 else math.sinh(Kr*L)
+            Sx = (Sx / Kr) if Kr > 0 else L
+            Cy = math.cos(Kr*L) if K < 0 else math.cosh(Kr*L)
+            Sy = math.sin(Kr*L) if K < 0 else math.sinh(Kr*L)
+            Sy = (Sy / Kr) if Kr > 0 else L
+            bxi = twi.betax[idx]
+            byi = twi.betay[idx]
+            axi = twi.alphax[idx]
+            ayi = twi.alphay[idx]
             gxi = (1+axi*axi)/bxi
             gyi = (1+ayi*ayi)/byi
             bxm = Cx*Cx*bxi - 2*Cx*Sx*axi + Sx*Sx*gxi
@@ -129,8 +134,8 @@ class MeasBeta(BaseClass):
             self.data['betay_in'][qname] = byi
             self.data['betax_mid'][qname] = bxm
             self.data['betay_mid'][qname] = bym
-            self.data['betax_out'][qname] = twi.betax[quadsidx[idx]+1]
-            self.data['betay_out'][qname] = twi.betay[quadsidx[idx]+1]
+            self.data['betax_out'][qname] = twi.betax[idx+1]
+            self.data['betay_out'][qname] = twi.betay[idx+1]
         self.data['quadnames'] = quadnames
 
     def _meas_beta(self):
@@ -229,20 +234,37 @@ class MeasBeta(BaseClass):
             self._stopevt.set()
             print('    exiting...')
 
-    def process_data(self):
+    def process_data(self, mode='symm', discardpoints=None):
         """."""
         for quad in self.data['measure']:
-            self.analysis[quad] = self.calc_beta(quad)
+            self.analysis[quad] = self.calc_beta(
+                quad, mode=mode, discardpoints=discardpoints)
 
-    def calc_beta(self, quadname):
+    def calc_beta(self, quadname, mode='symm', discardpoints=None):
         """."""
         anl = dict()
         datameas = self.data['measure'][quadname]
-        dnux = datameas['tunex_pos'] - datameas['tunex_neg']
-        dnuy = datameas['tuney_pos'] - datameas['tuney_neg']
+
+        if mode.lower().startswith('symm'):
+            dnux = datameas['tunex_pos'] - datameas['tunex_neg']
+            dnuy = datameas['tuney_pos'] - datameas['tuney_neg']
+        elif mode.lower().startswith('pos'):
+            dnux = datameas['tunex_pos'] - datameas['tunex_ini']
+            dnuy = datameas['tuney_pos'] - datameas['tuney_ini']
+        else:
+            dnux = datameas['tunex_ini'] - datameas['tunex_neg']
+            dnuy = datameas['tuney_ini'] - datameas['tuney_neg']
+
+        usepts = set(range(dnux.shape[0]))
+        if discardpoints is not None:
+            usepts = set(usepts) - set(discardpoints)
+        usepts = sorted(usepts)
+
         dkl = datameas['delta_kl']
-        anl['betax'] = +4 * np.pi * dnux / dkl
-        anl['betay'] = -4 * np.pi * dnuy / dkl
+        anl['betasx'] = +4 * np.pi * dnux[usepts] / dkl
+        anl['betasy'] = -4 * np.pi * dnuy[usepts] / dkl
+        anl['betax_ave'] = np.mean(anl['betasx'])
+        anl['betay_ave'] = np.mean(anl['betasy'])
         return anl
 
     @staticmethod
@@ -260,3 +282,54 @@ class MeasBeta(BaseClass):
             qname = 'SI-{0:s}:PS-{1:s}-{2:s}'.format(sub, name, inst)
             qnames.append(qname.strip('-'))
         return qnames, quads_idx
+
+    @staticmethod
+    def get_quad_families(quads):
+        fams = {quad[11:]: [] for quad in quads}
+        for quad in quads:
+            fams[quad[11:]].append(quad)
+        return fams
+
+    def plot_results(self, quads=None, title=''):
+
+        f = plt.figure(figsize=(9, 7))
+        gs = mpl_gs.GridSpec(ncols=1, nrows=2, figure=f)
+        gs.update(
+            left=0.1, right=0.8, bottom=0.15, top=0.9,
+            hspace=0.0, wspace=0.35)
+
+        ax1 = f.add_subplot(gs[0, 0])
+        ax2 = f.add_subplot(gs[1, 0], sharex=ax1)
+
+        if title:
+            f.suptitle(title)
+
+        quads = quads or self.data['quadnames']
+        indcs, nom_bx, nom_by = [], [], []
+        mes_bx, mes_by, bx, by = [], [], [], []
+        for quad in quads:
+            if quad not in self.analysis:
+                continue
+            indcs.append(self.data['quadnames'].index(quad))
+            nom_bx.append(self.data['betax_mid'][quad])
+            nom_by.append(self.data['betay_mid'][quad])
+            mes_bx.append(self.analysis[quad]['betasx'])
+            mes_by.append(self.analysis[quad]['betasy'])
+            bx.append(self.analysis[quad]['betax_ave'])
+            by.append(self.analysis[quad]['betay_ave'])
+
+        ax1.plot(indcs, bx, '--bx')
+        ax1.plot(indcs, nom_bx, '-bo')
+        ax1.plot(indcs, mes_bx, '.b')
+        ax2.plot(indcs, by, '--rx')
+        ax2.plot(indcs, nom_by, '-ro')
+        ax2.plot(indcs, mes_by, '.r')
+
+        ax1.set_ylabel(r'$\beta_x$ [m]')
+        ax2.set_ylabel(r'$\beta_y$ [m]')
+        ax1.legend(
+            ['measure', 'nominal'], loc='center left',
+            bbox_to_anchor=(1, 0), fontsize='x-small')
+        ax1.grid(True)
+        ax2.grid(True)
+        f.show()
