@@ -106,7 +106,7 @@ class LOCOUtils:
         kquads = []
         for qidx in indices:
             kquads.append(pyaccel.lattice.get_attribute(
-                model, 'K', qidx))
+                model, 'KL', qidx))
         return np.array(kquads)
 
     @staticmethod
@@ -114,7 +114,7 @@ class LOCOUtils:
         """."""
         for idx, idx_seg in enumerate(idx_mag):
             pyaccel.lattice.set_attribute(
-                model, 'K', idx_seg, kvalues[idx] + kdelta)
+                model, 'KL', idx_seg, kvalues[idx] + kdelta)
 
     @staticmethod
     def set_quadset_kdelta(model, idx_set, kvalues, kdelta):
@@ -129,16 +129,16 @@ class LOCOUtils:
         ktotal = np.sum(kvalues)
         if ktotal:
             pyaccel.lattice.set_attribute(
-                model, 'K', idx_mag, kvalues*(1+kdelta/ktotal))
+                model, 'KL', idx_mag, kvalues*(1+kdelta/ktotal))
         else:
             pyaccel.lattice.set_attribute(
-                model, 'K', idx_mag, kvalues + kdelta/len(idx_mag))
+                model, 'KL', idx_mag, kvalues + kdelta/len(idx_mag))
 
     @staticmethod
     def set_quadmag_ksdelta(model, idx_mag, ksvalues, ksdelta):
         """."""
         pyaccel.lattice.set_attribute(
-            model, 'Ks', idx_mag, ksvalues + ksdelta)
+            model, 'KsL', idx_mag, ksvalues + ksdelta)
 
     @staticmethod
     def set_dipmag_ksdelta(model, idx_mag, ksvalues, ksdelta):
@@ -147,10 +147,10 @@ class LOCOUtils:
         if kstotal:
             ksvalues /= kstotal
             pyaccel.lattice.set_attribute(
-                model, 'Ks', idx_mag, ksvalues*(1 + ksdelta))
+                model, 'KsL', idx_mag, ksvalues*(1 + ksdelta))
         else:
             pyaccel.lattice.set_attribute(
-                model, 'Ks', idx_mag, ksvalues + ksdelta/len(idx_mag))
+                model, 'KsL', idx_mag, ksvalues + ksdelta/len(idx_mag))
 
     @staticmethod
     def set_dipmag_kick(model, idx_mag, kick_values, kick_delta):
@@ -224,7 +224,7 @@ class LOCOUtils:
         else:
             kindices = config.respm.fam_data['QN']['index']
             kvalues = np.array(
-                pyaccel.lattice.get_attribute(model, 'K', kindices))
+                pyaccel.lattice.get_attribute(model, 'KL', kindices))
             set_quad_kdelta = LOCOUtils.set_quadmag_kdelta
         matrix_nominal = LOCOUtils.respm_calc(
             model, config.respm, config.use_disp)
@@ -249,7 +249,7 @@ class LOCOUtils:
         """."""
         dip_indices = config.respm.fam_data[dipole_name]['index']
         dip_kvalues = np.array(
-            pyaccel.lattice.get_attribute(model, 'K', dip_indices))
+            pyaccel.lattice.get_attribute(model, 'KL', dip_indices))
         set_quad_kdelta = LOCOUtils.set_dipmag_kdelta
         matrix_nominal = LOCOUtils.respm_calc(
             model, config.respm, config.use_disp)
@@ -286,7 +286,7 @@ class LOCOUtils:
         """."""
         sn_indices = config.respm.fam_data['SN']['index']
         sn_kvalues = np.array(
-            pyaccel.lattice.get_attribute(model, 'K', sn_indices))
+            pyaccel.lattice.get_attribute(model, 'KL', sn_indices))
         set_quad_kdelta = LOCOUtils.set_quadmag_kdelta
         matrix_nominal = LOCOUtils.respm_calc(
             model, config.respm, config.use_disp)
@@ -310,7 +310,7 @@ class LOCOUtils:
         """."""
         kindices = config.respm.fam_data['QN']['index']
         ksvalues = np.array(
-            pyaccel.lattice.get_attribute(model, 'Ks', kindices))
+            pyaccel.lattice.get_attribute(model, 'KsL', kindices))
         set_quad_ksdelta = LOCOUtils.set_quadmag_ksdelta
         matrix_nominal = LOCOUtils.respm_calc(
             model, config.respm, config.use_disp)
@@ -334,7 +334,7 @@ class LOCOUtils:
         """."""
         dip_indices = config.respm.fam_data[dipole_name]['index']
         dip_ksvalues = np.array(
-            pyaccel.lattice.get_attribute(model, 'Ks', dip_indices))
+            pyaccel.lattice.get_attribute(model, 'KsL', dip_indices))
         set_quad_ksdelta = LOCOUtils.set_dipmag_ksdelta
         matrix_nominal = LOCOUtils.respm_calc(
             model, config.respm, config.use_disp)
@@ -359,7 +359,7 @@ class LOCOUtils:
         """."""
         sn_indices = config.respm.fam_data['SN']['index']
         sn_ksvalues = np.array(
-            pyaccel.lattice.get_attribute(model, 'Ks', sn_indices))
+            pyaccel.lattice.get_attribute(model, 'KsL', sn_indices))
         set_quad_ksdelta = LOCOUtils.set_quadmag_ksdelta
         matrix_nominal = LOCOUtils.respm_calc(
             model, config.respm, config.use_disp)
@@ -451,14 +451,14 @@ class LOCOUtils:
         quad_nrsets = len(config.quad_indices)
         if not config.fit_quadrupoles:
             jloco = np.delete(jloco, slice(idx, idx + quad_nrsets), axis=1)
-            print('removing quadrupoles...')
+            print('removing quadrupoles normal gradient...')
         else:
             idx += quad_nrsets
 
         sext_nrsets = len(config.sext_indices)
         if not config.fit_sextupoles:
             jloco = np.delete(jloco, slice(idx, idx + sext_nrsets), axis=1)
-            print('removing sextupoles...')
+            print('removing sextupoles normal gradient...')
         else:
             idx += sext_nrsets
 
@@ -469,7 +469,7 @@ class LOCOUtils:
         if not config.fit_b1:
 
             jloco = np.delete(jloco, slice(idx, idx + b1_nrsets), axis=1)
-            print('removing B1...')
+            print('removing B1 normal gradient...')
         else:
             idx += b1_nrsets
 
@@ -479,7 +479,7 @@ class LOCOUtils:
             b2_nrsets = len(config.b2_indices)
         if not config.fit_b2:
             jloco = np.delete(jloco, slice(idx, idx + b2_nrsets), axis=1)
-            print('removing B2...')
+            print('removing B2 normal gradient...')
         else:
             idx += b2_nrsets
 
@@ -489,42 +489,42 @@ class LOCOUtils:
             bc_nrsets = len(config.bc_indices)
         if not config.fit_bc:
             jloco = np.delete(jloco, slice(idx, idx + bc_nrsets), axis=1)
-            print('removing BC...')
+            print('removing BC normal gradient...')
         else:
             idx += bc_nrsets
 
         # SKEW
         if not config.fit_quadrupoles_coupling:
             jloco = np.delete(jloco, slice(idx, idx + quad_nrsets), axis=1)
-            print('removing quadrupoles coupling (skew)...')
+            print('removing quadrupoles skew gradient...')
         else:
             idx += quad_nrsets
 
         sext_nrsets = len(config.sext_indices)
         if not config.fit_sextupoles_coupling:
             jloco = np.delete(jloco, slice(idx, idx + sext_nrsets), axis=1)
-            print('removing sextupoles coupling (skew)...')
+            print('removing sextupoles skew gradient...')
         else:
             idx += sext_nrsets
 
         b1_nrsets = len(config.b1_indices)
         if not config.fit_b1_coupling:
             jloco = np.delete(jloco, slice(idx, idx + b1_nrsets), axis=1)
-            print('removing B1 coupling (skew)...')
+            print('removing B1 coupling skew gradient...')
         else:
             idx += b1_nrsets
 
         b2_nrsets = len(config.b2_indices)
         if not config.fit_b2_coupling:
             jloco = np.delete(jloco, slice(idx, idx + b2_nrsets), axis=1)
-            print('removing B2 coupling (skew)...')
+            print('removing B2 skew gradient...')
         else:
             idx += b2_nrsets
 
         bc_nrsets = len(config.bc_indices)
         if not config.fit_bc_coupling:
             jloco = np.delete(jloco, slice(idx, idx + bc_nrsets), axis=1)
-            print('removing BC coupling (skew)...')
+            print('removing BC skew gradient...')
         else:
             idx += bc_nrsets
 
@@ -547,22 +547,22 @@ class LOCOUtils:
             idx += config.nr_corr
         if not config.fit_kick_b1:
             jloco = np.delete(jloco, slice(idx, idx + 1), axis=1)
-            print('removing kick b1...')
+            print('removing b1 kick...')
         else:
             idx += 1
         if not config.fit_kick_b2:
             jloco = np.delete(jloco, slice(idx, idx + 1), axis=1)
-            print('removing kick b2...')
+            print('removing b2 kick...')
         else:
             idx += 1
         if not config.fit_kick_bc:
             jloco = np.delete(jloco, slice(idx, idx + 1), axis=1)
-            print('removing kick bc...')
+            print('removing bc kick...')
         else:
             idx += 1
         if not config.fit_energy_shift:
             jloco = np.delete(jloco, slice(idx, idx + config.nr_corr), axis=1)
-            print('removing energy shift...')
+            print('removing energy shift at correctors...')
         else:
             idx += config.nr_corr
 
@@ -695,6 +695,8 @@ class LOCOConfig:
         self.delta_kickx_meas = None
         self.delta_kicky_meas = None
         self.delta_frequency_meas = None
+        self.fitting_method = None
+        self.lambda_lm = None
         self.use_disp = None
         self.use_coupling = None
         self.use_quad_families = None
@@ -902,7 +904,10 @@ class LOCOConfig:
             for idx, fam_name in enumerate(self.famname_quadset):
                 self.quad_indices[idx] = self.respm.fam_data[fam_name]['index']
         else:
-            self.quad_indices = self.respm.fam_data['QN']['index']
+            self.quad_indices = []
+            for fam_name in self.famname_quadset:
+                self.quad_indices += self.respm.fam_data[fam_name]['index']
+                self.quad_indices.sort()
 
     def update_sext_knobs(self):
         """."""
@@ -1040,6 +1045,7 @@ class LOCO:
     UTILS = LOCOUtils
     DEFAULT_TOL = 1e-3
     DEFAULT_REDUC_THRESHOLD = 5/100
+    DEFAULT_LAMBDA_LM = 1e-3
     JLOCO_INVERSION = 'normal'
 
     def __init__(self, config=None):
@@ -1048,6 +1054,10 @@ class LOCO:
             self.config = config
         else:
             self.config = LOCOConfig()
+
+        if self.config.fitting_method == 'Levenberg-Marquadt':
+            if self.config.lambda_lm is None:
+                self.config.lambda_lm = LOCO.DEFAULT_LAMBDA_LM
 
         self._model = None
         self._matrix = None
@@ -1253,6 +1263,22 @@ class LOCO:
             self._jloco_k_quad = LOCOUtils.load_data(
                 fname_jloco_k_quad)['jloco_kmatrix']
 
+        if self.config.use_quad_families:
+            self._jloco_k_quad = self._transform_trims2fams_jloco()
+
+    def _transform_trims2fams_jloco(self):
+        quadall = np.array(self.config.respm.fam_data['QN']['index']).flatten()
+        newj = np.zeros(
+            (self._jloco_k_quad.shape[0], len(self.config.famname_quadset)))
+        for nfam, fam in enumerate(self.config.famname_quadset):
+            idx = []
+            idxs_mag = np.array(
+                self.config.respm.fam_data[fam]['index']).flatten()
+            for q in idxs_mag:
+                idx.append(np.where(quadall == q)[0][0])
+            newj[:, nfam] = np.sum(self._jloco_k_quad[:, idx], axis=1)
+        return newj
+
     def _handle_sext_fit_k(self, fname_jloco_k_sext):
         # calculate K jacobian for sextupole
         if not self.config.fit_sextupoles:
@@ -1417,16 +1443,16 @@ class LOCO:
             self._handle_sext_fit_ks(fname_jloco_ks_sext)
 
             # LOCOUtils.save_data(
-            #     '4d_gradient_quadrupoles_trims', self._jloco_k_quad)
+            #     '6d_KL_quadrupoles_trims', self._jloco_k_quad)
             # LOCOUtils.save_data(
-            #     '4d_gradient_dipoles_families', self._jloco_k_dip)
+            #     '6d_KL_dipoles', self._jloco_k_dip)
             # LOCOUtils.save_data(
-            #     '4d_gradient_sextupoles', self._jloco_k_sext)
-            LOCOUtils.save_data(
-                '4d_skewgradient_quadrupoles_families', self._jloco_ks_quad)
-            LOCOUtils.save_data(
-                '4d_skewgradient_sextupoles', self._jloco_ks_sext)
-            LOCOUtils.save_data('4d_skewgradient_dipoles', self._jloco_ks_dip)
+            #     '6d_KL_sextupoles', self._jloco_k_sext)
+            # LOCOUtils.save_data(
+            #     '6d_KsL_quadrupoles_trims', self._jloco_ks_quad)
+            # LOCOUtils.save_data(
+            #     '6d_KsL_sextupoles', self._jloco_ks_sext)
+            # LOCOUtils.save_data('6d_KsL_dipoles', self._jloco_ks_dip)
 
             self._jloco_k = np.hstack((self._jloco_k_quad, self._jloco_k_sext))
             self._jloco_k = np.hstack((self._jloco_k, self._jloco_k_dip))
@@ -1436,9 +1462,13 @@ class LOCO:
             self._jloco_ks = np.hstack(
                 (self._jloco_ks, self._jloco_ks_dip))
 
-        print('calculating energy shift matrix...')
-        self._jloco_energy_shift = LOCOUtils.jloco_calc_energy_shift(
-            self.config, self._model)
+        if self.config.fit_energy_shift:
+            print('calculating energy shift matrix...')
+            self._jloco_energy_shift = LOCOUtils.jloco_calc_energy_shift(
+                self.config, self._model)
+        else:
+            self._jloco_energy_shift = np.zeros((
+                self._matrix.size, self.config.nr_corr))
 
         # merge J submatrices
         self._jloco = LOCOUtils.jloco_merge_linear(
@@ -1457,12 +1487,25 @@ class LOCO:
         # calc jloco inv
         if LOCO.JLOCO_INVERSION == 'transpose':
             print('svd decomposition Jt * J')
+            if self.config.fitting_method == 'Gauss-Newton':
+                matrix2invert = self._jloco.T @ self._jloco
+            elif self.config.fitting_method == 'Levenberg-Marquadt':
+                D = self.calc_d_matrix()
+                matrix2invert = self._jloco.T @ self._jloco
+                matrix2invert += self.config.lambda_lm * D.T @ D
             self._jtjloco_u, self._jtjloco_s, self._jtjloco_v = \
-                np.linalg.svd(self._jloco.T @ self._jloco, full_matrices=False)
+                np.linalg.svd(matrix2invert, full_matrices=False)
         elif LOCO.JLOCO_INVERSION == 'normal':
             print('svd decomposition J')
             self._jloco_u, self._jloco_s, self._jloco_v = \
                 np.linalg.svd(self._jloco, full_matrices=False)
+
+    def calc_d_matrix(self):
+        ncols = self._jloco.shape[1]
+        D = np.zeros(ncols)
+        for col in range(ncols):
+            D[col] = np.linalg.norm(self._jloco[:, col])
+        return np.diag(D)
 
     def update_svd(self, svd_thre=None, svd_sel=None):
         """."""
@@ -1502,36 +1545,36 @@ class LOCO:
         else:
             self._quad_k_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'K', self.config.quad_indices))
+                    self._model, 'KL', self.config.quad_indices))
 
         self._sext_k_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'K', self.config.sext_indices))
+                    self._model, 'KL', self.config.sext_indices))
         self._b1_k_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'K', self.config.b1_indices))
+                    self._model, 'KL', self.config.b1_indices))
         self._b2_k_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'K', self.config.b2_indices))
+                    self._model, 'KL', self.config.b2_indices))
         self._bc_k_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'K', self.config.bc_indices))
+                    self._model, 'KL', self.config.bc_indices))
 
         self._quad_ks_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'Ks', self.config.respm.fam_data['QN']['index']))
+                    self._model, 'KsL', self.config.respm.fam_data['QN']['index']))
         self._sext_ks_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'Ks', self.config.sext_indices))
+                    self._model, 'KsL', self.config.sext_indices))
         self._b1_ks_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'Ks', self.config.b1_indices))
+                    self._model, 'KsL', self.config.b1_indices))
         self._b2_ks_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'Ks', self.config.b2_indices))
+                    self._model, 'KsL', self.config.b2_indices))
         self._bc_ks_inival = np.array(
                 pyaccel.lattice.get_attribute(
-                    self._model, 'Ks', self.config.bc_indices))
+                    self._model, 'KsL', self.config.bc_indices))
 
         self._b1_kick_inival = np.array(
                 pyaccel.lattice.get_attribute(
@@ -1625,11 +1668,16 @@ class LOCO:
                 # print('recalculating jloco...')
                 # self.update_jloco()
                 # self.update_svd()
-                factor = \
-                    self._try_refactor_param(param_new)
-                if factor <= self._reduc_threshold:
-                    # could not converge at current iteration!
-                    break
+                if self.config.fitting_method == 'Gauss-Newton':
+                    factor = \
+                        self._try_refactor_param(param_new)
+                    if factor <= self._reduc_threshold:
+                        # could not converge at current iteration!
+                        break
+                elif self.config.fitting_method == 'Levenberg-Marquadt':
+                    self.config.lambda_lm = self._try_refactor_lambda(chi_new)
+                    if self.config.lambda_lm >= 1e2:
+                        break
             if self._chi < self._tol:
                 print('chi is lower than specified tolerance!')
                 break
@@ -1641,6 +1689,8 @@ class LOCO:
         if matrix is None:
             matrix = self._matrix
         dmatrix = matrix - self.config.goalmat
+        dmatrix = LOCOUtils.apply_all_weight(
+                dmatrix, self.config.weight_bpm, self.config.weight_corr)
         dmatrix[:, :self.config.nr_ch] *= self.config.delta_kickx_meas
         dmatrix[:, self.config.nr_ch:-1] *= self.config.delta_kicky_meas
         dmatrix[:, -1] *= self.config.delta_frequency_meas
@@ -1841,6 +1891,46 @@ class LOCO:
             factor /= 2
             _iter += 1
         return factor
+
+    def _try_refactor_lambda(self, chi_new):
+        """."""
+        lambda_lm = _dcopy(self.config.lambda_lm)
+        _iter = 0
+        while chi_new > self._chi and lambda_lm < 1e2:
+            lambda_lm *= 10
+            print('chi was increased! Trial {0:d}'.format(_iter))
+            print('applying lambda {0:0.4f}'.format(lambda_lm))
+            D = self.calc_d_matrix()
+            matrix2invert = self._jloco.T @ self._jloco
+            matrix2invert += lambda_lm * D.T @ D
+            self._jtjloco_u, self._jtjloco_s, self._jtjloco_v = \
+                np.linalg.svd(matrix2invert, full_matrices=False)
+            inv_s = 1/self._jtjloco_s
+            inv_s[np.isnan(inv_s)] = 0
+            inv_s[np.isinf(inv_s)] = 0
+
+            if self.config.svd_method == self.config.SVD_METHOD_THRESHOLD:
+                bad_sv = self._jtjloco_s/np.max(self._jtjloco_s) < self.config.svd_thre
+                inv_s[bad_sv] = 0
+            elif self.config.svd_method == self.config.SVD_METHOD_SELECTION:
+                inv_s[self.config.svd_sel:] = 0
+            self._jtjloco_inv = np.dot(
+                self._jtjloco_v.T * inv_s[None, :], self._jtjloco_u.T)
+            matrix_diff = self.config.goalmat - self._matrix
+            matrix_diff = LOCOUtils.apply_all_weight(
+                matrix_diff, self.config.weight_bpm, self.config.weight_corr)
+            param_new = np.dot(
+                self._jtjloco_inv, np.dot(
+                    self._jloco.T, matrix_diff.flatten()))
+            param_new = param_new.flatten()
+            model_new, matrix_new = self._calc_model_matrix(param_new)
+            chi_new = self.calc_chi(matrix_new)
+            print('chi: {0:.4f} um'.format(chi_new))
+            if chi_new < self._chi:
+                self._update_state(model_new, matrix_new, chi_new)
+                break
+            _iter += 1
+        return lambda_lm
 
     def _update_state(self, model_new, matrix_new, chi_new):
         """."""
