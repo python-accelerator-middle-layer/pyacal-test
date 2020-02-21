@@ -7,8 +7,8 @@ import numpy as np
 import pyaccel
 
 from siriuspy.namesys import SiriusPVName as _PVName
+from siriuspy.devices import SOFB
 
-from pymodels.middlelayer.devices import SOFB
 from apsuite.optimization import SimulAnneal
 from apsuite.commissioning_scripts.base import BaseClass
 

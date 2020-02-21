@@ -5,7 +5,7 @@ import time as _time
 import numpy as np
 from threading import Thread, Event
 
-from pymodels.middlelayer.devices import RF, SOFB, DCCT, Timing
+from siriuspy.devices import RF, SOFB, DCCT, Timing
 from apsuite.commissioning_scripts.base import BaseClass
 
 
