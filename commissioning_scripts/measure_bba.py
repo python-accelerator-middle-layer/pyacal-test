@@ -10,7 +10,7 @@ import matplotlib.gridspec as mpl_gs
 import matplotlib.cm as cm
 
 import pyaccel as _pyacc
-from pymodels.middlelayer.devices import SOFB, Quadrupole
+from siriuspy.devices import SOFB, Quadrupole
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 from .base import BaseClass
 
@@ -374,7 +374,7 @@ class DoBBA(BaseClass):
 
             orbini.append(self.get_orbit())
 
-            for j, fac in range(cycling_curve):
+            for j, fac in enumerate(cycling_curve):
                 quad.strength = korig + deltakl*fac
                 _time.sleep(self.params.wait_quadrupole)
                 if not j:
@@ -403,7 +403,7 @@ class DoBBA(BaseClass):
         dch, dcv = ch0 - chn, cv0 - cvn
         sofb.deltakickch, sofb.deltakickcv = dch, dcv
         nrsteps = np.ceil(max(np.abs(dch).max(), np.abs(dcv).max()) / 1.0)
-        for i in range(nrsteps):
+        for i in range(int(nrsteps)):
             sofb.deltafactorch = (i+1)/nrsteps * 100
             sofb.deltafactorcv = (i+1)/nrsteps * 100
             _time.sleep(self.params.wait_sofb)
@@ -751,21 +751,37 @@ class DoBBA(BaseClass):
         sxpos = np.sort(xpos)
         sypos = np.sort(ypos)
 
+        xq0 = anl['quadratic_fitting']['x0']
+        yq0 = anl['quadratic_fitting']['y0']
+        stdxq0 = anl['quadratic_fitting']['stdx0']
+        stdyq0 = anl['quadratic_fitting']['stdy0']
+        xl0 = anl['linear_fitting']['x0']
+        yl0 = anl['linear_fitting']['y0']
+        stdxl0 = anl['linear_fitting']['stdx0']
+        stdyl0 = anl['linear_fitting']['stdy0']
+
         adt.set_frame_on(False)
         adt.axes.get_yaxis().set_visible(False)
         adt.axes.get_xaxis().set_visible(False)
         idx = self.data['bpmnames'].index(bpm)
         xini = self.data['scancenterx'][idx]
         yini = self.data['scancentery'][idx]
-        tmp = '{:5s}: {:15s}'
-        tmp2 = tmp + ' (dKL={:.4f} 1/m)'
-        adt.text(0, 0, 'Initial Search values = ({:.2f}, {:.2f})'.format(
-            xini, yini), fontsize=10)
+        deltakl = self.data['measure'][bpm]['deltakl']
+        qname = self.data['quadnames'][idx]
+        tmp = '{:6.1f} ' + r'$\pm$' + ' {:<6.1f}'
+        st = 'Quad: {:15s} (dKL={:.4f} 1/m)\n'.format(qname, deltakl)
+        st += '\nInitial Search values = ({:.2f}, {:.2f})\n'.format(xini, yini)
+        st += 'BBA Results:\n'
+        x0s = tmp.format(xl0, stdxl0)
+        y0s = tmp.format(yl0, stdyl0)
+        st += '  Linear: X = {:s}  Y = {:s}\n'.format(x0s, y0s)
+        x0s = tmp.format(xq0, stdxq0)
+        y0s = tmp.format(yq0, stdyq0)
+        st += '  Parab.: X = {:s}  Y = {:s}'.format(x0s, y0s)
         adt.text(
-            0, 1, tmp2.format(
-                'Quad', self.data['quadnames'][idx], self.params.quad_deltakl),
-            fontsize=10)
-
+            0.5, 0.5, st, fontsize=10, horizontalalignment='center',
+            verticalalignment='center', transform=adt.transAxes,
+            bbox=dict(edgecolor='k', facecolor='w', alpha=1.0))
         adt.set_xlim([0, 8])
         adt.set_ylim([0, 8])
 
@@ -773,31 +789,23 @@ class DoBBA(BaseClass):
         rmsy = anl['quadratic_fitting']['meansqry']
         px = anl['quadratic_fitting']['coeffsx']
         py = anl['quadratic_fitting']['coeffsy']
-        x0 = anl['quadratic_fitting']['x0']
-        y0 = anl['quadratic_fitting']['y0']
-        stdx0 = anl['quadratic_fitting']['stdx0']
-        stdy0 = anl['quadratic_fitting']['stdy0']
         fitx = np.polyval(px, sxpos)
         fity = np.polyval(py, sypos)
-        fitx0 = np.polyval(px, x0)
-        fity0 = np.polyval(py, y0)
+        fitx0 = np.polyval(px, xq0)
+        fity0 = np.polyval(py, yq0)
 
         aqx.plot(xpos, rmsx, 'bo')
         aqx.plot(sxpos, fitx, 'b')
-        aqx.errorbar(x0, fitx0, xerr=stdx0, fmt='kx', markersize=20)
+        aqx.errorbar(xq0, fitx0, xerr=stdxq0, fmt='kx', markersize=20)
         aqy.plot(ypos, rmsy, 'ro')
         aqy.plot(sypos, fity, 'r')
-        aqy.errorbar(y0, fity0, xerr=stdy0, fmt='kx', markersize=20)
+        aqy.errorbar(yq0, fity0, xerr=stdyq0, fmt='kx', markersize=20)
         axy.errorbar(
-            x0, y0, xerr=stdx0, yerr=stdy0, fmt='gx', markersize=20,
+            xq0, yq0, xerr=stdxq0, yerr=stdyq0, fmt='gx', markersize=20,
             label='parabollic')
 
         dorbx = anl['linear_fitting']['dorbx']
         dorby = anl['linear_fitting']['dorby']
-        x0 = anl['linear_fitting']['x0']
-        y0 = anl['linear_fitting']['y0']
-        stdx0 = anl['linear_fitting']['stdx0']
-        stdy0 = anl['linear_fitting']['stdy0']
         x0s = anl['linear_fitting']['x0s']
         y0s = anl['linear_fitting']['y0s']
         px = anl['linear_fitting']['coeffsx']
@@ -812,25 +820,25 @@ class DoBBA(BaseClass):
         pvx, pvy = np.array(pvx), np.array(pvy)
         alx.plot(xpos, dorbx[:, sidx[-npts:]], 'b.')
         alx.plot(sxpos, pvx.T, 'b', linewidth=1)
-        alx.errorbar(x0, 0, xerr=stdx0, fmt='kx', markersize=20)
+        alx.errorbar(xl0, 0, xerr=stdxl0, fmt='kx', markersize=20)
         aly.plot(ypos, dorby[:, sidy[-npts:]], 'r.')
         aly.plot(sypos, pvy.T, 'r', linewidth=1)
-        aly.errorbar(y0, 0, xerr=stdy0, fmt='kx', markersize=20)
+        aly.errorbar(yl0, 0, xerr=stdyl0, fmt='kx', markersize=20)
         axy.errorbar(
-            x0, y0, xerr=stdx0, yerr=stdy0, fmt='mx', markersize=20,
+            xl0, yl0, xerr=stdxl0, yerr=stdyl0, fmt='mx', markersize=20,
             label='linear')
 
         axy.legend(loc='best', fontsize='x-small')
-        axy.set_xlabel(r'X0 [$\mu$m]')
-        axy.set_ylabel(r'Y0 [$\mu$m]')
+        axy.set_xlabel(r'$X_0$ [$\mu$m]')
+        axy.set_ylabel(r'$Y_0$ [$\mu$m]')
         alx.set_xlabel(r'X [$\mu$m]')
         alx.set_ylabel(r'$\Delta$ COD [$\mu$m]')
         aly.set_xlabel(r'Y [$\mu$m]')
         aly.set_ylabel(r'$\Delta$ COD [$\mu$m]')
         aqx.set_xlabel(r'X [$\mu$m]')
-        aqx.set_ylabel(r'RMS COD [$\mu$m$^2$]')
+        aqx.set_ylabel(r'COD$^2$ [$\mu$m$^2$]')
         aqy.set_xlabel(r'Y [$\mu$m]')
-        aqy.set_ylabel(r'RMS COD [$\mu$m$^2$]')
+        aqy.set_ylabel(r'COD$^2$ [$\mu$m$^2$]')
 
         if save:
             f.savefig(bpm+'.svg')
@@ -880,10 +888,10 @@ class DoBBA(BaseClass):
         axx.legend(bbox_to_anchor=(1.0, 1.1), fontsize='xx-small')
         axx.grid(True)
         ayy.grid(True)
-        axx.set_xlabel('X - X0 [um]')
-        axx.set_ylabel(r'$\Delta$ COD')
-        ayy.set_xlabel('Y - Y0 [um]')
-        ayy.set_ylabel(r'$\Delta$ COD')
+        axx.set_xlabel(r'$X - X_0$ [$\mu$m]')
+        axx.set_ylabel(r'$\Delta$ COD$^2$')
+        ayy.set_xlabel(r'$Y - Y_0$ [$\mu$m]')
+        ayy.set_ylabel(r'$\Delta$ COD$^2$')
         if fname:
             f.savefig(fname+'.svg')
             plt.close()
@@ -896,6 +904,9 @@ class DoBBA(BaseClass):
         gs.update(
             left=0.1, right=0.78, bottom=0.15, top=0.9,
             hspace=0.5, wspace=0.35)
+
+        if title:
+            f.suptitle(title)
 
         axx = plt.subplot(gs[0, 0])
         axy = plt.subplot(gs[1, 0])
@@ -937,15 +948,22 @@ class DoBBA(BaseClass):
             axy.plot(sypos, pvy.T, color=colors[i])
             axy.plot(y0, 0, 'x', markersize=20, color=colors[i], label=bpm)
 
-        axx.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize='xx-small')
+        axx.legend(
+            loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize='xx-small')
         axx.grid(True)
         axy.grid(True)
-        f.show()
+
+        if fname:
+            f.savefig(fname+'.svg')
+            plt.close()
+        else:
+            f.show()
 
     def make_figure_compare_methods(self, bpmsok=None, bpmsnok=None,
-                                    xlim=0, ylim=0, fname='', title=''):
-        f  = plt.figure(figsize=(9.2, 9))
-        gs = mpl_gs.GridSpec(3, 3)
+                                    xlim=None, ylim=None, fname='', title='',
+                                    plotdiff=True):
+        f = plt.figure(figsize=(9.2, 9))
+        gs = mpl_gs.GridSpec(2, 1)
         gs.update(
             left=0.15, right=0.98, bottom=0.12, top=0.95,
             hspace=0.01, wspace=0.35)
@@ -953,12 +971,8 @@ class DoBBA(BaseClass):
         if title:
             f.suptitle(title)
 
-        axx = plt.subplot(gs[0, :])
-        ayy = plt.subplot(gs[1, :], sharex=axx)
-        axy = plt.subplot(gs[2, :2])
-        pos = list(axy.get_position().bounds)
-        pos[1] += -0.05
-        axy.set_position(pos)
+        axx = plt.subplot(gs[0, 0])
+        ayy = plt.subplot(gs[1, 0], sharex=axx)
 
         bpmsok = bpmsok or self.data['bpmnames']
         bpmsnok = bpmsnok or []
@@ -972,27 +986,31 @@ class DoBBA(BaseClass):
             method='linear_fitting', error=True)
         x0q, y0q, stdx0q, stdy0q = self.get_bba_results(
             method='quadratic_fitting', error=True)
-        minx = -xlim or np.min([x0q, x0l])*1.1
-        maxx = xlim or np.max([x0q, x0l])*1.1
-        miny = -ylim or np.min([y0q, y0l])*1.1
-        maxy = ylim or np.max([y0q, y0l])*1.1
+        if plotdiff:
+            x0q -= x0l
+            y0q -= y0l
+            x0l -= x0l
+            y0l -= y0l
+
+        minx = np.min([x0q[iok], x0l[iok], x0q[inok], x0l[inok]])*1.1
+        minx = np.max([x0q[iok], x0l[iok], x0q[inok], x0l[inok]])*1.1
+        minx = np.min([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
+        minx = np.max([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
+        minx = -xlim if xlim else minx
+        maxx = xlim if xlim else maxx
+        miny = -ylim if ylim else miny
+        maxy = ylim if ylim else maxy
 
         axx.errorbar(
-            iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[0])
-        axx.errorbar(
-            iok, x0q[iok], yerr=stdx0q[iok], fmt='o', color=cors[1])
-        ayy.errorbar(
-            iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[0],
+            iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[0],
             label=labels[0])
-        ayy.errorbar(
-            iok, y0q[iok], yerr=stdy0q[iok], fmt='o', color=cors[1],
+        axx.errorbar(
+            iok, x0q[iok], yerr=stdx0q[iok], fmt='o', color=cors[1],
             label=labels[1])
-        axy.errorbar(
-            x0l[iok], y0l[iok], xerr=stdx0l[iok], yerr=stdy0l[iok],
-            fmt='o', color=cors[0], label='Reliable')
-        axy.errorbar(
-            x0q[iok], y0q[iok], xerr=stdx0q[iok], yerr=stdy0q[iok],
-            fmt='o', color=cors[1])
+        ayy.errorbar(
+            iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[0])
+        ayy.errorbar(
+            iok, y0q[iok], yerr=stdy0q[iok], fmt='o', color=cors[1])
 
         if inok.size:
             axx.errorbar(
@@ -1005,31 +1023,21 @@ class DoBBA(BaseClass):
             ayy.errorbar(
                 inok, y0q[inok], yerr=stdy0q[inok], fmt='x', color=cors[1],
                 label=labels[1])
-            axy.errorbar(
-                x0l[inok], y0l[inok], xerr=stdx0l[inok], yerr=stdy0l[inok],
-                fmt='x', color=cors[0], label='Not Reliable')
-            axy.errorbar(
-                x0q[inok], y0q[inok], xerr=stdx0q[inok], yerr=stdy0q[inok],
-                fmt='x', color=cors[1])
-            axy.legend(
-                loc='upper right', bbox_to_anchor=(1.8, 0.4),
-                fontsize='xx-small')
 
-        ayy.legend(
-            loc='upper right', bbox_to_anchor=(1, -0.4), fontsize='small',
+        axx.legend(
+            loc='lower right', bbox_to_anchor=(1, 1), fontsize='small',
             title='Fitting method')
         axx.grid(True)
         ayy.grid(True)
-        axx.set_ylabel('X0 [um]')
-        ayy.set_ylabel('Y0 [um]')
         axx.set_ylim([minx, maxx])
         ayy.set_ylim([miny, maxy])
 
-        axy.grid(True)
-        axy.set_xlabel('X0 [um]')
-        axy.set_ylabel('Y0 [um]')
-        axy.set_xlim([minx, maxx])
-        axy.set_ylim([miny, maxy])
+        if plotdiff:
+            axx.set_ylabel(r'$\Delta X_0$ [$\mu$m]')
+            ayy.set_ylabel(r'$\Delta Y_0$ [$\mu$m]')
+        else:
+            axx.set_ylabel(r'$X_0$ [$\mu$m]')
+            ayy.set_ylabel(r'$Y_0$ [$\mu$m]')
 
         if fname:
             f.savefig(fname+'.svg')
@@ -1040,101 +1048,18 @@ class DoBBA(BaseClass):
     @staticmethod
     def make_figure_compare_bbas(bbalist, method='linear_fitting', labels=[],
                                  bpmsok=None, bpmsnok=None, fname='',
-                                 title=''):
-        f  = plt.figure(figsize=(9.2, 9))
-        gs = mpl_gs.GridSpec(3, 2)
-        gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
-
-        if title:
-            f.suptitle(title)
-
-        axx = plt.subplot(gs[0, :])
-        ayy = plt.subplot(gs[1, :], sharex=axx)
-        axy = plt.subplot(gs[2, 0])
-        pos = list(axy.get_position().bounds)
-        pos[1] += -0.05
-        axy.set_position(pos)
-
-        bpmsok = bpmsok or bbalist[0].data['bpmnames']
-        bpmsnok = bpmsnok or []
-        iok = np.array(
-            [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpmsok],
-            dtype=int)
-        inok = np.array(
-            [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpmsnok],
-            dtype=int)
-
-        if not labels:
-            labels = [str(i) for i in range(len(bbalist))]
-        cors = cm.brg(np.linspace(0, 1, len(bbalist)))
-
-        minx = miny = np.inf
-        maxx = maxy = -np.inf
-        for i, dobba in enumerate(bbalist):
-            x0l, y0l, stdx0l, stdy0l = dobba.get_bba_results(method=method, error=True)
-            minx = np.min(np.hstack([minx, x0l.flatten()]))*1.1
-            maxx = np.max(np.hstack([maxx, x0l.flatten()]))*1.1
-            miny = np.min(np.hstack([miny, y0l.flatten()]))*1.1
-            maxy = np.max(np.hstack([maxy, y0l.flatten()]))*1.1
-
-            axx.errorbar(iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[i])
-            ayy.errorbar(iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i], label=labels[i])
-            axy.errorbar(
-                x0l[iok], y0l[iok], xerr=stdx0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i],
-                label='Reliable')
-
-            if not inok.size:
-                continue
-
-            axx.errorbar(inok, x0l[inok], yerr=stdx0l[inok], fmt='x', color=cors[i])
-            ayy.errorbar(inok, y0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[i], label=labels[i])
-            axy.errorbar(
-                x0l[inok], y0l[inok], xerr=stdx0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[i],
-                label='Not Reliable')
-
-        if inok.size:
-            axy.legend(
-                loc='upper right', bbox_to_anchor=(1.8, 0.2),
-                fontsize='xx-small')
-
-        ayy.legend(
-            loc='upper right', bbox_to_anchor=(0.6, -0.4), fontsize='xx-small')
-        axx.grid(True)
-        ayy.grid(True)
-        axx.set_ylabel('X0 [um]')
-        ayy.set_ylabel('Y0 [um]')
-        axx.set_ylim([minx, maxx])
-        ayy.set_ylim([miny, maxy])
-
-        axy.grid(True)
-        axy.set_xlabel('X0 [um]')
-        axy.set_ylabel('Y0 [um]')
-        axy.set_ylim([minx, maxx])
-        axy.set_ylim([miny, maxy])
-
-        if fname:
-            f.savefig(fname+'.svg')
-            plt.close()
-        else:
-            f.show()
-
-    @staticmethod
-    def make_figure_compare_bbas_diff(bbalist, method='linear_fitting',
-                                      labels=[], bpmsok=None, bpmsnok=None,
-                                      fname='', title=''):
+                                 xlim=None, ylim=None,
+                                 title='', plotdiff=True):
         f = plt.figure(figsize=(9.2, 9))
-        gs = mpl_gs.GridSpec(3, 2)
-        gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
+        gs = mpl_gs.GridSpec(2, 1)
+        gs.update(
+            left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
 
         if title:
             f.suptitle(title)
 
-        axx = plt.subplot(gs[0, :])
-        ayy = plt.subplot(gs[1, :], sharex=axx)
-        axy = plt.subplot(gs[2, 0])
-        pos = list(axy.get_position().bounds)
-        pos[1] += -0.05
-        axy.set_position(pos)
+        axx = plt.subplot(gs[0, 0])
+        ayy = plt.subplot(gs[1, 0], sharex=axx)
 
         bpmsok = bpmsok or bbalist[0].data['bpmnames']
         bpmsnok = bpmsnok or []
@@ -1156,21 +1081,20 @@ class DoBBA(BaseClass):
         for i, dobba in enumerate(bbalist):
             x0l, y0l, stdx0l, stdy0l = dobba.get_bba_results(
                 method=method, error=True)
-            x0l -= x0li
-            y0l -= y0li
-            minx = np.min(np.hstack([minx, x0l.flatten()]))*1.1
-            maxx = np.max(np.hstack([maxx, x0l.flatten()]))*1.1
-            miny = np.min(np.hstack([miny, y0l.flatten()]))*1.1
-            maxy = np.max(np.hstack([maxy, y0l.flatten()]))*1.1
+            if plotdiff:
+                x0l -= x0li
+                y0l -= y0li
+
+            minx = np.min(np.hstack([minx, x0l[iok], x0l[inok]]))
+            maxx = np.max(np.hstack([maxx, x0l[iok], x0l[inok]]))
+            miny = np.min(np.hstack([miny, y0l[iok], y0l[inok]]))
+            maxy = np.max(np.hstack([maxy, y0l[iok], y0l[inok]]))
 
             axx.errorbar(
-                iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[i])
-            ayy.errorbar(
-                iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i],
+                iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[i],
                 label=labels[i])
-            axy.errorbar(
-                x0l[iok], y0l[iok], xerr=stdx0l[iok], yerr=stdy0l[iok],
-                fmt='o', color=cors[i], label='Reliable')
+            ayy.errorbar(
+                iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i])
 
             if not inok.size:
                 continue
@@ -1180,29 +1104,32 @@ class DoBBA(BaseClass):
             ayy.errorbar(
                 inok, y0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[i],
                 label=labels[i])
-            axy.errorbar(
-                x0l[inok], y0l[inok], xerr=stdx0l[inok], yerr=stdy0l[inok],
-                fmt='x', color=cors[i], label='Not Reliable')
 
         if inok.size:
             axy.legend(
                 loc='upper right', bbox_to_anchor=(1.8, 0.2),
                 fontsize='xx-small')
 
-        ayy.legend(
-            loc='upper right', bbox_to_anchor=(0.6, -0.4), fontsize='xx-small')
+        axx.legend(
+            loc='lower right', bbox_to_anchor=(1, 1), fontsize='xx-small')
         axx.grid(True)
         ayy.grid(True)
-        axx.set_ylabel(r'$\Delta$X0 [$\mu$m]')
-        ayy.set_ylabel(r'$\Delta$Y0 [$\mu$m]')
+
+        minx = -xlim if xlim else minx*1.1
+        maxx = xlim if xlim else maxx*1.1
+        miny = -ylim if ylim else miny*1.1
+        maxy = ylim if ylim else maxy*1.1
+
         axx.set_ylim([minx, maxx])
         ayy.set_ylim([miny, maxy])
+        ayy.set_xlabel('BPM Index')
 
-        axy.grid(True)
-        axy.set_xlabel(r'$\Delta$X0 [$\mu$m]')
-        axy.set_ylabel(r'$\Delta$Y0 [$\mu$m]')
-        axy.set_ylim([minx, maxx])
-        axy.set_ylim([miny, maxy])
+        if plotdiff:
+            axx.set_ylabel(r'$\Delta X_0$ [$\mu$m]')
+            ayy.set_ylabel(r'$\Delta Y_0$ [$\mu$m]')
+        else:
+            axx.set_ylabel(r'$X_0$ [$\mu$m]')
+            ayy.set_ylabel(r'$Y_0$ [$\mu$m]')
 
         if fname:
             f.savefig(fname+'.svg')
