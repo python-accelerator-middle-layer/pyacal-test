@@ -2,30 +2,32 @@
 import time as _time
 from threading import Thread as _Thread, Event as _Event
 
-from copy import deepcopy as _dcopy
+from math import log10, floor
 import numpy as np
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
-import matplotlib.cm as cm
+
+from pymodels import si
+import pyaccel
 
 from siriuspy.devices import SOFB, RF, SITune
 
-import pyaccel as _pyacc
-from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 from .base import BaseClass
 
 
 class MeasParams:
+    """."""
 
     MOM_COMPACT = 1.68e-4
 
     def __init__(self):
+        """."""
         self.delta_freq = 200  # [Hz]
         self.meas_nrsteps = 8
         self.npoints = 5
-        self.wait_rf = 1  # [s]
         self.wait_tune = 5  # [s]
+        self.timeout_wait_rf = 10  # [s]
         self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
 
@@ -35,8 +37,9 @@ class MeasParams:
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
         st = ftmp('delta_freq [Hz]', self.delta_freq, '')
         st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
-        st += ftmp('wait_rf [s]', self.wait_rf, '')
         st += ftmp('wait_tune [s]', self.wait_tune, '')
+        st += ftmp(
+            'timeout_wait_rf [s]', self.timeout_wait_rf, '')
         st += ftmp(
             'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)')
         st += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
@@ -44,8 +47,10 @@ class MeasParams:
 
 
 class MeasDispChrom(BaseClass):
+    """."""
 
     def __init__(self):
+        """."""
         super().__init__()
         self.params = MeasParams()
         self.devices['sofb'] = SOFB('SI')
@@ -53,9 +58,10 @@ class MeasDispChrom(BaseClass):
         self.devices['rf'] = RF('SI')
         self.analysis = dict()
         self._stopevt = _Event()
-        self._thread = _Thread(target=self._do_bba, daemon=True)
+        self._thread = _Thread(target=self._do_meas, daemon=True)
 
     def __str__(self):
+        """."""
         stn = 'Params\n'
         stp = self.params.__str__()
         stp = '    ' + stp.replace('\n', '\n    ')
@@ -64,6 +70,7 @@ class MeasDispChrom(BaseClass):
         return stn
 
     def start(self):
+        """."""
         if self.ismeasuring:
             return
         self._stopevt.clear()
@@ -71,10 +78,12 @@ class MeasDispChrom(BaseClass):
         self._thread.start()
 
     def stop(self):
+        """."""
         self._stopevt.set()
 
     @property
     def ismeasuring(self):
+        """."""
         return self._thread.is_alive()
 
     def _do_meas(self):
@@ -100,7 +109,7 @@ class MeasDispChrom(BaseClass):
                 print('   exiting...')
                 break
             rf.frequency = f
-            _time.sleep(self.params.wait_rf)
+            rf.wait(self.params.timeout_wait_rf, prop='frequency')
             sofb.reset()
             _time.sleep(self.params.wait_tune)
             sofb.wait(self.params.timeout_wait_sofb)
@@ -128,9 +137,10 @@ class MeasDispChrom(BaseClass):
         print('Finished!')
 
     def process_data(self, fitorder=1, discardpoints=None):
+        """."""
         data = self.data
 
-        usepts = set(range(data.tunex.shape[0]))
+        usepts = set(range(data['tunex'].shape[0]))
         if discardpoints is not None:
             usepts = set(usepts) - set(discardpoints)
         usepts = sorted(usepts)
@@ -173,46 +183,51 @@ class MeasDispChrom(BaseClass):
         self.analysis['chromx_err'] = np.sqrt(np.diagonal(chromxcov))
         self.analysis['chromy_err'] = np.sqrt(np.diagonal(chromycov))
 
-    # Copied from:
+    # Adapted from:
     # https://perso.crans.org/besson/publis/notebooks/
     # Demonstration%20of%20numpy.polynomial.
     # Polynomial%20and%20nice%20display%20with%20LaTeX%20and%20MathJax%20
     # (python3).html
     @staticmethod
-    def polynomial_to_latex(p):
+    def polynomial_to_latex(p, error):
         """ Small function to print nicely the polynomial p as we write it in
         maths, in LaTeX code."""
         p = np.poly1d(p)
         coefs = p.coef  # List of coefficient, sorted by increasing degrees
         res = ''  # The resulting string
         for i, a in enumerate(coefs):
+            b = error[i]
+            sig_fig = int(floor(log10(abs(b))))
+            b = round(b, -sig_fig)
+            a = round(a, -sig_fig)
             if int(a) == a:  # Remove the trailing .0
                 a = int(a)
             if i == 0:  # First coefficient, no need for X
-                if a > 0:
-                    res += "{a} + ".format(a=a)
-                elif a < 0:  # Negative a is printed like (a)
-                    res += "({a}) + ".format(a=a)
-                # a = 0 is not displayed
+                continue
             elif i == 1:  # Second coefficient, only X and not X**i
                 if a == 1:  # a = 1 does not need to be displayed
-                    res += "X + "
+                    res += "\delta + "
                 elif a > 0:
-                    res += "{a} \;X + ".format(a=a)
+                    res += "({a} \pm {b}) \;\delta + ".format(
+                        a="{%g}" % a, b="{%g}" % b)
                 elif a < 0:
-                    res += "({a}) \;X + ".format(a=a)
+                    res += "({a} \pm {b}) \;\delta + ".format(
+                        a="{%g}" % a, b="{%g}" % b)
             else:
                 if a == 1:
                     # A special care needs to be addressed to put the exponent
                     # in {..} in LaTeX
-                    res += "X^{i} + ".format(i="{%d}" % i)
+                    res += "\delta^{i} + ".format(i="{%d}" % i)
                 elif a > 0:
-                    res += "{a} \;X^{i} + ".format(a=a, i="{%d}" % i)
+                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
+                        a="{%g}" % a, b="{%g}" % b, i="{%d}" % i)
                 elif a < 0:
-                    res += "({a}) \;X^{i} + ".format(a=a, i="{%d}" % i)
+                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
+                        a="{%g}" % a, b="{%g}" % b, i="{%d}" % i)
         return "$" + res[:-3] + "$" if res else ""
 
-    def make_figure_chrom(self, title='', fname=''):
+    def make_figure_chrom(self, analysis=None, title='', fname=''):
+        """."""
         f = plt.figure(figsize=(10, 5))
         gs = mpl_gs.GridSpec(1, 1)
         gs.update(
@@ -222,11 +237,16 @@ class MeasDispChrom(BaseClass):
         if title:
             f.suptitle(title)
 
+        if analysis is None:
+            analysis = self.analysis
+
         den = self.analysis['delta']
         tunex = self.analysis['tunex']
         tuney = self.analysis['tuney']
         chromx = self.analysis['chromx']
+        chromx_err = self.analysis['chromx_err']
         chromy = self.analysis['chromy']
+        chromy_err = self.analysis['chromy_err']
         dtunex = tunex - chromx[-1]
         dtuney = tuney - chromy[-1]
         dtunex_fit = np.polyval(chromx, den) - chromx[-1]
@@ -240,14 +260,69 @@ class MeasDispChrom(BaseClass):
         axx.set_xlabel(r'$\delta$ [%]')
         axx.set_ylabel(r'$\Delta \nu \times 1000$')
 
-        chromx = px[0]
-        chromy = py[0]
-        st = r'$\xi_x$: {:.2f}'.format(chromx) + '\n'
-        st += r'$\xi_y$: {:.2f}'.format(chromy)
+        chromx = np.flip(chromx)
+        chromx_err = np.flip(chromx_err)
+        chromy = np.flip(chromy)
+        chromy_err = np.flip(chromy_err)
+
+        stx = MeasDispChrom.polynomial_to_latex(chromx, chromx_err)
+        sty = MeasDispChrom.polynomial_to_latex(chromy, chromy_err)
+
+        st = r'$\Delta\nu_x = $' + stx + '\n'
+        st += r'$\Delta\nu_y = $' + sty
         axx.text(
-            0.7, 0.05, st, horizontalalignment='left',
+            0.4, 0.05, st, horizontalalignment='left',
             verticalalignment='bottom', transform=axx.transAxes,
             bbox=dict(edgecolor='k', facecolor='w', alpha=1.0))
+        axx.legend()
+        axx.grid(True)
+
+        if fname:
+            f.savefig(fname+'.svg')
+            plt.close()
+        else:
+            f.show()
+
+    def make_figure_disp(self, analysis=None, disporder=1, title='', fname=''):
+        """."""
+        f = plt.figure(figsize=(10, 5))
+        gs = mpl_gs.GridSpec(1, 1)
+        gs.update(
+            left=0.12, right=0.95, bottom=0.15, top=0.9,
+            hspace=0.5, wspace=0.35)
+
+        if title:
+            f.suptit    le(title)
+
+        if analysis is None:
+            analysis = self.analysis
+
+        simod = si.create_accelerator()
+        fam = si.get_family_data(simod)
+        spos = pyaccel.lattice.find_spos(simod, indices='open')
+        bpmidx = np.array(fam['BPM']['index']).flatten()
+        sposbpm = spos[bpmidx]
+
+        fitorder_anlys = analysis['dispx'].shape[0] - 1
+        if disporder > fitorder_anlys:
+            raise Exception(
+                    'It does not make sense to plot a fit order higher than the analysis')
+        fitidx = fitorder_anlys - disporder
+        dispx = analysis['dispx'][fitidx, :]
+        dispy = analysis['dispy'][fitidx, :]
+        dispx_err = analysis['dispx_err']
+        dispy_err = analysis['dispy_err']
+
+        cm = 100
+        axx = plt.subplot(gs[0, 0])
+        axx.errorbar(
+            sposbpm, dispx*cm, dispx_err*cm, None, '-bo', label='horizontal')
+        axx.errorbar(
+            sposbpm, dispy*cm, dispy_err*cm, None, '-ro', label='vertical')
+
+        axx.set_xlabel('s [m]')
+        ylabel = r'$\eta_{:d}$ [cm]'.format(disporder)
+        axx.set_ylabel(ylabel)
         axx.legend()
         axx.grid(True)
 
