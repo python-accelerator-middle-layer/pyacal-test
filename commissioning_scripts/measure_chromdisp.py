@@ -53,7 +53,7 @@ class MeasDispChrom(BaseClass):
         """."""
         super().__init__()
         self.params = MeasParams()
-        self.devices['sofb'] = SOFB('SI')
+        self.devices['sofb'] = SOFB(SOFB.DEVICE_SI)
         self.devices['tune'] = SITune()
         self.devices['rf'] = RF('SI')
         self.analysis = dict()
@@ -292,7 +292,7 @@ class MeasDispChrom(BaseClass):
             hspace=0.5, wspace=0.35)
 
         if title:
-            f.suptit    le(title)
+            f.suptitle(title)
 
         if analysis is None:
             analysis = self.analysis
@@ -310,8 +310,8 @@ class MeasDispChrom(BaseClass):
         fitidx = fitorder_anlys - disporder
         dispx = analysis['dispx'][fitidx, :]
         dispy = analysis['dispy'][fitidx, :]
-        dispx_err = analysis['dispx_err']
-        dispy_err = analysis['dispy_err']
+        dispx_err = analysis['dispx_err'][:, fitidx]
+        dispy_err = analysis['dispy_err'][:, fitidx]
 
         cm = 100
         axx = plt.subplot(gs[0, 0])
