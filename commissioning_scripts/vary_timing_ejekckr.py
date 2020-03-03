@@ -4,7 +4,7 @@
 import time as _time
 import numpy as np
 
-from pymodels.middlelayer.devices import SOFB, Kicker
+from siriuspy.devices import SOFB, Kicker
 from apsuite.commissioning_scripts.base import BaseClass
 
 

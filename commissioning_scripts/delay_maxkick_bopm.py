@@ -7,8 +7,7 @@ import pickle as _pickle
 import numpy as np
 
 from siriuspy.namesys import SiriusPVName as _PVName
-
-from pymodels.middlelayer.devices import Kicker, Septum, Screen, BPM
+from siriuspy.devices import Kicker, Septum, Screen, BPM
 
 
 class Params:

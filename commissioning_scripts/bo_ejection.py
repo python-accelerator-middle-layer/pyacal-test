@@ -5,7 +5,7 @@ import time as _time
 from collections import namedtuple
 import numpy as np
 
-from pymodels.middlelayer.devices import Kicker, Septum, Screen, BPM
+from siriuspy.devices import Kicker, Septum, Screen, BPM
 from apsuite.commissioning_scripts.base import BaseClass
 
 

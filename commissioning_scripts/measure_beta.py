@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
-from pymodels.middlelayer.devices import Quadrupole, SITune
+from siriuspy.devices import Quadrupole, SITune
 from pymodels import si
 import pyaccel
 from .base import BaseClass

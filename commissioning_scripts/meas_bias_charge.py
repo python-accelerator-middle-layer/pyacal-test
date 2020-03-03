@@ -5,7 +5,7 @@ import time as _time
 import numpy as np
 
 from epics import PV
-from pymodels.middlelayer.devices import Bias, ICT, TranspEff, LiLLRF
+from siriuspy.devices import Bias, ICT, TranspEff, LiLLRF
 from apsuite.commissioning_scripts.base import BaseClass
 
 

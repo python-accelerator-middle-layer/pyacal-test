@@ -3,7 +3,7 @@
 
 import pickle as _pickle
 import numpy as np
-from pymodels.middlelayer.devices import SOFB, RF
+from siriuspy.devices import SOFB, RF
 
 
 class DispMeas:

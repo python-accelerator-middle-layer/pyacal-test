@@ -7,7 +7,7 @@ import numpy as np
 from epics import PV
 import pyaccel
 
-from pymodels.middlelayer.devices import SOFB, RF
+from siriuspy.devices import SOFB, RF
 from apsuite.commissioning_scripts.base import BaseClass
 
 
