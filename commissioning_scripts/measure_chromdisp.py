@@ -168,13 +168,14 @@ class MeasDispChrom(BaseClass):
             dispxcov = dispycov = np.zeros(
                 (fitorder+1, fitorder+1, orbx.shape[1]), dtype=float)
 
+        um2m = 1e-6
         self.analysis['delta'] = den
         self.analysis['orbx'] = orbx
         self.analysis['orby'] = orby
-        self.analysis['dispx'] = dispx
-        self.analysis['dispy'] = dispy
-        self.analysis['dispx_err'] = np.sqrt(np.diagonal(dispxcov))
-        self.analysis['dispy_err'] = np.sqrt(np.diagonal(dispycov))
+        self.analysis['dispx'] = dispx * um2m
+        self.analysis['dispy'] = dispy * um2m
+        self.analysis['dispx_err'] = np.sqrt(np.diagonal(dispxcov)) * um2m
+        self.analysis['dispy_err'] = np.sqrt(np.diagonal(dispycov)) * um2m
 
         self.analysis['tunex'] = tunex
         self.analysis['tuney'] = tuney
@@ -253,9 +254,9 @@ class MeasDispChrom(BaseClass):
         dtuney_fit = np.polyval(chromy, den) - chromy[-1]
 
         axx = plt.subplot(gs[0, 0])
-        axx.plot(den*100, dtunex*1000, 'bo', label='horizontal')
+        axx.plot(den*100, dtunex*1000, '.b', label='horizontal')
         axx.plot(den*100, dtunex_fit*1000, '-b')
-        axx.plot(den*100, dtuney*1000, 'ro', label='vertical')
+        axx.plot(den*100, dtuney*1000, '.r', label='vertical')
         axx.plot(den*100, dtuney_fit*1000, '-r')
         axx.set_xlabel(r'$\delta$ [%]')
         axx.set_ylabel(r'$\Delta \nu \times 1000$')
@@ -313,12 +314,12 @@ class MeasDispChrom(BaseClass):
         dispx_err = analysis['dispx_err'][:, fitidx]
         dispy_err = analysis['dispy_err'][:, fitidx]
 
-        um2cm = 1e-4
+        m2cm = 100
         axx = plt.subplot(gs[0, 0])
         axx.errorbar(
-            sposbpm, dispx*um2cm, dispx_err*um2cm, None, '-bo', label='horizontal')
+            sposbpm, dispx*m2cm, dispx_err*m2cm, None, '.-b', label='horizontal')
         axx.errorbar(
-            sposbpm, dispy*um2cm, dispy_err*um2cm, None, '-ro', label='vertical')
+            sposbpm, dispy*m2cm, dispy_err*m2cm, None, '.-r', label='vertical')
 
         axx.set_xlabel('s [m]')
         ylabel = r'$\eta_{:d}$ [cm]'.format(disporder)
