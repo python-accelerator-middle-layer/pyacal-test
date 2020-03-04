@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
-from siriuspy.devices import Quadrupole, SITune
+from siriuspy.devices import PowerSupply, SITune
 from pymodels import si
 import pyaccel
 from .base import BaseClass
@@ -106,7 +106,7 @@ class MeasBeta(BaseClass):
         """."""
         for qname in self.data['quadnames']:
             if qname not in self.devices:
-                self.devices[qname] = Quadrupole(qname)
+                self.devices[qname] = PowerSupply(qname)
 
     def _initialize_data(self):
         """."""
