@@ -313,12 +313,12 @@ class MeasDispChrom(BaseClass):
         dispx_err = analysis['dispx_err'][:, fitidx]
         dispy_err = analysis['dispy_err'][:, fitidx]
 
-        cm = 100
+        um2cm = 1e-4
         axx = plt.subplot(gs[0, 0])
         axx.errorbar(
-            sposbpm, dispx*cm, dispx_err*cm, None, '-bo', label='horizontal')
+            sposbpm, dispx*um2cm, dispx_err*um2cm, None, '-bo', label='horizontal')
         axx.errorbar(
-            sposbpm, dispy*cm, dispy_err*cm, None, '-ro', label='vertical')
+            sposbpm, dispy*um2cm, dispy_err*um2cm, None, '-ro', label='vertical')
 
         axx.set_xlabel('s [m]')
         ylabel = r'$\eta_{:d}$ [cm]'.format(disporder)
