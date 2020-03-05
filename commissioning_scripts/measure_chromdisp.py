@@ -91,6 +91,12 @@ class MeasDispChrom(BaseClass):
         rf = self.devices['rf']
         tune = self.devices['tune']
 
+        loop_on = False
+        if sofb.autocorrsts:
+            loop_on = True
+            print('SOFB feedback is enable, disabling it...')
+            sofb.cmd_autocorr_turn_off()
+
         delta_freq = self.params.delta_freq
         npoints = self.params.meas_nrsteps
         sofb.nr_points = self.params.sofb_nrpoints
@@ -110,9 +116,9 @@ class MeasDispChrom(BaseClass):
                 break
             rf.frequency = f
             rf.wait(self.params.timeout_wait_rf, prop='frequency')
-            sofb.reset()
+            sofb.cmd_reset()
             _time.sleep(self.params.wait_tune)
-            sofb.wait(self.params.timeout_wait_sofb)
+            sofb.wait_buffer(self.params.timeout_wait_sofb)
             freq.append(rf.frequency)
             orbx.append(sofb.orbx)
             orby.append(sofb.orby)
@@ -134,6 +140,9 @@ class MeasDispChrom(BaseClass):
         self.data['orbx'] = np.array(orbx)
         self.data['orby'] = np.array(orby)
         self.data['freq0'] = freq0
+        if loop_on:
+            print('SOFB feedback was enable, restoring original state...')
+            sofb.cmd_autocorr_turn_on()
         print('Finished!')
 
     def process_data(self, fitorder=1, discardpoints=None):
