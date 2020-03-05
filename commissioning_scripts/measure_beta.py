@@ -155,7 +155,7 @@ class MeasBeta(BaseClass):
         quad = self.devices[quadname]
         tune = self.devices['tune']
 
-        print('    turning quadrupole ' + quadname + ' On', end='')
+        print('turning quadrupole ' + quadname + ' On', end='')
         quad.cmd_turn_on(self.params.timeout_quad_turnon)
         if not quad.pwrstate:
             print('\n    error: quadrupole ' + quadname + ' is Off.')
@@ -182,7 +182,7 @@ class MeasBeta(BaseClass):
 
         for i in range(self.params.nr_measures):
             if self._stopevt.is_set():
-                print('   exiting...')
+                print('exiting...')
                 break
             print('    {0:02d}/{1:02d} --> '.format(
                 i+1, self.params.nr_measures), end='')
@@ -228,12 +228,11 @@ class MeasBeta(BaseClass):
 
         self.data['measure'][quadname] = meas
 
-        print('    turning quadrupole ' + quadname + ' Off')
+        print('turning quadrupole ' + quadname + ' Off \n')
         quad.cmd_turn_off(self.params.timeout_quad_turnon)
         if quad.pwrstate:
             print('    error: quadrupole ' + quadname + ' is still On.')
             self._stopevt.set()
-            print('    exiting...')
 
     def process_data(self, mode='symm', discardpoints=None):
         """."""
