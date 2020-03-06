@@ -1,4 +1,3 @@
-#!/usr/bin/env python-sirius
 """."""
 
 import pickle as _pickle

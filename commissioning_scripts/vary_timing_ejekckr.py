@@ -42,7 +42,7 @@ class FindKickerDelay(BaseClass):
         """."""
         super().__init__(Params())
         self.devices = {
-            'sofb': SOFB('BO'),
+            'sofb': SOFB(SOFB.DEVICE_BO),
             'kicker': Kicker('BO-48D:PU-EjeKckr'),
             }
         self.data = {
@@ -83,9 +83,9 @@ class FindKickerDelay(BaseClass):
             self.devices['kicker'].turnoff_pulse()
             _time.sleep(self.params.wait_kckr)
             print(' reset sofb ', end='')
-            self.devices['sofb'].reset()
+            self.devices['sofb'].cmd_reset()
             _time.sleep(2)
-            self.devices['sofb'].wait(self.params.sofb_timeout)
+            self.devices['sofb'].wait_buffer(self.params.sofb_timeout)
             print(' measure orbit ', end='')
             data_sum = [self.devices['sofb'].sum, ]
             data_orbx = [self.devices['sofb'].trajx, ]
@@ -95,9 +95,9 @@ class FindKickerDelay(BaseClass):
             self.devices['kicker'].turnon_pulse()
             _time.sleep(self.params.wait_kckr)
             print(' reset sofb ', end='')
-            self.devices['sofb'].reset()
+            self.devices['sofb'].cmd_reset()
             _time.sleep(2)
-            self.devices['sofb'].wait(self.params.sofb_timeout)
+            self.devices['sofb'].wait_buffer(self.params.sofb_timeout)
             print(' measure orbit ', end='')
             data_sum.append(self.devices['sofb'].sum)
             data_orbx.append(self.devices['sofb'].trajx)

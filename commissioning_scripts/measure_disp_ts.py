@@ -7,7 +7,7 @@ import numpy as np
 from epics import PV
 import pyaccel
 
-from siriuspy.devices import SOFB, RF
+from siriuspy.devices import SOFB, RFGen
 from apsuite.commissioning_scripts.base import BaseClass
 
 
@@ -48,9 +48,9 @@ class MeasureDispTS(BaseClass):
         """."""
         super().__init__(ParamsDisp())
         self.devices = {
-            'ts_sofb': SOFB('TS'),
-            'bo_sofb': SOFB('BO'),
-            'rf': RF()
+            'ts_sofb': SOFB(SOFB.DEVICE_TS),
+            'bo_sofb': SOFB(SOFB.DEVICE_BO),
+            'rf': RFGen()
             }
         self.pvs = {
             'injsi_sp': PV('AS-RaMO:TI-EVG:InjSIDelay-SP'),
@@ -120,14 +120,14 @@ class MeasureDispTS(BaseClass):
 
     def wait(self, timeout=10):
         """."""
-        self.devices['ts_sofb'].wait(timeout=timeout)
-        self.devices['bo_sofb'].wait(timeout=timeout)
+        self.devices['ts_sofb'].wait_buffer(timeout=timeout)
+        self.devices['bo_sofb'].wait_buffer(timeout=timeout)
 
     def reset(self, wait=0):
         """."""
         _time.sleep(wait)
-        self.devices['ts_sofb'].reset()
-        self.devices['bo_sofb'].reset()
+        self.devices['ts_sofb'].cmd_reset()
+        self.devices['bo_sofb'].cmd_reset()
         _time.sleep(1)
 
     def calc_delta(self, delta):

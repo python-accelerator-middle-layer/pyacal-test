@@ -32,8 +32,8 @@ class MeasureRespMatTBBO(BaseClass):
         """."""
         super().__init__(Params())
         self.devices = {
-            'bo_sofb': SOFB('BO'),
-            'tb_sofb': SOFB('TB'),
+            'bo_sofb': SOFB(SOFB.DEVICE_BO),
+            'tb_sofb': SOFB(SOFB.DEVICE_TB),
             }
         self._all_corrs = all_corrs
         self._matrix = dict()
@@ -55,15 +55,15 @@ class MeasureRespMatTBBO(BaseClass):
 
     def wait(self, timeout=10):
         """."""
-        self.devices['tb_sofb'].wait(timeout=timeout)
-        self.devices['bo_sofb'].wait(timeout=timeout)
+        self.devices['tb_sofb'].wait_buffer(timeout=timeout)
+        self.devices['bo_sofb'].wait_buffer(timeout=timeout)
 
     def reset(self, wait=0):
         """."""
         if self._stopped.wait(wait):
             return False
-        self.devices['tb_sofb'].reset()
-        self.devices['bo_sofb'].reset()
+        self.devices['tb_sofb'].cmd_reset()
+        self.devices['bo_sofb'].cmd_reset()
         if self._stopped.wait(1):
             return False
         return True

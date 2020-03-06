@@ -34,8 +34,8 @@ class MeasureDispTBBO(BaseClass):
         """."""
         super().__init__(ParamsDisp())
         self.devices = {
-            'bo_sofb': SOFB('BO'),
-            'tb_sofb': SOFB('TB'),
+            'bo_sofb': SOFB(SOFB.DEVICES_BO),
+            'tb_sofb': SOFB(SOFB.DEVICES_TB),
             'kly': LiLLRF('Klystron2'),
             }
 
@@ -71,14 +71,14 @@ class MeasureDispTBBO(BaseClass):
 
     def wait(self, timeout=10):
         """."""
-        self.devices['tb_sofb'].wait(timeout=timeout)
-        self.devices['bo_sofb'].wait(timeout=timeout)
+        self.devices['tb_sofb'].wait_buffer(timeout=timeout)
+        self.devices['bo_sofb'].wait_buffer(timeout=timeout)
 
     def reset(self, wait=0):
         """."""
         _time.sleep(wait)
-        self.devices['tb_sofb'].reset()
-        self.devices['bo_sofb'].reset()
+        self.devices['tb_sofb'].cmd_reset()
+        self.devices['bo_sofb'].cmd_reset()
         _time.sleep(1)
 
     def measure_dispersion(self):

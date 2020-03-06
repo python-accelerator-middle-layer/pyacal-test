@@ -1,11 +1,10 @@
-#!/usr/bin/env python-sirius
 """."""
 
 import time as _time
 import numpy as np
 from threading import Thread, Event
 
-from siriuspy.devices import RF, SOFB, DCCT, Timing
+from siriuspy.devices import RFCav, SOFB, DCCT, Timing
 from apsuite.commissioning_scripts.base import BaseClass
 
 
@@ -58,10 +57,12 @@ class ControlRF(BaseClass):
             self.acc = acc
         else:
             raise Exception('Set BO or SI')
+
+        devname_rf, devname_sofb = ControlRF._get_devnames(acc)
         self.devices = {
             'tim': Timing(),
-            'rf': RF(acc=acc, is_cw=is_cw),
-            'sofb': SOFB(acc=acc),
+            'rf': RFCav(devname_rf, is_cw=is_cw),
+            'sofb': SOFB(devname_sofb),
             }
         self.data = {
             'phase': [],
@@ -81,7 +82,6 @@ class ControlRF(BaseClass):
             self.data['dcct-2'] = []
         self._thread = Thread(target=self._do_scan)
         self._stopped = Event()
-
 
     @property
     def phase_span(self):
@@ -163,9 +163,9 @@ class ControlRF(BaseClass):
             self.devices['sofb'].reset()
             for k in range(nrpul):
                 print('.', end='')
-                phase_data[k] = self.devices['rf'].phase
-                voltage_data[k] = self.devices['rf'].voltage
-                power_data[k] = self.devices['rf'].power
+                phase_data[k] = self.devices['rf'].dev_rfll.phase
+                voltage_data[k] = self.devices['rf'].dev_rfll.voltage
+                power_data[k] = self.devices['rf'].dev_rfpowmon.power
                 if self.acc == 'BO':
                     dcct_data[k] = np.mean(self.devices['dcct'].current)
                 elif self.acc == 'SI':
@@ -187,10 +187,11 @@ class ControlRF(BaseClass):
                 self.data['dcct-1'].append(dcct1_data)
                 self.data['dcct-2'].append(dcct2_data)
             if isphase:
-                print('Phase [°]: {0:8.3f}'.format(self.devices['rf'].phase))
+                print('Phase [°]: {0:8.3f}'.format(
+                    self.devices['rf'].dev_rfll.phase))
             else:
                 print('Voltage [mV]: {0:8.3f}'.format(
-                    self.devices['rf'].voltage))
+                    self.devices['rf'].dev_rfll.voltage))
             if self._stopped.is_set():
                 print('Stopped!')
                 break
@@ -199,6 +200,20 @@ class ControlRF(BaseClass):
 
     def _vary(self, val, isphase=True):
         if isphase:
-            self.devices['rf'].set_phase(val, timeout=self.params.rf_timeout)
+            self.devices['rf'].cmd_set_phase(
+                val, timeout=self.params.rf_timeout)
         else:
-            self.devices['rf'].set_voltage(val, timeout=self.params.rf_timeout)
+            self.devices['rf'].cmd_set_voltage(
+                val, timeout=self.params.rf_timeout)
+
+    @staticmethod
+    def _get_devnames(acc):
+        if acc is None:
+            devname_rf, devname_sofb = None, None
+        elif acc.upper() == 'SI':
+            devname_rf, devname_sofb = RFCav.DEVICE_SI, SOFB.DEVICE_SI
+        elif acc.upper() == 'BO':
+            devname_rf, devname_sofb = RFCav.DEVICE_BO, SOFB.DEVICE_BO
+        else:
+            devname_rf, devname_sofb = None, None
+        return devname_rf, devname_sofb

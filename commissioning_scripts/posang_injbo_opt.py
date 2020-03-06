@@ -77,7 +77,7 @@ class PSOInjection(PSO):
         self.hands = []
         self.f_init = 0
         self.params = Params()
-        self.sofb = SOFB('BO')
+        self.sofb = SOFB(SOFB.DEVICE_BO)
         self.dcct = DCCT('BO')
         self.quads = Quads()
         self.corrs = Corrs()
@@ -148,8 +148,8 @@ class PSOInjection(PSO):
 
     def reset_wait_buffer(self):
         """."""
-        self.sofb.reset()
-        self.sofb.wait()
+        self.sofb.cmd_reset()
+        self.sofb.wait_buffer()
 
     def init_obj_func(self):
         """."""
@@ -256,8 +256,8 @@ class SAInjection(SimulAnneal):
 
     def reset_wait_buffer(self):
         """."""
-        self.sofb.reset()
-        self.sofb.wait()
+        self.sofb.cmd_reset()
+        self.sofb.wait_buffer()
 
     def init_obj_func(self):
         """."""

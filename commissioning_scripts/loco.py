@@ -1,4 +1,3 @@
-#!/usr/bin/env python-sirius
 """."""
 
 from copy import deepcopy as _dcopy

@@ -5,7 +5,7 @@ import time as _time
 import numpy as np
 
 from epics import PV
-from siriuspy.devices import Bias, ICT, TranspEff, LiLLRF
+from siriuspy.devices import EGBias, ICT, TranspEff, LiLLRF
 from apsuite.commissioning_scripts.base import BaseClass
 
 
@@ -37,9 +37,9 @@ class MeasCharge(BaseClass):
         """."""
         super().__init__(ParamsBias())
         self.devices = {
-            'bias': Bias(),
-            'ict': ICT('ICT-1'),
-            'transpeff': TranspEff(),
+            'bias': EGBias(),
+            'ict': ICT(ICT.DEVICE_LI_1),
+            'transpeff': TranspEff(TranspEff.DEVICE_LI),
             }
         self.pvs = {
             'energy': PV('LI-Glob:AP-MeasEnergy:Energy-Mon'),
@@ -144,8 +144,8 @@ class Kly2Energy(BaseClass):
         super().__init__(ParamsKly2())
         self.devices = {
             'kly2': LiLLRF('Klystron2'),
-            'ict': ICT('ICT-1'),
-            'transpeff': TranspEff(),
+            'ict': ICT(ICT.DEVICE_LI_1),
+            'transpeff': TranspEff(TranspEff.DEVICE_LI),
             }
         self.pvs = {
             'energy': PV('LI-Glob:AP-MeasEnergy:Energy-Mon'),
