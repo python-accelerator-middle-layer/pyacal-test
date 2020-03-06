@@ -10,7 +10,7 @@ import matplotlib.gridspec as mpl_gs
 import matplotlib.cm as cm
 
 import pyaccel as _pyacc
-from pymodels.middlelayer.devices import SOFB, Quadrupole
+from siriuspy.devices import SOFB, PowerSupply
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 from .base import BaseClass
 
@@ -226,7 +226,7 @@ class DoBBA(BaseClass):
         self.data['bpmnames'] = list()
         self.data['quadnames'] = list()
         self._bpms2dobba = list()
-        self.devices['sofb'] = SOFB('SI')
+        self.devices['sofb'] = SOFB(SOFB.DEVICE_SI)
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
         self.data['scancenterx'] = np.zeros(len(BBAParams.BPMNAMES))
@@ -290,12 +290,12 @@ class DoBBA(BaseClass):
             idx = self.data['bpmnames'].index(bpm)
             qname = self.data['quadnames'][idx]
             if qname and qname not in self.devices:
-                self.devices[qname] = Quadrupole(qname)
+                self.devices[qname] = PowerSupply(qname)
 
     def get_orbit(self):
         sofb = self.devices['sofb']
-        sofb.reset()
-        sofb.wait(self.params.timeout_wait_sofb)
+        sofb.cmd_reset()
+        sofb.wait_buffer(self.params.timeout_wait_sofb)
         return np.hstack([sofb.orbx, sofb.orby])
 
     def _do_bba(self):
@@ -322,8 +322,8 @@ class DoBBA(BaseClass):
 
         print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
         print('    turning quadrupole ' + quadname + ' On', end='')
-        quad.turnon(self.params.timeout_quad_turnon)
-        if not quad.pwr_state:
+        quad.cmd_turn_on(self.params.timeout_quad_turnon)
+        if not quad.pwrstate:
             print('\n    error: quadrupole ' + quadname + ' is Off.')
             self._stopevt.set()
             print('    exiting...')
@@ -407,13 +407,13 @@ class DoBBA(BaseClass):
             sofb.deltafactorch = (i+1)/nrsteps * 100
             sofb.deltafactorcv = (i+1)/nrsteps * 100
             _time.sleep(self.params.wait_sofb)
-            sofb.applycorr()
+            sofb.cmd_applycorr()
             _time.sleep(self.params.wait_correctors)
         sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
         sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
 
         print('    turning quadrupole ' + quadname + ' Off')
-        quad.turnoff(self.params.timeout_quad_turnon)
+        quad.cmd_turn_off(self.params.timeout_quad_turnon)
         if quad.pwr_state:
             print('    error: quadrupole ' + quadname + ' is still On.')
             self._stopevt.set()
@@ -436,9 +436,9 @@ class DoBBA(BaseClass):
                 return i, fmet
 
             if i < self.params.sofb_maxcorriter:
-                sofb.calccorr()
+                sofb.cmd_calccorr()
                 _time.sleep(self.params.wait_sofb)
-                sofb.applycorr()
+                sofb.cmd_applycorr()
                 _time.sleep(self.params.wait_correctors)
         return -1, fmet
 
