@@ -299,13 +299,24 @@ class DoBBA(BaseClass):
         return np.hstack([sofb.orbx, sofb.orby])
 
     def _do_bba(self):
-        self.devices['sofb'].nr_points = self.params.sofb_nrpoints
+        sofb = self.devices['sofb']
+        sofb.nr_points = self.params.sofb_nrpoints
+        loop_on = False
+        if sofb.autocorrsts:
+            loop_on = True
+            print('SOFB feedback is enable, disabling it...')
+            sofb.cmd_autocorr_turn_off()
+
         for i, bpm in enumerate(self._bpms2dobba):
             if self._stopevt.is_set():
                 print('stopped!')
                 return
             print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
             self._dobba_single_bpm(bpm)
+
+        if loop_on:
+            print('SOFB feedback was enable, restoring original state...')
+            sofb.cmd_autocorr_turn_on()
         print('finished!')
 
     @staticmethod
