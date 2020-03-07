@@ -48,8 +48,8 @@ class MeasureDispTS(BaseClass):
         """."""
         super().__init__(ParamsDisp())
         self.devices = {
-            'ts_sofb': SOFB(SOFB.DEVICE_TS),
-            'bo_sofb': SOFB(SOFB.DEVICE_BO),
+            'ts_sofb': SOFB(SOFB.DEVICES.TS),
+            'bo_sofb': SOFB(SOFB.DEVICES.BO),
             'rf': RFGen()
             }
         self.pvs = {

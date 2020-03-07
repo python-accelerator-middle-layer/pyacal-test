@@ -13,7 +13,7 @@ class DispMeas:
 
     def __init__(self):
         """."""
-        self.sofb = SOFB(SOFB.DEVICE_BO)
+        self.sofb = SOFB(SOFB.DEVICES.BO)
         self.rfgen = RFGen()
         self.orb0 = np.array([])
         self.orbp = np.array([])

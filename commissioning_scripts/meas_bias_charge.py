@@ -5,7 +5,7 @@ import time as _time
 import numpy as np
 
 from epics import PV
-from siriuspy.devices import EGBias, ICT, TranspEff, LiLLRF
+from siriuspy.devices import EGBias, ICT, TranspEff, LLRF
 from apsuite.commissioning_scripts.base import BaseClass
 
 
@@ -38,8 +38,8 @@ class MeasCharge(BaseClass):
         super().__init__(ParamsBias())
         self.devices = {
             'bias': EGBias(),
-            'ict': ICT(ICT.DEVICE_LI_1),
-            'transpeff': TranspEff(TranspEff.DEVICE_LI),
+            'ict': ICT(ICT.DEVICES.LI_1),
+            'transpeff': TranspEff(TranspEff.DEVICES.LI),
             }
         self.pvs = {
             'energy': PV('LI-Glob:AP-MeasEnergy:Energy-Mon'),
@@ -143,9 +143,9 @@ class Kly2Energy(BaseClass):
         """."""
         super().__init__(ParamsKly2())
         self.devices = {
-            'kly2': LiLLRF('Klystron2'),
-            'ict': ICT(ICT.DEVICE_LI_1),
-            'transpeff': TranspEff(TranspEff.DEVICE_LI),
+            'kly2': LLRF(LLRF.DEVICES.LI_KLY2),
+            'ict': ICT(ICT.DEVICES.LI_1),
+            'transpeff': TranspEff(TranspEff.DEVICES.LI),
             }
         self.pvs = {
             'energy': PV('LI-Glob:AP-MeasEnergy:Energy-Mon'),
@@ -182,7 +182,7 @@ class Kly2Energy(BaseClass):
         self.data['spread'] = []
 
         print('Setting Initial Value...')
-        self.devices['kly2'].set_amplitude(
+        self.devices['kly2'].cmd_set_amplitude(
             var_span[0], timeout=self.params.kly2_timeout)
         _time.sleep(self.params.wait_kly2)
         print('Starting Loop')
@@ -192,7 +192,7 @@ class Kly2Energy(BaseClass):
             kly2_val = np.zeros(self.params.nrpulses)
             energy = np.zeros(self.params.nrpulses)
             spread = np.zeros(self.params.nrpulses)
-            self.devices['kly2'].set_amplitude(
+            self.devices['kly2'].cmd_set_amplitude(
                 val, timeout=self.params.kly2_timeout)
             _time.sleep(self.params.wait_kly2)
             for k in range(self.params.nrpulses):

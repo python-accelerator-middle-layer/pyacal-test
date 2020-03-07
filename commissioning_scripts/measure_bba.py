@@ -9,10 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 import matplotlib.cm as cm
 
+from siriuspy.devices import SOFB, PowerSupply
+
 import pyaccel as _pyacc
-from pymodels.middlelayer.devices import SOFB, PowerSupply
-from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 from .base import BaseClass
+from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 
 
 class BBAParams:
@@ -226,7 +227,7 @@ class DoBBA(BaseClass):
         self.data['bpmnames'] = list()
         self.data['quadnames'] = list()
         self._bpms2dobba = list()
-        self.devices['sofb'] = SOFB(SOFB.DEVICE_SI)
+        self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
         self.data['scancenterx'] = np.zeros(len(BBAParams.BPMNAMES))

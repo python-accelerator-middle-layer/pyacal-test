@@ -7,7 +7,7 @@ import numpy as np
 
 import pyaccel
 from siriuspy.namesys import SiriusPVName as _PVName
-from siriuspy.devices import SOFB, LiLLRF
+from siriuspy.devices import SOFB, LLRF
 
 from apsuite.optimization import SimulAnneal
 from apsuite.commissioning_scripts.base import BaseClass
@@ -34,9 +34,9 @@ class MeasureDispTBBO(BaseClass):
         """."""
         super().__init__(ParamsDisp())
         self.devices = {
-            'bo_sofb': SOFB(SOFB.DEVICES_BO),
-            'tb_sofb': SOFB(SOFB.DEVICES_TB),
-            'kly': LiLLRF('Klystron2'),
+            'bo_sofb': SOFB(SOFB.DEVICES.BO),
+            'tb_sofb': SOFB(SOFB.DEVICES.TB),
+            'kly': LLRF(LLRF.DEVICES.LI_KLY2),
             }
 
     @property

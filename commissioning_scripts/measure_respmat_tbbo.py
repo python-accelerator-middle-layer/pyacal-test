@@ -32,8 +32,8 @@ class MeasureRespMatTBBO(BaseClass):
         """."""
         super().__init__(Params())
         self.devices = {
-            'bo_sofb': SOFB(SOFB.DEVICE_BO),
-            'tb_sofb': SOFB(SOFB.DEVICE_TB),
+            'bo_sofb': SOFB(SOFB.DEVICES._BO),
+            'tb_sofb': SOFB(SOFB.DEVICES._TB),
             }
         self._all_corrs = all_corrs
         self._matrix = dict()

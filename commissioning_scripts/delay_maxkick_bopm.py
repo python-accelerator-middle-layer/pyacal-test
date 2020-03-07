@@ -6,7 +6,7 @@ import pickle as _pickle
 import numpy as np
 
 from siriuspy.namesys import SiriusPVName as _PVName
-from siriuspy.devices import Kicker, Septum, Screen, BPM
+from siriuspy.devices import PowerSupplyPU, Screen, BPM
 
 
 class Params:
@@ -40,7 +40,7 @@ class FindMaxPulsedMagnets:
         dic = dict()
         for mag in pulsed_mags:
             mag = _PVName(mag)
-            dic[mag] = self._get_magnet(mag)
+            dic[mag] = PowerSupplyPU(mag)
         self.screen = Screen(screen)
         self.bpm = BPM(bpm)
         self._all_mags = dic
@@ -58,25 +58,25 @@ class FindMaxPulsedMagnets:
 
     @property
     def connected(self):
+        """."""
         conn = all([v.connected for v in self._all_mags.values()])
         conn &= self.screen.connected
         conn &= self.bpm.connected
         return conn
 
-    @staticmethod
-    def _get_magnet(mag):
-        return Septum(mag) if 'Sept' in mag.dev else Kicker(mag)
-
     @property
     def magnets(self):
+        """."""
         return sorted(self._all_mags.keys())
 
     @property
     def magnets_to_measure(self):
+        """."""
         return self._mags_to_measure
 
     @magnets_to_measure.setter
     def magnets_to_measure(self, mags):
+        """."""
         self._mags_to_measure = [_PVName(mag) for mag in mags if mag in self._all_mags]
 
     @property

@@ -77,8 +77,8 @@ class PSOInjection(PSO):
         self.hands = []
         self.f_init = 0
         self.params = Params()
-        self.sofb = SOFB(SOFB.DEVICE_BO)
-        self.dcct = DCCT('BO')
+        self.sofb = SOFB(SOFB.DEVICES.BO)
+        self.dcct = DCCT(DCCT.DEVICES.BO)
         self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()
@@ -109,10 +109,10 @@ class PSOInjection(PSO):
         down = -1 * up
         self.set_limits(upper=up, lower=down)
 
-        self.dcct.turn_off(self.params.dcct_timeout)
+        self.dcct.cmd_turn_off(self.params.dcct_timeout)
         self.dcct.nrsamples = self.params.dcct_nrsamples
         self.dcct.period = self.params.dcct_period
-        self.dcct.turn_on(self.params.dcct_timeout)
+        self.dcct.cmd_turn_on(self.params.dcct_timeout)
 
         self.reference = np.array([h.value for h in self.hands])
         # self.reset_wait_buffer()
@@ -189,8 +189,8 @@ class SAInjection(SimulAnneal):
         self.hands = []
         self.f_init = 0
         self.params = Params()
-        self.dcct = DCCT('BO')
-        self.sofb = SOFB('BO')
+        self.dcct = DCCT(DCCT.DEVICES.BO)
+        self.sofb = SOFB(SOFB.DEVICES.BO)
         self.quads = Quads()
         self.corrs = Corrs()
         self.kckr = Kicker()

@@ -1,10 +1,11 @@
 """."""
 
 import time as _time
-import numpy as np
 from threading import Thread, Event
 
-from siriuspy.devices import RFCav, SOFB, DCCT, Timing
+import numpy as np
+
+from siriuspy.devices import RFCav, SOFB, DCCT, EVG
 from apsuite.commissioning_scripts.base import BaseClass
 
 
@@ -28,23 +29,28 @@ class Params:
 
     def __str__(self):
         """."""
-        st = '{0:30s}= {1:9.3f}\n'.format('initial phase [°]', self.phase_ini)
-        st += '{0:30s}= {1:9.3f}\n'.format('final phase [°]', self.phase_fin)
-        st += '{0:30s}= {1:9.3f}\n'.format('delta phase [°]', self.phase_delta)
-        st += '{0:30s}= {1:9.3f}\n'.format(
+        strep = '{0:30s}= {1:9.3f}\n'.format(
+            'initial phase [°]', self.phase_ini)
+        strep += '{0:30s}= {1:9.3f}\n'.format(
+            'final phase [°]', self.phase_fin)
+        strep += '{0:30s}= {1:9.3f}\n'.format(
+            'delta phase [°]', self.phase_delta)
+        strep += '{0:30s}= {1:9.3f}\n'.format(
             'initial voltage [mV]', self.voltage_ini)
-        st += '{0:30s}= {1:9.3f}\n'.format(
+        strep += '{0:30s}= {1:9.3f}\n'.format(
             'final voltage [mV]', self.voltage_fin)
-        st += '{0:30s}= {1:9.3f}\n'.format(
+        strep += '{0:30s}= {1:9.3f}\n'.format(
             'delta voltage [mV]', self.voltage_delta)
-        st += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
-        st += '{0:30s}= {1:9.3f}\n'.format(
+        strep += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
+        strep += '{0:30s}= {1:9.3f}\n'.format(
             'pulses freq [Hz]', self.freq_pulses)
-        st += '{0:30s}= {1:9.3f}\n'.format('SOFB timeout', self.sofb_timeout)
-        st += '{0:30s}= {1:9.3f}\n'.format('RF timeout', self.rf_timeout)
-        st += '{0:30s}= {1:9.3f}\n'.format('Wait RF', self.wait_rf)
-        st += '{0:30s}= {1:9.3f}\n'.format('Timing timeout', self.tim_timeout)
-        return st
+        strep += '{0:30s}= {1:9.3f}\n'.format(
+            'SOFB timeout', self.sofb_timeout)
+        strep += '{0:30s}= {1:9.3f}\n'.format('RF timeout', self.rf_timeout)
+        strep += '{0:30s}= {1:9.3f}\n'.format('Wait RF', self.wait_rf)
+        strep += '{0:30s}= {1:9.3f}\n'.format(
+            'Timing timeout', self.tim_timeout)
+        return strep
 
 
 class ControlRF(BaseClass):
@@ -60,7 +66,7 @@ class ControlRF(BaseClass):
 
         devname_rf, devname_sofb = ControlRF._get_devnames(acc)
         self.devices = {
-            'tim': Timing(),
+            'tim': EVG(),
             'rf': RFCav(devname_rf, is_cw=is_cw),
             'sofb': SOFB(devname_sofb),
             }
@@ -145,7 +151,7 @@ class ControlRF(BaseClass):
         print('Starting Loop')
         for val in var_span:
             print('Turning pulses off --> ', end='')
-            self.devices['tim'].turn_pulses_off(self.params.tim_timeout)
+            self.devices['tim'].cmd_turn_pulses_off(self.params.tim_timeout)
             print('varying phase --> ', end='')
             self._vary(val, isphase=isphase)
             _time.sleep(self.params.wait_rf)
@@ -211,9 +217,9 @@ class ControlRF(BaseClass):
         if acc is None:
             devname_rf, devname_sofb = None, None
         elif acc.upper() == 'SI':
-            devname_rf, devname_sofb = RFCav.DEVICE_SI, SOFB.DEVICE_SI
+            devname_rf, devname_sofb = RFCav.DEVICES.SI, SOFB.DEVICES.SI
         elif acc.upper() == 'BO':
-            devname_rf, devname_sofb = RFCav.DEVICE_BO, SOFB.DEVICE_BO
+            devname_rf, devname_sofb = RFCav.DEVICES.BO, SOFB.DEVICES.BO
         else:
             devname_rf, devname_sofb = None, None
         return devname_rf, devname_sofb

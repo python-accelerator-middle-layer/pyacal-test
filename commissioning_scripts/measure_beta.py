@@ -8,9 +8,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
-from siriuspy.devices import PowerSupply, SITune
-from pymodels import si
+from siriuspy.devices import PowerSupply, Tune
+
 import pyaccel
+from pymodels import si
 from .base import BaseClass
 
 
@@ -51,7 +52,7 @@ class MeasBeta(BaseClass):
         self.quads_betax = []
         self.quads_betay = []
         self.params = BetaParams()
-        self.devices['tune'] = SITune()
+        self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.data['quadnames'] = list()
         self.data['betax_in'] = dict()
         self.data['betay_in'] = dict()
