@@ -36,14 +36,14 @@ class MeasureDispTBBO(BaseClass):
         self.devices = {
             'bo_sofb': SOFB(SOFB.DEVICES.BO),
             'tb_sofb': SOFB(SOFB.DEVICES.TB),
-            'kly': LLRF(LLRF.DEVICES.LI_KLY2),
+            'kly2': LLRF(LLRF.DEVICES.LI_KLY2),
             }
 
     @property
     def energy(self):
         """."""
         return np.polyval(
-            self.params.klystron_excit_coefs, self.devices['kly'].amplitude)
+            self.params.klystron_excit_coefs, self.devices['kly2'].amplitude)
 
     @property
     def trajx(self):
@@ -91,15 +91,15 @@ class MeasureDispTBBO(BaseClass):
         orb = [-np.hstack([self.trajx, self.trajy]), ]
         ene0 = self.energy
 
-        origamp = self.devices['kly'].amplitude
-        self.devices['kly'].amplitude = origamp + delta
+        origamp = self.devices['kly2'].amplitude
+        self.devices['kly2'].amplitude = origamp + delta
 
         self.reset(self.params.wait_time)
         self.wait(self.params.timeout_orb)
         orb.append(np.hstack([self.trajx, self.trajy]))
         ene1 = self.energy
 
-        self.devices['kly'].amplitude = origamp
+        self.devices['kly2'].amplitude = origamp
 
         d_ene = ene1/ene0 - 1
         return np.array(orb).sum(axis=0) / d_ene
