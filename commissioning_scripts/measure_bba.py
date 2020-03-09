@@ -418,13 +418,13 @@ class DoBBA(BaseClass):
             sofb.deltafactorch = (i+1)/nrsteps * 100
             sofb.deltafactorcv = (i+1)/nrsteps * 100
             _time.sleep(self.params.wait_sofb)
-            sofb.applycorr()
+            sofb.cmd_applycorr()
             _time.sleep(self.params.wait_correctors)
         sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
         sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
 
         print('    turning quadrupole ' + quadname + ' Off')
-        quad.turnoff(self.params.timeout_quad_turnon)
+        quad.cmd_turn_off(self.params.timeout_quad_turnon)
         if quad.pwrstate:
             print('    error: quadrupole ' + quadname + ' is still On.')
             self._stopevt.set()
