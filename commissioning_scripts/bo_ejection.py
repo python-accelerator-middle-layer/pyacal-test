@@ -1,11 +1,10 @@
-#!/usr/bin/env python-sirius
 """."""
 
 import time as _time
 from collections import namedtuple
 import numpy as np
 
-from siriuspy.devices import Kicker, Septum, Screen, BPM
+from siriuspy.devices import PowerSupplyPU, Screen, BPM
 from apsuite.commissioning_scripts.base import BaseClass
 
 
@@ -47,19 +46,20 @@ class Params:
 
     def __str__(self):
         """."""
-        st = '{0:30s}= {1:.2f}:{2:.2f}:{3:.2f}\n'.format(
+        strep = '{0:30s}= {1:.2f}:{2:.2f}:{3:.2f}\n'.format(
             'EjeKckr Sweep [V]',
             self.ejekckr_ini, self.ejekckr_fin, self.ejekckr_step)
-        st += '{0:30s}= {1:.2f}:{2:.2f}:{3:.2f}\n'.format(
+        strep += '{0:30s}= {1:.2f}:{2:.2f}:{3:.2f}\n'.format(
             'EjeSeptF Sweep [V]',
             self.ejeseptf_ini, self.ejeseptf_fin, self.ejeseptf_step)
-        st += '{0:30s}= {1:9.3f}\n'.format(
+        strep += '{0:30s}= {1:9.3f}\n'.format(
             'EjeSeptG Voltage offset [V]', self.ejeseptg_volt_offset)
-        st += '{0:30s}= {1:s}\n'.format('Sweep Order', self.sweep_order_string)
-        st += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
-        st += '{0:30s}= {1:9.3f}\n'.format(
+        strep += '{0:30s}= {1:s}\n'.format(
+            'Sweep Order', self.sweep_order_string)
+        strep += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
+        strep += '{0:30s}= {1:9.3f}\n'.format(
             'Wait Pulsed Magnets [s]', self.wait_pm)
-        return st
+        return strep
 
 
 class FindEjeBO(BaseClass):
@@ -69,11 +69,11 @@ class FindEjeBO(BaseClass):
         """."""
         super().__init__(Params())
         self.devices = {
-            'screen': Screen('TS-01:DI-Scrn'),
+            'screen': Screen(Screen.DEVICES.TS_1),
             'bpm': BPM('TS-01:DI-BPM'),
-            'ejekckr': Kicker('BO-48D:PU-EjeKckr'),
-            'ejeseptf': Septum('TS-01:PU-EjeSeptF'),
-            'ejeseptg': Septum('TS-01:PU-EjeSeptG'),
+            'ejekckr': PowerSupplyPU('BO-48D:PU-EjeKckr'),
+            'ejeseptf': PowerSupplyPU('TS-01:PU-EjeSeptF'),
+            'ejeseptg': PowerSupplyPU('TS-01:PU-EjeSeptG'),
             }
         self.data = {
             'image': [],

@@ -4,7 +4,7 @@
 import time as _time
 import numpy as np
 
-from siriuspy.devices import SOFB, Kicker
+from siriuspy.devices import SOFB, PowerSupplyPU
 from apsuite.commissioning_scripts.base import BaseClass
 
 
@@ -42,8 +42,8 @@ class FindKickerDelay(BaseClass):
         """."""
         super().__init__(Params())
         self.devices = {
-            'sofb': SOFB('BO'),
-            'kicker': Kicker('BO-48D:PU-EjeKckr'),
+            'sofb': SOFB(SOFB.DEVICES.BO),
+            'kicker': PowerSupplyPU(PowerSupplyPU.DEVICES.BO_EJE_KCKR),
             }
         self.data = {
             'sum': [],
@@ -80,24 +80,24 @@ class FindKickerDelay(BaseClass):
             print('delay -> {0:9.4f} '.format(val), end='')
             self.devices['kicker'].delay = val
             print(' turn off pulse ', end='')
-            self.devices['kicker'].turnoff_pulse()
+            self.devices['kicker'].cmd_turnoff_pulse()
             _time.sleep(self.params.wait_kckr)
             print(' reset sofb ', end='')
-            self.devices['sofb'].reset()
+            self.devices['sofb'].cmd_reset()
             _time.sleep(2)
-            self.devices['sofb'].wait(self.params.sofb_timeout)
+            self.devices['sofb'].wait_buffer(self.params.sofb_timeout)
             print(' measure orbit ', end='')
             data_sum = [self.devices['sofb'].sum, ]
             data_orbx = [self.devices['sofb'].trajx, ]
             data_orby = [self.devices['sofb'].trajy, ]
 
             print(' turn on pulse ', end='')
-            self.devices['kicker'].turnon_pulse()
+            self.devices['kicker'].cmd_turnon_pulse()
             _time.sleep(self.params.wait_kckr)
             print(' reset sofb ', end='')
-            self.devices['sofb'].reset()
+            self.devices['sofb'].cmd_reset()
             _time.sleep(2)
-            self.devices['sofb'].wait(self.params.sofb_timeout)
+            self.devices['sofb'].wait_buffer(self.params.sofb_timeout)
             print(' measure orbit ', end='')
             data_sum.append(self.devices['sofb'].sum)
             data_orbx.append(self.devices['sofb'].trajx)
