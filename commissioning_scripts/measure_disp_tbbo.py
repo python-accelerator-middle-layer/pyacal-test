@@ -7,7 +7,7 @@ import numpy as np
 
 import pyaccel
 from siriuspy.namesys import SiriusPVName as _PVName
-from siriuspy.devices import SOFB, LiLLRF
+from siriuspy.devices import SOFB, LLRF
 
 from apsuite.optimization import SimulAnneal
 from apsuite.commissioning_scripts.base import BaseClass
@@ -34,16 +34,16 @@ class MeasureDispTBBO(BaseClass):
         """."""
         super().__init__(ParamsDisp())
         self.devices = {
-            'bo_sofb': SOFB('BO'),
-            'tb_sofb': SOFB('TB'),
-            'kly': LiLLRF('Klystron2'),
+            'bo_sofb': SOFB(SOFB.DEVICES.BO),
+            'tb_sofb': SOFB(SOFB.DEVICES.TB),
+            'kly2': LLRF(LLRF.DEVICES.LI_KLY2),
             }
 
     @property
     def energy(self):
         """."""
         return np.polyval(
-            self.params.klystron_excit_coefs, self.devices['kly'].amplitude)
+            self.params.klystron_excit_coefs, self.devices['kly2'].amplitude)
 
     @property
     def trajx(self):
@@ -71,14 +71,14 @@ class MeasureDispTBBO(BaseClass):
 
     def wait(self, timeout=10):
         """."""
-        self.devices['tb_sofb'].wait(timeout=timeout)
-        self.devices['bo_sofb'].wait(timeout=timeout)
+        self.devices['tb_sofb'].wait_buffer(timeout=timeout)
+        self.devices['bo_sofb'].wait_buffer(timeout=timeout)
 
     def reset(self, wait=0):
         """."""
         _time.sleep(wait)
-        self.devices['tb_sofb'].reset()
-        self.devices['bo_sofb'].reset()
+        self.devices['tb_sofb'].cmd_reset()
+        self.devices['bo_sofb'].cmd_reset()
         _time.sleep(1)
 
     def measure_dispersion(self):
@@ -91,15 +91,15 @@ class MeasureDispTBBO(BaseClass):
         orb = [-np.hstack([self.trajx, self.trajy]), ]
         ene0 = self.energy
 
-        origamp = self.devices['kly'].amplitude
-        self.devices['kly'].amplitude = origamp + delta
+        origamp = self.devices['kly2'].amplitude
+        self.devices['kly2'].amplitude = origamp + delta
 
         self.reset(self.params.wait_time)
         self.wait(self.params.timeout_orb)
         orb.append(np.hstack([self.trajx, self.trajy]))
         ene1 = self.energy
 
-        self.devices['kly'].amplitude = origamp
+        self.devices['kly2'].amplitude = origamp
 
         d_ene = ene1/ene0 - 1
         return np.array(orb).sum(axis=0) / d_ene

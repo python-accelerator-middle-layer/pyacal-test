@@ -1,14 +1,15 @@
-#!/usr/bin/env python-sirius
 """."""
 
-import numpy as np
-import pymodels
-import pyaccel
 from copy import deepcopy as _dcopy
+
+import numpy as np
+import pyaccel
 from apsuite.commissioning_scripts.calcrespm import CalcRespm
 from apsuite.optimization.simulated_annealing import SimulAnneal
-from apsuite.commissioning_scripts.measure_respmat_tbbo import calc_model_respmatTBBO
-from apsuite.commissioning_scripts.measure_disp_tbbo import calc_model_dispersionTBBO
+from apsuite.commissioning_scripts.measure_respmat_tbbo import \
+    calc_model_respmatTBBO
+from apsuite.commissioning_scripts.measure_disp_tbbo import \
+    calc_model_dispersionTBBO
 
 
 class FitQuads():
@@ -58,6 +59,7 @@ class FitQuads():
                     self.respm.model, 'K', idx_seg, self.kqds[i][ii])
         return kmatrix
 
+    @staticmethod
     def chi2(self, M1, M2):
         return np.sqrt(np.mean((M1-M2)**2))
 
@@ -66,7 +68,7 @@ class FitQuads():
         respm_model = CalcRespm(bomod)
         modelmat = respm_model.respm
         diffmat = measmat - modelmat
-        chi2_old = self.chi2(measmat, modelmat)
+        chi2_old = FitQuads.chi2(measmat, modelmat)
         qfidx = respm_model.fam_data['QF']['index']
         qdidx = respm_model.fam_data['QD']['index']
         print('Initial Matrix Deviation: {:.16e}'.format(chi2_old))
@@ -101,7 +103,7 @@ class FitQuads():
             fitmat = CalcRespm(bomod)
             diffmat = measmat - fitmat.respm
             print('Iter {:.1f}'.format(n+1))
-            chi2_new = self.chi2(measmat, fitmat.respm)
+            chi2_new = FitQuads.chi2(measmat, fitmat.respm)
             print('Matrix Deviation: {:.16e}'.format(chi2_new))
 
             if (chi2_old - chi2_new) < tol:

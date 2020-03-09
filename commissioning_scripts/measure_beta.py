@@ -8,9 +8,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
-from siriuspy.devices import Quadrupole, SITune
-from pymodels import si
+from siriuspy.devices import PowerSupply, Tune
+
 import pyaccel
+from pymodels import si
 from .base import BaseClass
 
 
@@ -51,7 +52,7 @@ class MeasBeta(BaseClass):
         self.quads_betax = []
         self.quads_betay = []
         self.params = BetaParams()
-        self.devices['tune'] = SITune()
+        self.devices['tune'] = Tune(Tune.DEVICES.ALL)
         self.data['quadnames'] = list()
         self.data['betax_in'] = dict()
         self.data['betay_in'] = dict()
@@ -106,7 +107,7 @@ class MeasBeta(BaseClass):
         """."""
         for qname in self.data['quadnames']:
             if qname not in self.devices:
-                self.devices[qname] = Quadrupole(qname)
+                self.devices[qname] = PowerSupply(qname)
 
     def _initialize_data(self):
         """."""
@@ -144,6 +145,7 @@ class MeasBeta(BaseClass):
             if self._stopevt.is_set():
                 return
             self._meas_beta_single_quad(quadname)
+        print('finished!')
 
     @staticmethod
     def get_cycling_curve():
@@ -154,9 +156,9 @@ class MeasBeta(BaseClass):
         quad = self.devices[quadname]
         tune = self.devices['tune']
 
-        print('    turning quadrupole ' + quadname + ' On', end='')
-        quad.turnon(self.params.timeout_quad_turnon)
-        if not quad.pwr_state:
+        print('turning quadrupole ' + quadname + ' On', end='')
+        quad.cmd_turn_on(self.params.timeout_quad_turnon)
+        if not quad.pwrstate:
             print('\n    error: quadrupole ' + quadname + ' is Off.')
             self._stopevt.set()
             print('    exiting...')
@@ -181,16 +183,16 @@ class MeasBeta(BaseClass):
 
         for i in range(self.params.nr_measures):
             if self._stopevt.is_set():
-                print('   exiting...')
+                print('exiting...')
                 break
             print('    {0:02d}/{1:02d} --> '.format(
                 i+1, self.params.nr_measures), end='')
 
             tunex_ini.append(tune.tunex)
             tuney_ini.append(tune.tuney)
-            tunex_wfm_ini.append(tune.tunex_wf)
-            tuney_wfm_ini.append(tune.tuney_wf)
-            for j, fac in range(cycling_curve):
+            tunex_wfm_ini.append(tune.tunex_wfm)
+            tuney_wfm_ini.append(tune.tuney_wfm)
+            for j, fac in enumerate(cycling_curve):
                 quad.strength = korig + deltakl*fac
                 _time.sleep(self.params.wait_quadrupole)
                 if not j:
@@ -198,15 +200,15 @@ class MeasBeta(BaseClass):
                     _time.sleep(self.params.wait_tune)
                     tunex_neg.append(tune.tunex)
                     tuney_neg.append(tune.tuney)
-                    tunex_wfm_neg.append(tune.tunex_wf)
-                    tuney_wfm_neg.append(tune.tuney_wf)
+                    tunex_wfm_neg.append(tune.tunex_wfm)
+                    tuney_wfm_neg.append(tune.tuney_wfm)
                 elif j == 1:
                     print(' +dk/2 ', end='')
                     _time.sleep(self.params.wait_tune)
                     tunex_pos.append(tune.tunex)
                     tuney_pos.append(tune.tuney)
-                    tunex_wfm_pos.append(tune.tunex_wf)
-                    tuney_wfm_pos.append(tune.tuney_wf)
+                    tunex_wfm_pos.append(tune.tunex_wfm)
+                    tuney_wfm_pos.append(tune.tuney_wfm)
             print('--> dnux = {:.5f}, dnuy = {:.5f}'.format(
                tunex_pos[-1] - tunex_neg[-1], tuney_pos[-1] - tuney_neg[-1]))
 
@@ -227,12 +229,11 @@ class MeasBeta(BaseClass):
 
         self.data['measure'][quadname] = meas
 
-        print('    turning quadrupole ' + quadname + ' Off')
-        quad.turnoff(self.params.timeout_quad_turnon)
-        if quad.pwr_state:
+        print('turning quadrupole ' + quadname + ' Off \n')
+        quad.cmd_turn_off(self.params.timeout_quad_turnon)
+        if quad.pwrstate:
             print('    error: quadrupole ' + quadname + ' is still On.')
             self._stopevt.set()
-            print('    exiting...')
 
     def process_data(self, mode='symm', discardpoints=None):
         """."""

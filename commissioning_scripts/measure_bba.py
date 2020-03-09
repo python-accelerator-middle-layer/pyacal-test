@@ -9,10 +9,13 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 import matplotlib.cm as cm
 
+from siriuspy.devices import SOFB, PowerSupply
+
 import pyaccel as _pyacc
 from siriuspy.devices import SOFB, PowerSupply
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 from .base import BaseClass
+from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 
 
 class BBAParams:
@@ -226,7 +229,7 @@ class DoBBA(BaseClass):
         self.data['bpmnames'] = list()
         self.data['quadnames'] = list()
         self._bpms2dobba = list()
-        self.devices['sofb'] = SOFB(SOFB.DEVICE_SI)
+        self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
         self.data['scancenterx'] = np.zeros(len(BBAParams.BPMNAMES))
@@ -257,6 +260,7 @@ class DoBBA(BaseClass):
         return stn
 
     def start(self):
+        """."""
         if self.ismeasuring:
             return
         self._stopevt.clear()
@@ -264,18 +268,22 @@ class DoBBA(BaseClass):
         self._thread.start()
 
     def stop(self):
+        """."""
         self._stopevt.set()
 
     @property
     def ismeasuring(self):
+        """."""
         return self._thread.is_alive()
 
     @property
     def measuredbpms(self):
+        """."""
         return sorted(self.data['measure'])
 
     @property
     def bpms2dobba(self):
+        """."""
         if self._bpms2dobba:
             return self._bpms2dobba
         return sorted(
@@ -283,9 +291,11 @@ class DoBBA(BaseClass):
 
     @bpms2dobba.setter
     def bpms2dobba(self, bpmlist):
+        """."""
         self._bpms2dobba = _dcopy(bpmlist)
 
     def connect_to_quadrupoles(self):
+        """."""
         for bpm in self.bpms2dobba:
             idx = self.data['bpmnames'].index(bpm)
             qname = self.data['quadnames'][idx]
@@ -293,6 +303,7 @@ class DoBBA(BaseClass):
                 self.devices[qname] = PowerSupply(qname)
 
     def get_orbit(self):
+        """."""
         sofb = self.devices['sofb']
         sofb.cmd_reset()
         sofb.wait_buffer(self.params.timeout_wait_sofb)
@@ -321,9 +332,11 @@ class DoBBA(BaseClass):
 
     @staticmethod
     def get_cycling_curve():
+        """."""
         return [1/2, -1/2, 0]
 
     def _dobba_single_bpm(self, bpmname):
+        """."""
         idx = self.data['bpmnames'].index(bpmname)
         quadname = self.data['quadnames'][idx]
         x0 = self.data['scancenterx'][idx]
@@ -425,13 +438,14 @@ class DoBBA(BaseClass):
 
         print('    turning quadrupole ' + quadname + ' Off')
         quad.cmd_turn_off(self.params.timeout_quad_turnon)
-        if quad.pwr_state:
+        if quad.pwrstate:
             print('    error: quadrupole ' + quadname + ' is still On.')
             self._stopevt.set()
             print('    exiting...')
         print('')
 
     def correct_orbit(self, bpmname, x0, y0):
+        """."""
         sofb = self.devices['sofb']
         idxx = self.data['bpmnames'].index(bpmname)
         idxy = idxx + len(self.data['bpmnames'])
@@ -455,6 +469,7 @@ class DoBBA(BaseClass):
 
     def process_data(self, nbpms_linfit=None, thres=None, mode='symm',
                      discardpoints=None):
+        """."""
         for bpm in self.data['measure']:
             self.analysis[bpm] = self.process_data_single_bpm(
                 bpm, nbpms_linfit=nbpms_linfit, thres=thres, mode=mode,
@@ -462,6 +477,7 @@ class DoBBA(BaseClass):
 
     def process_data_single_bpm(self, bpm, nbpms_linfit=None, thres=None,
                                 mode='symm', discardpoints=None):
+        """."""
         anl = dict()
         idx = self.data['bpmnames'].index(bpm)
         nbpms = len(self.data['bpmnames'])
@@ -563,6 +579,7 @@ class DoBBA(BaseClass):
         return anl
 
     def get_bba_results(self, method='linear_fitting', error=False):
+        """."""
         data = self.data
         bpms = data['bpmnames']
         bbax = np.zeros(len(bpms))
@@ -585,6 +602,7 @@ class DoBBA(BaseClass):
         return bbax, bbay
 
     def get_analysis_properties(self, propty, method='linear_fitting'):
+        """."""
         data = self.data
         bpms = data['bpmnames']
         prop = [[], ] * len(bpms)
@@ -598,6 +616,7 @@ class DoBBA(BaseClass):
 
     @staticmethod
     def get_default_quads(model, fam_data):
+        """."""
         quads_idx = _dcopy(fam_data['QN']['index'])
         qs_idx = [idx for idx in fam_data['QS']['index']
                   if not model[idx[0]].fam_name.startswith('FC2')]
@@ -639,6 +658,7 @@ class DoBBA(BaseClass):
 
     @staticmethod
     def list_bpm_subsections(bpms):
+        """."""
         subinst = [bpm[5:7]+bpm[14:] for bpm in bpms]
         sec = [bpm[2:4] for bpm in bpms]
         subsecs = {typ: [] for typ in subinst}
@@ -647,6 +667,7 @@ class DoBBA(BaseClass):
         return subsecs
 
     def combine_bbas(self, bbalist):
+        """."""
         items = ['quadnames', 'scancenterx', 'scancentery']
         dobba = DoBBA()
         dobba.params = self.params
@@ -661,6 +682,7 @@ class DoBBA(BaseClass):
 
     def filter_problems(self, maxstd=100, maxorb=9, maxrms=100,
                         method='lin quad', probtype='std', pln='xy'):
+        """."""
         bpms = []
         islin = 'lin' in method
         isquad = 'quad' in method
@@ -733,6 +755,7 @@ class DoBBA(BaseClass):
 
     # ##### Make Figures #####
     def make_figure_bpm_summary(self, bpm, save=False):
+        """."""
         f = plt.figure(figsize=(9.5, 9))
         gs = mpl_gs.GridSpec(3, 2)
         gs.update(
@@ -850,6 +873,7 @@ class DoBBA(BaseClass):
             f.show()
 
     def make_figure_quadfit(self, bpms=None, fname='', title=''):
+        """."""
         f = plt.figure(figsize=(9.5, 9))
         gs = mpl_gs.GridSpec(2, 1)
         gs.update(
@@ -902,6 +926,7 @@ class DoBBA(BaseClass):
             f.show()
 
     def make_figure_linfit(self, bpms=None, fname='', title=''):
+        """."""
         f = plt.figure(figsize=(9.5, 9))
         gs = mpl_gs.GridSpec(2, 1)
         gs.update(
@@ -955,6 +980,7 @@ class DoBBA(BaseClass):
 
     def make_figure_compare_methods(self, bpmsok=None, bpmsnok=None,
                                     xlim=0, ylim=0, fname='', title=''):
+        """."""
         f  = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(3, 3)
         gs.update(
@@ -1052,7 +1078,8 @@ class DoBBA(BaseClass):
     def make_figure_compare_bbas(bbalist, method='linear_fitting', labels=[],
                                  bpmsok=None, bpmsnok=None, fname='',
                                  title=''):
-        f  = plt.figure(figsize=(9.2, 9))
+        """."""
+        f = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(3, 2)
         gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
 
@@ -1133,6 +1160,7 @@ class DoBBA(BaseClass):
     def make_figure_compare_bbas_diff(bbalist, method='linear_fitting',
                                       labels=[], bpmsok=None, bpmsnok=None,
                                       fname='', title=''):
+        """."""
         f = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(3, 2)
         gs.update(left=0.12, right=0.98, bottom=0.13, top=0.9, hspace=0, wspace=0.35)
