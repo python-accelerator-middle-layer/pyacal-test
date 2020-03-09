@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
-from siriuspy.devices import PowerSupply, Tune
+from siriuspy.devices import PowerSupply, Tune, SOFB
 
 import pyaccel
 from pymodels import si
@@ -53,6 +53,7 @@ class MeasBeta(BaseClass):
         self.quads_betay = []
         self.params = BetaParams()
         self.devices['tune'] = Tune(Tune.DEVICES.ALL)
+        self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['quadnames'] = list()
         self.data['betax_in'] = dict()
         self.data['betay_in'] = dict()
@@ -141,10 +142,22 @@ class MeasBeta(BaseClass):
 
     def _meas_beta(self):
         """."""
+        sofb = self.devices['sofb']
+        loop_on_rf = False
+        if sofb.autocorrsts and sofb.rfenbl:
+            loop_on_rf = True
+            print('RF is enable in SOFB feedback, disabling it...')
+            sofb.rfenbl = 0
+
         for quadname in self.quads2meas:
             if self._stopevt.is_set():
                 return
             self._meas_beta_single_quad(quadname)
+
+        if loop_on_rf:
+            print(
+                'RF was enable in SOFB feedback, restoring original state...')
+            sofb.rfenbl = 1
         print('finished!')
 
     @staticmethod
