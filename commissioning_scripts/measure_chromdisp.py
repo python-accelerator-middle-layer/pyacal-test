@@ -11,7 +11,7 @@ import matplotlib.gridspec as mpl_gs
 from pymodels import si
 import pyaccel
 
-from siriuspy.devices import SOFB, RF, SITune
+from siriuspy.devices import SOFB, RFCav, Tune
 
 from .base import BaseClass
 
@@ -53,9 +53,9 @@ class MeasDispChrom(BaseClass):
         """."""
         super().__init__()
         self.params = MeasParams()
-        self.devices['sofb'] = SOFB(SOFB.DEVICE_SI)
-        self.devices['tune'] = SITune()
-        self.devices['rf'] = RF('SI')
+        self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
+        self.devices['tune'] = Tune(Tune.DEVICES.ALL)
+        self.devices['rf'] = RFCav(RFCav.DEVICES.SI)
         self.analysis = dict()
         self._stopevt = _Event()
         self._thread = _Thread(target=self._do_meas, daemon=True)
@@ -95,12 +95,12 @@ class MeasDispChrom(BaseClass):
         if sofb.autocorrsts:
             loop_on = True
             print('SOFB feedback is enable, disabling it...')
-            sofb.cmd_autocorr_turn_off()
+            sofb.cmd_turn_off_autocorr()
 
         delta_freq = self.params.delta_freq
         npoints = self.params.meas_nrsteps
         sofb.nr_points = self.params.sofb_nrpoints
-        freq0 = rf.frequency
+        freq0 = rf.dev_rfgen.frequency
         tunex0 = tune.tunex
         tuney0 = tune.tuney
         orbx0 = sofb.orbx
@@ -114,22 +114,22 @@ class MeasDispChrom(BaseClass):
             if self._stopevt.is_set():
                 print('   exiting...')
                 break
-            rf.frequency = f
-            rf.wait(self.params.timeout_wait_rf, prop='frequency')
+            rf.cmd_set_frequency(value=f, timeout=self.params.timeout_wait_rf)
             sofb.cmd_reset()
             _time.sleep(self.params.wait_tune)
             sofb.wait_buffer(self.params.timeout_wait_sofb)
-            freq.append(rf.frequency)
+            freq.append(rf.dev_rfgen.frequency)
             orbx.append(sofb.orbx)
             orby.append(sofb.orby)
             tunex.append(tune.tunex)
             tuney.append(tune.tuney)
-            print('delta frequency: {} Hz'.format((rf.frequency-freq0)))
+            print('delta frequency: {} Hz'.format((
+                rf.dev_rfgen.frequency-freq0)))
             print('dtune x: {}'.format((tunex[-1] - tunex0)))
             print('dtune y: {}'.format((tuney[-1] - tuney0)))
             print('')
         print('Restoring RF frequency...')
-        rf.frequency = freq0
+        rf.cmd_set_frequency(value=f, timeout=self.params.timeout_wait_rf)
         self.data['freq'] = np.array(freq)
         self.data['tunex'] = np.array(tunex)
         self.data['tuney'] = np.array(tuney)
@@ -142,7 +142,7 @@ class MeasDispChrom(BaseClass):
         self.data['freq0'] = freq0
         if loop_on:
             print('SOFB feedback was enable, restoring original state...')
-            sofb.cmd_autocorr_turn_on()
+            sofb.cmd_turn_on_autocorr()
         print('Finished!')
 
     def process_data(self, fitorder=1, discardpoints=None):
