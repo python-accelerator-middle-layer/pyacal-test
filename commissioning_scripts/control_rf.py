@@ -65,10 +65,13 @@ class ControlRF(BaseClass):
             raise Exception('Set BO or SI')
 
         devname_rf, devname_sofb = ControlRF._get_devnames(acc)
+        devname_dcct = ControlRF._get_devnames_dcct(acc)
+
         self.devices = {
             'tim': EVG(),
             'rf': RFCav(devname_rf, is_cw=is_cw),
             'sofb': SOFB(devname_sofb),
+            'dcct': DCCT(devname_dcct)
             }
         self.data = {
             'phase': [],
@@ -77,15 +80,8 @@ class ControlRF(BaseClass):
             'sum': [],
             'orbx': [],
             'orby': [],
+            'dcct': [],
             }
-        if acc == 'BO':
-            self.devices['dcct'] = DCCT('BO')
-            self.data['dcct'] = []
-        elif acc == 'SI':
-            self.devices['dcct-1'] = DCCT('SI-1')
-            self.devices['dcct-2'] = DCCT('SI-2')
-            self.data['dcct-1'] = []
-            self.data['dcct-2'] = []
         self._thread = Thread(target=self._do_scan)
         self._stopped = Event()
 
@@ -143,55 +139,39 @@ class ControlRF(BaseClass):
         self.data['sum'] = []
         self.data['orbx'] = []
         self.data['orby'] = []
-        if self.acc == 'BO':
-            self.data['dcct'] = []
-        elif self.acc == 'SI':
-            self.data['dcct-1'] = []
-            self.data['dcct-2'] = []
+        self.data['dcct'] = []
         print('Starting Loop')
         for val in var_span:
             print('Turning pulses off --> ', end='')
-            self.devices['tim'].cmd_turn_pulses_off(self.params.tim_timeout)
+            self.devices['tim'].cmd_turn_off_pulses(self.params.tim_timeout)
             print('varying phase --> ', end='')
             self._vary(val, isphase=isphase)
             _time.sleep(self.params.wait_rf)
             phase_data = np.zeros(nrpul)
             voltage_data = np.zeros(nrpul)
             power_data = np.zeros(nrpul)
-            if self.acc == 'BO':
-                dcct_data = np.zeros(nrpul)
-            elif self.acc == 'SI':
-                dcct1_data = np.zeros(nrpul)
-                dcct2_data = np.zeros(nrpul)
+            dcct_data = np.zeros(nrpul)
             print('turning pulses on --> ', end='')
-            self.devices['tim'].turn_pulses_on(self.params.tim_timeout)
+            self.devices['tim'].cmd_turn_on_pulses(self.params.tim_timeout)
             print('Getting data ', end='')
-            self.devices['sofb'].reset()
+            self.devices['sofb'].cmd_reset()
             for k in range(nrpul):
                 print('.', end='')
                 phase_data[k] = self.devices['rf'].dev_rfll.phase
                 voltage_data[k] = self.devices['rf'].dev_rfll.voltage
                 power_data[k] = self.devices['rf'].dev_rfpowmon.power
-                if self.acc == 'BO':
-                    dcct_data[k] = np.mean(self.devices['dcct'].current)
-                elif self.acc == 'SI':
-                    dcct1_data[k] = np.mean(self.devices['dcct-1'].current)
-                    dcct2_data[k] = np.mean(self.devices['dcct-2'].current)
+                dcct_data[k] = np.mean(self.devices['dcct'].current)
                 _time.sleep(1/freq)
                 if self._stopped.is_set():
                     break
-            self.devices['sofb'].wait(self.params.sofb_timeout)
+            self.devices['sofb'].wait_buffer(self.params.sofb_timeout)
             self.data['phase'].append(phase_data)
             self.data['voltage'].append(voltage_data)
             self.data['power'].append(power_data)
             self.data['sum'].append(self.devices['sofb'].sum)
             self.data['orbx'].append(self.devices['sofb'].trajx)
             self.data['orby'].append(self.devices['sofb'].trajy)
-            if self.acc == 'BO':
-                self.data['dcct'].append(dcct_data)
-            elif self.acc == 'SI':
-                self.data['dcct-1'].append(dcct1_data)
-                self.data['dcct-2'].append(dcct2_data)
+            self.data['dcct'].append(dcct_data)
             if isphase:
                 print('Phase [°]: {0:8.3f}'.format(
                     self.devices['rf'].dev_rfll.phase))
@@ -201,7 +181,7 @@ class ControlRF(BaseClass):
             if self._stopped.is_set():
                 print('Stopped!')
                 break
-        self.devices['tim'].turn_pulses_off(self.params.tim_timeout)
+        self.devices['tim'].cmd_turn_off_pulses(self.params.tim_timeout)
         print('Finished!')
 
     def _vary(self, val, isphase=True):
@@ -223,3 +203,17 @@ class ControlRF(BaseClass):
         else:
             devname_rf, devname_sofb = None, None
         return devname_rf, devname_sofb
+
+    @staticmethod
+    def _get_devnames_dcct(acc):
+        if acc is None:
+            devname_dcct = None
+        elif acc.upper() == 'SI-1':
+            devname_dcct = DCCT.DEVICES.SI_13C4
+        elif acc.upper() == 'SI-2':
+            devname_dcct = DCCT.DEVICES.SI_14C4
+        elif acc.upper() == 'BO':
+            devname_dcct = DCCT.DEVICES.BO
+        else:
+            devname_dcct = None
+        return devname_dcct
