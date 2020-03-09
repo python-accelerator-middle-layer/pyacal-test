@@ -32,8 +32,8 @@ class MeasureRespMatTBBO(BaseClass):
         """."""
         super().__init__(Params())
         self.devices = {
-            'bo_sofb': SOFB(SOFB.DEVICES._BO),
-            'tb_sofb': SOFB(SOFB.DEVICES._TB),
+            'bo_sofb': SOFB(SOFB.DEVICES.BO),
+            'tb_sofb': SOFB(SOFB.DEVICES.TB),
             }
         self._all_corrs = all_corrs
         self._matrix = dict()
@@ -182,7 +182,8 @@ def calc_model_respmatTBBO(tb_mod, model, corr_names, elems, meth='middle',
             # kyl = tb_mod[indcs[0][1]].KyL
             # ksxl = tb_mod[indcs[0][1]].KsxL
             # ksyl = tb_mod[indcs[0][1]].KsyL
-            midx = pyaccel.lattice.find_indices(tb_mod, 'fam_name', 'InjSeptM66')
+            midx = pyaccel.lattice.find_indices(
+                tb_mod, 'fam_name', 'InjSeptM66')
             for m in midx:
                 kxl += tb_mod[m].KxL
                 kyl += tb_mod[m].KyL
