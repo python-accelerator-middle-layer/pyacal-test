@@ -956,11 +956,6 @@ class DoBBA(BaseClass):
                 continue
             x0 = anl['linear_fitting']['x0']
             y0 = anl['linear_fitting']['y0']
-            stdx0 = anl['linear_fitting']['stdx0']
-            stdy0 = anl['linear_fitting']['stdy0']
-
-            x0s = anl['linear_fitting']['x0s']
-            y0s = anl['linear_fitting']['y0s']
             px = anl['linear_fitting']['coeffsx']
             py = anl['linear_fitting']['coeffsy']
 
@@ -1028,13 +1023,13 @@ class DoBBA(BaseClass):
             y0l -= y0l
 
         minx = np.min([x0q[iok], x0l[iok], x0q[inok], x0l[inok]])*1.1
-        minx = np.max([x0q[iok], x0l[iok], x0q[inok], x0l[inok]])*1.1
-        minx = np.min([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
-        minx = np.max([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
-        minx = -xlim if xlim else minx
-        maxx = xlim if xlim else maxx
-        miny = -ylim if ylim else miny
-        maxy = ylim if ylim else maxy
+        maxx = np.max([x0q[iok], x0l[iok], x0q[inok], x0l[inok]])*1.1
+        miny = np.min([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
+        maxy = np.max([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
+        minx = -xlim if xlim is not None else minx
+        maxx = xlim if xlim is not None else maxx
+        miny = -ylim if ylim is not None else miny
+        maxy = ylim if ylim is not None else maxy
 
         axx.errorbar(
             iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[0],
@@ -1141,7 +1136,7 @@ class DoBBA(BaseClass):
                 label=labels[i])
 
         if inok.size:
-            axy.legend(
+            ayy.legend(
                 loc='upper right', bbox_to_anchor=(1.8, 0.2),
                 fontsize='xx-small')
 
