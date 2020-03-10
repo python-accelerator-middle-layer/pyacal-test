@@ -52,7 +52,7 @@ class MeasBeta(BaseClass):
         self.quads_betax = []
         self.quads_betay = []
         self.params = BetaParams()
-        self.devices['tune'] = Tune(Tune.DEVICES.ALL)
+        self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['quadnames'] = list()
         self.data['betax_in'] = dict()
