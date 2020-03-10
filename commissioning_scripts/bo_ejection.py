@@ -71,9 +71,9 @@ class FindEjeBO(BaseClass):
         self.devices = {
             'screen': Screen(Screen.DEVICES.TS_1),
             'bpm': BPM('TS-01:DI-BPM'),
-            'ejekckr': PowerSupplyPU('BO-48D:PU-EjeKckr'),
-            'ejeseptf': PowerSupplyPU('TS-01:PU-EjeSeptF'),
-            'ejeseptg': PowerSupplyPU('TS-01:PU-EjeSeptG'),
+            'ejekckr': PowerSupplyPU(PowerSupplyPU.DEVICES.BO_EJE_KCKR),
+            'ejeseptf': PowerSupplyPU(PowerSupplyPU.DEVICES.TS_EJE_SEPTF),
+            'ejeseptg': PowerSupplyPU(PowerSupplyPU.DEVICES.TS_EJE_SEPTG),
             }
         self.data = {
             'image': [],
