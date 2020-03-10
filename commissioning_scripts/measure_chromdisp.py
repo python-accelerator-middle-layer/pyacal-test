@@ -54,7 +54,7 @@ class MeasDispChrom(BaseClass):
         super().__init__()
         self.params = MeasParams()
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
-        self.devices['tune'] = Tune(Tune.DEVICES.ALL)
+        self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['rf'] = RFCav(RFCav.DEVICES.SI)
         self.analysis = dict()
         self._stopevt = _Event()
