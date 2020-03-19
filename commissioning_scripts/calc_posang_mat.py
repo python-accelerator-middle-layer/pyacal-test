@@ -42,10 +42,10 @@ def _calc_posang_matrices(model, ch, cv):
     mat_h_aux = np.zeros((2, len(ch)))
     for i in range(len(ch)):
         pyaccel.lattice.set_attribute(
-            model, 'hkick_polynom', ch[i], kick/2)
+            model, 'hkick_polynom', ch[i], kick/2/len(ch[i]))
         p1 = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
-            model, 'hkick_polynom', ch[i], -kick/2)
+            model, 'hkick_polynom', ch[i], -kick/2/len(ch[i]))
         p2 = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
             model, 'hkick_polynom', ch[i], 0)
@@ -61,10 +61,10 @@ def _calc_posang_matrices(model, ch, cv):
     mat_v = np.zeros((2, 2))
     for i in range(len(cv)):
         pyaccel.lattice.set_attribute(
-            model, 'vkick_polynom', cv[i], kick/2)
+            model, 'vkick_polynom', cv[i], kick/2/len(cv[i]))
         p1 = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
-            model, 'vkick_polynom', cv[i], -kick/2)
+            model, 'vkick_polynom', cv[i], -kick/2/len(cv[i]))
         p2 = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
             model, 'vkick_polynom', cv[i], 0)
