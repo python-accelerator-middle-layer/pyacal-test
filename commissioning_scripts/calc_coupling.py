@@ -122,7 +122,7 @@ class Coupling():
         return model
 
     @staticmethod
-    def calc_emittance_coupling(model, xlist=None, nr_turns=30):
+    def calc_emittance_coupling(model, xlist=None, nr_turns=100):
         """."""
         if xlist is None:
             xlist = 1e-3 * np.linspace(-0.1, 0.1, 10)
@@ -159,9 +159,8 @@ class Coupling():
         betay = twiss.betay[idx]
         gammay = (1 + alphay*alphay)/betay
 
-        twissx = np.array([[gammax, alphax], [alphax, betax]])
-        twissy = np.array([[gammay, alphay], [alphay, betay]])
+        x, xl, y, yl = orbit[0, :], orbit[1, :], orbit[2, :], orbit[3, :]
 
-        emitx = orbit[:2, :].T @ twissx @ orbit[:2, :]
-        emity = orbit[2:4, :].T @ twissy @ orbit[2:4, :]
+        emitx = gammax * x**2 + 2 * alphax * x * xl + betax * xl**2
+        emity = gammay * y**2 + 2 * alphay * y * yl + betay * yl**2
         return emitx, emity
