@@ -115,7 +115,7 @@ class LOCOUtils:
         """."""
         for idx, idx_seg in enumerate(idx_mag):
             pyaccel.lattice.set_attribute(
-                model, 'KL', idx_seg, kvalues[idx] + kdelta)
+                model, 'KL', idx_seg, kvalues[idx] + kdelta/len(idx_mag))
 
     @staticmethod
     def set_quadset_kdelta(model, idx_set, kvalues, kdelta):
@@ -143,7 +143,6 @@ class LOCOUtils:
         for idx, idx_mag in enumerate(idx_set):
             LOCOUtils.set_dipmag_kdelta(
                 model, idx_mag, kvalues[idx], kdelta)
-
 
     @staticmethod
     def set_quadmag_ksdelta(model, idx_mag, ksvalues, ksdelta):
@@ -425,7 +424,8 @@ class LOCOUtils:
         dm_energy_shift = np.zeros((matrix0.size, config.nr_corr))
         for c in range(config.nr_corr):
             energy_shift[c] = 1
-            matrix_shift = config.measured_dispersion[:, None] * energy_shift[None, :]
+            matrix_shift = config.measured_dispersion[:, None] * \
+                energy_shift[None, :]
             dm_energy_shift[:, c] = matrix_shift.flatten()
             energy_shift[c] = 0
         return dm_energy_shift
@@ -635,6 +635,7 @@ class LOCOConfig:
         self.fit_gain_corr = None
         self.fit_dipoles_kick = None
         self.fit_energy_shift = None
+        self.constraint_deltak = None
         self.cavidx = None
         self.matrix = None
         self.idx_cav = None
@@ -655,6 +656,7 @@ class LOCOConfig:
         self.k_nrsets = None
         self.weight_bpm = None
         self.weight_corr = None
+        self.weight_deltak = None
 
         self._process_input(kwargs)
 
@@ -705,10 +707,10 @@ class LOCOConfig:
         self.update_goalmat(
             self.goalmat, self.use_dispersion, self.use_coupling)
         self.update_gain()
-        self.update_weight()
         self.update_quad_knobs(self.use_quad_families)
         self.update_sext_knobs()
         self.update_dip_knobs(self.use_dip_families)
+        self.update_weight()
         self.update_svd(self.svd_method, self.svd_sel, self.svd_thre)
 
     def update_model(self, model, dim):
@@ -823,6 +825,15 @@ class LOCOConfig:
         elif isinstance(self.weight_corr, (int, float)):
             self.weight_corr = np.ones(self.nr_corr + 1) * \
                 self.weight_corr / (self.nr_corr + 1)
+
+        nquads = len(self.quad_indices)
+        print(nquads)
+        # delta K
+        if self.weight_deltak is None:
+            self.weight_deltak = np.ones(nquads)
+        elif isinstance(self.weight_deltak, (int, float)):
+            self.weight_deltak = np.ones(nquads) * \
+                self.weight_deltak / (nquads)
 
     def update_quad_knobs(self, use_families):
         """."""
@@ -1012,6 +1023,7 @@ class LOCO:
     DEFAULT_TOL = 1e-3
     DEFAULT_REDUC_THRESHOLD = 5/100
     DEFAULT_LAMBDA_LM = 1e-3
+    DEFAULT_DELTAK_NORMALIZATION = 1
     JLOCO_INVERSION = 'normal'
 
     def __init__(self, config=None):
@@ -1393,6 +1405,10 @@ class LOCO:
                 self._jloco, (2*self.config.nr_bpm, self.config.nr_corr+1, -1))
             jloco_temp[:, -1, :] *= 0
 
+        if self.config.constraint_deltak:
+            jloco_deltak = self.calc_jloco_deltak_constraint()
+            self._jloco = np.vstack((self._jloco, jloco_deltak))
+
         # calc jloco inv
         if LOCO.JLOCO_INVERSION == 'transpose':
             print('svd decomposition Jt * J')
@@ -1410,11 +1426,22 @@ class LOCO:
                 np.linalg.svd(self._jloco, full_matrices=False)
 
     def calc_d_matrix(self):
+        """."""
         ncols = self._jloco.shape[1]
-        D = np.zeros(ncols)
+        dmat = np.zeros(ncols)
         for col in range(ncols):
-            D[col] = np.linalg.norm(self._jloco[:, col])
-        return np.diag(D)
+            dmat[col] = np.linalg.norm(self._jloco[:, col])
+        return np.diag(dmat)
+
+    def calc_jloco_deltak_constraint(self):
+        """."""
+        sigma_deltak = LOCO.DEFAULT_DELTAK_NORMALIZATION
+        ncols = self._jloco.shape[1]
+        nknobs = len(self.config.quad_indices)
+        deltak_mat = np.zeros((nknobs, ncols))
+        for knb in range(nknobs):
+            deltak_mat[knb, knb] = self.config.weight_deltak[knb]/sigma_deltak
+        return deltak_mat
 
     def update_svd(self, svd_thre=None, svd_sel=None):
         """."""
@@ -1526,21 +1553,28 @@ class LOCO:
         self._tol = LOCO.DEFAULT_TOL
         self._reduc_threshold = LOCO.DEFAULT_REDUC_THRESHOLD
 
+    def _calc_residue(self):
+        matrix_diff = self.config.goalmat - self._matrix
+        matrix_diff = LOCOUtils.apply_all_weight(
+            matrix_diff, self.config.weight_bpm, self.config.weight_corr)
+        res = matrix_diff.flatten()
+        if self.config.constraint_deltak:
+            res = np.hstack((res, self._quad_k_deltas))
+        return res
+
     def run_fit(self, niter=1):
         """."""
         self._chi = self._chi_init
         for _iter in range(niter):
             self._chi_history.append(self._chi)
             print('iter # {}/{}'.format(_iter+1, niter))
-            matrix_diff = self.config.goalmat - self._matrix
-            matrix_diff = LOCOUtils.apply_all_weight(
-                matrix_diff, self.config.weight_bpm, self.config.weight_corr)
+            res = self._calc_residue()
             if LOCO.JLOCO_INVERSION == 'transpose':
                 param_new = np.dot(
                     self._jtjloco_inv, np.dot(
-                        self._jloco.T, matrix_diff.flatten()))
+                        self._jloco.T, res))
             elif LOCO.JLOCO_INVERSION == 'normal':
-                param_new = np.dot(self._jloco_inv, matrix_diff.flatten())
+                param_new = np.dot(self._jloco_inv, res)
             param_new = param_new.flatten()
             model_new, matrix_new = self._calc_model_matrix(param_new)
             chi_new = self.calc_chi(matrix_new)
@@ -1585,6 +1619,10 @@ class LOCO:
         dmatrix[:, self.config.nr_ch:-1] *= self.config.delta_kicky_meas
         dmatrix[:, -1] *= self.config.delta_frequency_meas
         chi = np.linalg.norm(dmatrix)/np.sqrt(dmatrix.size)
+        # if self.config.constraint_deltak:
+        #     deltak_term = self.config.weight_deltak @ self._quad_k_deltas
+        #     deltak_term /= LOCO.DEFAULT_DELTAK_NORMALIZATION
+        #     chi += deltak_term
         return chi * 1e6
 
     def _create_output_vars(self):
@@ -1594,7 +1632,8 @@ class LOCO:
         self.bpm_gain = self._gain_bpm_inival + self._gain_bpm_delta
         self.bpm_roll = self._roll_bpm_inival + self._roll_bpm_delta
         self.corr_gain = self._gain_corr_inival + self._gain_corr_delta
-        self.energy_shift = self._energy_shift_inival + self._energy_shift_deltas
+        self.energy_shift = self._energy_shift_inival + \
+            self._energy_shift_deltas
 
     def _calc_model_matrix(self, param):
         """."""
@@ -1731,9 +1770,9 @@ class LOCO:
             lambda_lm *= 10
             print('chi was increased! Trial {0:d}'.format(_iter))
             print('applying lambda {0:0.4f}'.format(lambda_lm))
-            D = self.calc_d_matrix()
+            dmat = self.calc_d_matrix()
             matrix2invert = self._jloco.T @ self._jloco
-            matrix2invert += lambda_lm * D.T @ D
+            matrix2invert += lambda_lm * dmat.T @ dmat
             self._jtjloco_u, self._jtjloco_s, self._jtjloco_v = \
                 np.linalg.svd(matrix2invert, full_matrices=False)
             inv_s = 1/self._jtjloco_s
@@ -1741,7 +1780,8 @@ class LOCO:
             inv_s[np.isinf(inv_s)] = 0
 
             if self.config.svd_method == self.config.SVD_METHOD_THRESHOLD:
-                bad_sv = self._jtjloco_s/np.max(self._jtjloco_s) < self.config.svd_thre
+                bad_sv = self._jtjloco_s/np.max(self._jtjloco_s) < \
+                    self.config.svd_thre
                 inv_s[bad_sv] = 0
             elif self.config.svd_method == self.config.SVD_METHOD_SELECTION:
                 inv_s[self.config.svd_sel:] = 0
