@@ -431,11 +431,35 @@ class LOCOUtils:
         return dm_energy_shift
 
     @staticmethod
+    def jloco_calc_ks_skewquad(config, model):
+        """."""
+        qsindices = config.respm.fam_data['QS']['index']
+        ksvalues = np.array(
+            pyaccel.lattice.get_attribute(model, 'KsL', qsindices))
+        set_quad_ksdelta = LOCOUtils.set_quadmag_ksdelta
+        matrix_nominal = LOCOUtils.respm_calc(
+            model, config.respm, config.use_dispersion)
+
+        ksmatrix = np.zeros((
+            matrix_nominal.shape[0]*matrix_nominal.shape[1], len(qsindices)))
+
+        model_this = _dcopy(model)
+        for idx, idx_set in enumerate(qsindices):
+            set_quad_ksdelta(
+                model_this, idx_set, ksvalues[idx], config.DEFAULT_DELTA_KS)
+            matrix_this = LOCOUtils.respm_calc(
+                model_this, config.respm, config.use_dispersion)
+            dmatrix = (matrix_this - matrix_nominal)/config.DEFAULT_DELTA_KS
+            ksmatrix[:, idx] = dmatrix.flatten()
+            set_quad_ksdelta(model_this, idx_set, ksvalues[idx], 0)
+        return ksmatrix
+
+    @staticmethod
     def jloco_merge_linear(
             config, km_quad, km_sext, km_dip,
             ksm_quad, ksm_sext, ksm_dip,
             dmdg_bpm, dmdalpha_bpm, dmdg_corr,
-            kick_dip, energy_shift):
+            kick_dip, energy_shift, ks_skewquad):
         """."""
         nbpm = config.nr_bpm
         nch = config.nr_ch
@@ -443,6 +467,7 @@ class LOCOUtils:
         knobs_k = 0
         knobs_ks = 0
         knobs_linear = 0
+        knobs_skewquad = 0
 
         if km_quad is not None:
             knobs_k += km_quad.shape[1]
@@ -456,6 +481,8 @@ class LOCOUtils:
             knobs_ks += ksm_sext.shape[1]
         if ksm_dip is not None:
             knobs_ks += ksm_dip.shape[1]
+        if ks_skewquad is not None:
+            knobs_skewquad += ks_skewquad.shape[1]
 
         if config.fit_gain_bpm:
             knobs_linear += 2*nbpm
@@ -468,7 +495,7 @@ class LOCOUtils:
         if config.fit_dipoles_kick:
             knobs_linear += 3
 
-        nknobs = knobs_k + knobs_ks + knobs_linear
+        nknobs = knobs_k + knobs_ks + knobs_linear + knobs_skewquad
         jloco = np.zeros(
             (2*nbpm*(nch+ncv+1), nknobs))
         idx = 0
@@ -515,6 +542,10 @@ class LOCOUtils:
         if config.fit_energy_shift:
             n = energy_shift.shape[1]
             jloco[:, idx:idx+n] = energy_shift
+            idx += n
+        if config.fit_skew_quadrupoles:
+            n = knobs_skewquad
+            jloco[:, idx:idx+n] = ks_skewquad
             idx += n
         return jloco
 
@@ -573,7 +604,10 @@ class LOCOUtils:
             size = config.nr_corr
             param_dict['energy_shift'] = param[idx:idx+size]
             idx += size
-
+        if config.fit_skew_quadrupoles:
+            size = len(config.skew_quad_indices)
+            param_dict['skew_quadrupoles'] = param[idx:idx+size]
+            idx += size
         return param_dict
 
     @staticmethod
@@ -636,6 +670,7 @@ class LOCOConfig:
         self.fit_dipoles_kick = None
         self.fit_energy_shift = None
         self.constraint_deltak = None
+        self.fit_skew_quadrupoles = None
         self.cavidx = None
         self.matrix = None
         self.idx_cav = None
@@ -653,6 +688,7 @@ class LOCOConfig:
         self.b1_indices = None
         self.b2_indices = None
         self.bc_indices = None
+        self.skew_quad_indices = None
         self.k_nrsets = None
         self.weight_bpm = None
         self.weight_corr = None
@@ -710,6 +746,7 @@ class LOCOConfig:
         self.update_quad_knobs(self.use_quad_families)
         self.update_sext_knobs()
         self.update_dip_knobs(self.use_dip_families)
+        self.update_skew_quad_knobs()
         self.update_weight()
         self.update_svd(self.svd_method, self.svd_sel, self.svd_thre)
 
@@ -873,6 +910,10 @@ class LOCOConfig:
                     self.sext_indices += self.respm.fam_data[fam_name]['index']
                     self.sext_indices.sort()
 
+    def update_skew_quad_knobs(self):
+        """."""
+        self.skew_quad_indices = self.respm.fam_data['QS']['index']
+
     def update_b1_knobs(self):
         """."""
         self.b1_indices = self.respm.fam_data['B1']['index']
@@ -975,6 +1016,12 @@ class LOCOConfigSI(LOCOConfig):
                 'SFA0', 'SFB0', 'SFP0', 'SFA1', 'SFB1', 'SFP1',
                 'SFA2', 'SFB2', 'SFP2']
 
+    @property
+    def famname_skewquadset(self):
+        """."""
+        return ['SFA0', 'SDB0', 'SDP0', 'FC2', 'SDA2', 'SDB2',
+                'SDP2', 'SDA3', 'SDB3', 'SDP3']
+
 
 class LOCOConfigBO(LOCOConfig):
     """."""
@@ -1013,6 +1060,11 @@ class LOCOConfigBO(LOCOConfig):
     def famname_sextset(self):
         """."""
         return ['SF', 'SD']
+
+    @property
+    def famname_skewquadset(self):
+        """."""
+        return ['QS']
 
 
 class LOCO:
@@ -1058,6 +1110,7 @@ class LOCO:
         self._jloco_ks_b1 = None
         self._jloco_ks_b2 = None
         self._jloco_ks_bc = None
+        self._jloco_ks_skew_quad = None
 
         self._jloco_kick_b1 = None
         self._jloco_kick_b2 = None
@@ -1089,6 +1142,8 @@ class LOCO:
         self._quad_ks_deltas = None
         self._sext_ks_inival = None
         self._sext_ks_deltas = None
+        self._skew_quad_ks_inival = None
+        self._skew_quad_ks_deltas = None
 
         self._dip_kick_inival = None
         self._dip_kick_deltas = None
@@ -1125,7 +1180,8 @@ class LOCO:
                fname_jloco_ks_quad=None,
                fname_jloco_ks_sext=None,
                fname_jloco_ks_dip=None,
-               fname_jloco_kick_dip=None):
+               fname_jloco_kick_dip=None,
+               fname_jloco_ks_skewquad=None):
         """."""
         print('update config...')
         self.update_config()
@@ -1142,7 +1198,8 @@ class LOCO:
                 fname_jloco_ks_quad=fname_jloco_ks_quad,
                 fname_jloco_ks_sext=fname_jloco_ks_sext,
                 fname_jloco_ks_dip=fname_jloco_ks_dip,
-                fname_jloco_kick_dip=fname_jloco_kick_dip)
+                fname_jloco_kick_dip=fname_jloco_kick_dip,
+                fname_jloco_ks_skewquad=fname_jloco_ks_skewquad)
             print('update svd...')
             self.update_svd()
         print('update fit...')
@@ -1203,6 +1260,8 @@ class LOCO:
                 magstofit = self.config.sextupoles_to_fit
             else:
                 magstofit = self.config.famname_sextset
+        elif magtype == 'skew_quadrupole':
+            magstofit = self.config.famname_skewquadset
         quadfam = self.config.use_quad_families
         quadfam &= magtype == 'quadrupole'
         quadfam &= is_normal
@@ -1251,6 +1310,23 @@ class LOCO:
                     fname_jloco_ks_dip)
                 self._jloco_ks_dip = self._convert_dict2array(
                     jloco_ks_dip_dict, 'dipole', is_normal=False)
+
+    def _handle_skewquad_fit_ks(self, fname_jloco_ks_skewquad):
+        # calculate Ks jacobian for skew quadrupoles
+        if self.config.fit_skew_quadrupoles:
+            if fname_jloco_ks_skewquad is None:
+                print('calculating skew quadrupoles ksmatrix...')
+                t0 = time.time()
+                self._jloco_ks_skew_quad = LOCOUtils.jloco_calc_ks_skewquad(
+                    self.config, self._model)
+                dt = time.time() - t0
+                print('it took {} min to calculate'.format(dt/60))
+            else:
+                print('loading skew quadrupoles ksmatrix...')
+                jloco_ks_skewquad_dict = LOCOUtils.load_data(
+                    fname_jloco_ks_skewquad)
+                self._jloco_ks_skew_quad = self._convert_dict2array(
+                    jloco_ks_skewquad_dict, 'skew_quadrupole', is_normal=False)
 
     def _handle_quad_fit_ks(self, fname_jloco_ks_quad):
         # calculate Ks jacobian for quadrupole
@@ -1310,6 +1386,7 @@ class LOCO:
         return newjloco
 
     def save_jacobian(self):
+        """."""
         idxQN = self.config.respm.fam_data['QN']['index']
         subQN = self.config.respm.fam_data['QN']['subsection']
 
@@ -1318,6 +1395,9 @@ class LOCO:
 
         idxBN = self.config.respm.fam_data['BN']['index']
         subBN = self.config.respm.fam_data['BN']['subsection']
+
+        idxQS = self.config.respm.fam_data['QS']['index']
+        subQS = self.config.respm.fam_data['QS']['subsection']
 
         jloco_k_dip = self.create_new_jacobian_dict(
             self._jloco_k_dip, idxBN, subBN)
@@ -1340,6 +1420,8 @@ class LOCO:
             self._jloco_ks_quad, idxQN, subQN)
         jloco_ks_sext = self.create_new_jacobian_dict(
             self._jloco_ks_sext, idxSN, subSN)
+        jloco_ks_skewquad = self.create_new_jacobian_dict(
+                self._jloco_ks_skew_quad, idxQS, subQS)
 
         print('saving jacobian Ks')
         LOCOUtils.save_data(
@@ -1348,6 +1430,8 @@ class LOCO:
             '4d_KsL_quadrupoles_trims', jloco_ks_quad)
         LOCOUtils.save_data(
             '4d_KsL_sextupoles', jloco_ks_sext)
+        LOCOUtils.save_data(
+            '4d_KsL_skew_quadrupoles', jloco_ks_skewquad)
 
     def update_jloco(self,
                      fname_jloco_k=None,
@@ -1357,7 +1441,8 @@ class LOCO:
                      fname_jloco_ks_dip=None,
                      fname_jloco_ks_quad=None,
                      fname_jloco_ks_sext=None,
-                     fname_jloco_kick_dip=None):
+                     fname_jloco_kick_dip=None,
+                     fname_jloco_ks_skewquad=None):
         """."""
         # calc jloco linear parts
         self._jloco_gain_bpm, self._jloco_roll_bpm, self._jloco_gain_corr = \
@@ -1376,6 +1461,8 @@ class LOCO:
             self._handle_quad_fit_ks(fname_jloco_ks_quad)
             self._handle_sext_fit_ks(fname_jloco_ks_sext)
 
+            self._handle_skewquad_fit_ks(fname_jloco_ks_skewquad)
+
             # self.save_jacobian()
 
         if self.config.fit_energy_shift:
@@ -1393,7 +1480,7 @@ class LOCO:
             self._jloco_ks_quad, self._jloco_ks_sext, self._jloco_ks_dip,
             self._jloco_gain_bpm, self._jloco_roll_bpm,
             self._jloco_gain_corr, self._jloco_kick_dip,
-            self._jloco_energy_shift)
+            self._jloco_energy_shift, self._jloco_ks_skew_quad)
 
         # apply weight
         self._jloco = LOCOUtils.jloco_apply_weight(
@@ -1504,9 +1591,14 @@ class LOCO:
             self._dip_ks_inival = np.array(
                     pyaccel.lattice.get_attribute(
                         self._model, 'KsL', self.config.dip_indices_ks))
+            self._skew_quad_ks_inival = np.array(
+                    pyaccel.lattice.get_attribute(
+                        self._model, 'KsL', self.config.skew_quad_indices))
             self._quad_ks_deltas = np.zeros(len(self.config.quad_indices_ks))
             self._sext_ks_deltas = np.zeros(len(self.config.sext_indices))
             self._dip_ks_deltas = np.zeros(len(self.config.dip_indices_ks))
+            self._skew_quad_ks_deltas = np.zeros(
+                len(self.config.skew_quad_indices))
 
         # self._dip_kick_inival = np.array(
         #         pyaccel.lattice.get_attribute(
@@ -1716,6 +1808,16 @@ class LOCO:
                     matrix,
                     self._energy_shift_inival + self._energy_shift_deltas,
                     config.measured_dispersion)
+            if 'skew_quadrupoles' in param_dict:
+                # update skew quadrupoles
+                self._skew_quad_ks_deltas += param_dict['skew_quadrupoles']
+                # update local model
+                set_quad_ksdelta = LOCOUtils.set_quadmag_ksdelta
+                for idx, idx_set in enumerate(config.skew_quad_indices):
+                    set_quad_ksdelta(
+                        model, idx_set,
+                        self._skew_quad_ks_inival[idx],
+                        self._skew_quad_ks_deltas[idx])
         else:
             matrix = _dcopy(self.config.matrix)
 
