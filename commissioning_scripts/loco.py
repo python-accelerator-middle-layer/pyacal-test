@@ -827,7 +827,6 @@ class LOCOConfig:
                 self.weight_corr / (self.nr_corr + 1)
 
         nquads = len(self.quad_indices)
-        print(nquads)
         # delta K
         if self.weight_deltak is None:
             self.weight_deltak = np.ones(nquads)
@@ -1023,7 +1022,7 @@ class LOCO:
     DEFAULT_TOL = 1e-3
     DEFAULT_REDUC_THRESHOLD = 5/100
     DEFAULT_LAMBDA_LM = 1e-3
-    DEFAULT_DELTAK_NORMALIZATION = 1
+    DEFAULT_DELTAK_NORMALIZATION = 1e-2
     JLOCO_INVERSION = 'normal'
 
     def __init__(self, config=None):
@@ -1618,12 +1617,8 @@ class LOCO:
         dmatrix[:, :self.config.nr_ch] *= self.config.delta_kickx_meas
         dmatrix[:, self.config.nr_ch:-1] *= self.config.delta_kicky_meas
         dmatrix[:, -1] *= self.config.delta_frequency_meas
-        chi = np.linalg.norm(dmatrix)/np.sqrt(dmatrix.size)
-        # if self.config.constraint_deltak:
-        #     deltak_term = self.config.weight_deltak @ self._quad_k_deltas
-        #     deltak_term /= LOCO.DEFAULT_DELTAK_NORMALIZATION
-        #     chi += deltak_term
-        return chi * 1e6
+        chi2 = np.sum(dmatrix*dmatrix)/(dmatrix.size)
+        return np.sqrt(chi2) * 1e6
 
     def _create_output_vars(self):
         """."""
