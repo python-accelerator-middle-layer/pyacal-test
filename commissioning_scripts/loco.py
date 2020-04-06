@@ -3,8 +3,8 @@
 from copy import deepcopy as _dcopy
 import time
 import pickle as _pickle
-from siriuspy.namesys import SiriusPVName as _PVName
 import numpy as np
+from siriuspy.namesys import SiriusPVName as _PVName
 import pyaccel
 from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 
