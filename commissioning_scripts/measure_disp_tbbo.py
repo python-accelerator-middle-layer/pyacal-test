@@ -210,13 +210,13 @@ class MeasureDispMatTBBO(BaseClass):
 def calc_model_dispersionTBBO(model, bpms):
     """."""
     dene = 0.0001
+    rin = np.array([
+        [0, 0, 0, 0, dene/2, 0],
+        [0, 0, 0, 0, -dene/2, 0]]).T
     rout, *_ = pyaccel.tracking.line_pass(
-        model,
-        [[0, 0, 0, 0, dene/2, 0],
-         [0, 0, 0, 0, -dene/2, 0]],
-        bpms)
-    dispx = (rout[0, 0, :] - rout[1, 0, :]) / dene
-    dispy = (rout[0, 2, :] - rout[1, 2, :]) / dene
+        model, rin, bpms)
+    dispx = (rout[0, 0, :] - rout[0, 1, :]) / dene
+    dispy = (rout[2, 0, :] - rout[2, 1, :]) / dene
     return np.hstack([dispx, dispy])
 
 
