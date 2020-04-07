@@ -8,6 +8,9 @@ import pyaccel
 class OrbRespmat():
     """."""
 
+    _FREQ_DELTA = 10
+    _ENERGY_DELTA = 1e-5
+
     def __init__(self, model, acc, dim='4d'):
         """."""
         self.model = model
@@ -20,8 +23,8 @@ class OrbRespmat():
             raise Exception('Set models: BO or SI')
         self.dim = dim
         self.bpms = self._get_idx(self.fam_data['BPM']['index'])
-        self.chidx = self._get_idx(self.fam_data['CH']['index'])
-        self.cvidx = self._get_idx(self.fam_data['CV']['index'])
+        self.ch_idx = self._get_idx(self.fam_data['CH']['index'])
+        self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
 
     @staticmethod
     def _get_idx(indcs):
@@ -32,7 +35,7 @@ class OrbRespmat():
             self.model, 'pass_method', 'cavity_pass')[0]
         rffreq = self.model[idx].frequency
         if self.dim == '6d':
-            dfreq = 10
+            dfreq = OrbRespmat._FREQ_DELTA
             self.model[idx].frequency = rffreq + dfreq
             orbp = pyaccel.tracking.find_orbit6(self.model, indices='open')
             self.model[idx].frequency = rffreq - dfreq
@@ -41,7 +44,7 @@ class OrbRespmat():
             rfline = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/dfreq
             rfline = rfline[:, self.bpms].flatten()
         else:
-            denergy = 1e-5
+            denergy = OrbRespmat._ENERGY_DELTA
             orbp = pyaccel.tracking.find_orbit4(
                 self.model, energy_offset=denergy, indices='open')
             orbn = pyaccel.tracking.find_orbit4(
@@ -69,9 +72,9 @@ class OrbRespmat():
             m_mat, t_mat = pyaccel.tracking.find_m44(
                 self.model, indices='open')
 
-        nch = len(self.chidx)
+        nch = len(self.ch_idx)
         respmat = []
-        corrs = np.hstack([self.chidx, self.cvidx])
+        corrs = np.hstack([self.ch_idx, self.cv_idx])
         for idx, corr in enumerate(corrs):
             rc_mat = t_mat[corr, :, :]
             rb_mat = t_mat[self.bpms, :, :]
@@ -161,17 +164,17 @@ class TrajRespmat():
             self.fam_data = si.get_family_data(model)
 
         self.bpms = self._get_idx(self.fam_data['BPM']['index'])
-        self.chidx = self.fam_data['CH']['index']
+        self.ch_idx = self.fam_data['CH']['index']
 
         if acc == 'TS':
             ejesept = pyaccel.lattice.find_indices(
                 model, 'fam_name', 'EjeSeptG')
             segs = len(ejesept)
-            self.chidx.append([ejesept[segs//2]])
-            self.chidx = sorted(self.chidx)
+            self.ch_idx.append([ejesept[segs//2]])
+            self.ch_idx = sorted(self.ch_idx)
 
-        self.chidx = self._get_idx(self.chidx)
-        self.cvidx = self._get_idx(self.fam_data['CV']['index'])
+        self.ch_idx = self._get_idx(self.ch_idx)
+        self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
 
     @staticmethod
     def _get_idx(indcs):
@@ -183,7 +186,7 @@ class TrajRespmat():
             self.model, indices='open', closed_orbit=[0, 0, 0, 0])
 
         respmat = []
-        corrs = np.hstack([self.chidx, self.cvidx])
+        corrs = np.hstack([self.ch_idx, self.cv_idx])
         for idx, corr in enumerate(corrs):
             rc_mat = cumulmat[corr]
             rb_mat = cumulmat[self.bpms]
@@ -193,7 +196,7 @@ class TrajRespmat():
             respx, respy = self._get_respmat_line(
                 rc_mat, rb_mat, corr, length=corr_len,
                 kxl=kl_stren, kyl=-kl_stren, ksxl=ksl_stren, ksyl=ksl_stren)
-            if idx < len(self.chidx):
+            if idx < len(self.ch_idx):
                 respmat.append(respx)
             else:
                 respmat.append(respy)
