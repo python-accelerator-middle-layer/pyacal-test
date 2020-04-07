@@ -22,7 +22,7 @@ class OrbRespmat():
         else:
             raise Exception('Set models: BO or SI')
         self.dim = dim
-        self.bpms = self._get_idx(self.fam_data['BPM']['index'])
+        self.bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
         self.ch_idx = self._get_idx(self.fam_data['CH']['index'])
         self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
 
@@ -42,7 +42,7 @@ class OrbRespmat():
             orbn = pyaccel.tracking.find_orbit6(self.model, indices='open')
             self.model[idx].frequency = rffreq
             rfline = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/dfreq
-            rfline = rfline[:, self.bpms].flatten()
+            rfline = rfline[:, self.bpm_idx].flatten()
         else:
             denergy = OrbRespmat._ENERGY_DELTA
             orbp = pyaccel.tracking.find_orbit4(
@@ -50,7 +50,7 @@ class OrbRespmat():
             orbn = pyaccel.tracking.find_orbit4(
                 self.model, energy_offset=-denergy, indices='open')
             dispbpm = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/denergy
-            dispbpm = dispbpm[:, self.bpms].flatten()
+            dispbpm = dispbpm[:, self.bpm_idx].flatten()
 
             rin = np.zeros((6, 2))
             rin[4, :] = [denergy, -denergy]
@@ -77,7 +77,7 @@ class OrbRespmat():
         corrs = np.hstack([self.ch_idx, self.cv_idx])
         for idx, corr in enumerate(corrs):
             rc_mat = t_mat[corr, :, :]
-            rb_mat = t_mat[self.bpms, :, :]
+            rb_mat = t_mat[self.bpm_idx, :, :]
             corr_len = self.model[corr].length
             kl_stren = self.model[corr].KL
             ksl_stren = self.model[corr].KsL
@@ -115,7 +115,7 @@ class OrbRespmat():
             rc_mat.T, (rc_mat @ m_mat).T).T  # Mc = Rc M Rc^-1
         mci_mat = np.eye(mc_mat.shape[0], dtype=float) - mc_mat
 
-        small = self.bpms < corr
+        small = self.bpm_idx < corr
         large = np.logical_not(small)
 
         rcbl_mat = np.linalg.solve(rc_mat.T, rb_mat.transpose((0, 2, 1)))
@@ -128,10 +128,10 @@ class OrbRespmat():
         rcbs_mat = np.linalg.solve(mci_mat.T, rcbs_mat.transpose((0, 2, 1)))
         rcbs_mat = rcbs_mat.transpose((0, 2, 1))
 
-        respxx = np.zeros(len(self.bpms))
-        respyx = np.zeros(len(self.bpms))
-        respxy = np.zeros(len(self.bpms))
-        respyy = np.zeros(len(self.bpms))
+        respxx = np.zeros(len(self.bpm_idx))
+        respyx = np.zeros(len(self.bpm_idx))
+        respxy = np.zeros(len(self.bpm_idx))
+        respyy = np.zeros(len(self.bpm_idx))
 
         respxx[large] = rcbl_mat[:, 0, 1]
         respyx[large] = rcbl_mat[:, 2, 1]
@@ -163,7 +163,7 @@ class TrajRespmat():
         elif acc == 'SI':
             self.fam_data = si.get_family_data(model)
 
-        self.bpms = self._get_idx(self.fam_data['BPM']['index'])
+        self.bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
         self.ch_idx = self.fam_data['CH']['index']
 
         if acc == 'TS':
@@ -189,7 +189,7 @@ class TrajRespmat():
         corrs = np.hstack([self.ch_idx, self.cv_idx])
         for idx, corr in enumerate(corrs):
             rc_mat = cumulmat[corr]
-            rb_mat = cumulmat[self.bpms]
+            rb_mat = cumulmat[self.bpm_idx]
             corr_len = self.model[corr].length
             kl_stren = self.model[corr].KL
             ksl_stren = self.model[corr].KsL
@@ -201,7 +201,7 @@ class TrajRespmat():
             else:
                 respmat.append(respy)
 
-        respmat.append(np.zeros(2*len(self.bpms)))
+        respmat.append(np.zeros(2*len(self.bpm_idx)))
         respmat = np.array(respmat).T
         return respmat
 
@@ -221,16 +221,16 @@ class TrajRespmat():
 
         rc_mat = half_cor @ rc_mat
 
-        large = self.bpms > corr
+        large = self.bpm_idx > corr
 
         rb_mat = rb_mat[large, :, :]
         rcb_mat = np.linalg.solve(rc_mat.T, rb_mat.transpose((0, 2, 1)))
         rcb_mat = rcb_mat.transpose(0, 2, 1)
 
-        respxx = np.zeros(len(self.bpms), dtype=float)
-        respyx = np.zeros(len(self.bpms), dtype=float)
-        respxy = np.zeros(len(self.bpms), dtype=float)
-        respyy = np.zeros(len(self.bpms), dtype=float)
+        respxx = np.zeros(len(self.bpm_idx), dtype=float)
+        respyx = np.zeros(len(self.bpm_idx), dtype=float)
+        respxy = np.zeros(len(self.bpm_idx), dtype=float)
+        respyy = np.zeros(len(self.bpm_idx), dtype=float)
 
         respxx[large] = rcb_mat[:, 0, 1]
         respyx[large] = rcb_mat[:, 2, 1]
