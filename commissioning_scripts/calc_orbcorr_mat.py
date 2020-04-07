@@ -49,13 +49,13 @@ class OrbRespmat():
             dispbpm = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/de
             dispbpm = dispbpm[:, self.bpms].flatten()
 
-            rin = np.zeros((2, 6))
-            rin[:, 4] = [de, -de]
+            rin = np.zeros((6, 2))
+            rin[4, :] = [de, -de]
             rout, *_ = pyaccel.tracking.ring_pass(self.model, rin)
             leng = self.model.length
-            alpha = -np.diff(rout[:, 5])/2/de / leng
+            alpha = -1 * np.diff(rout[5, :]) / 2 / de / leng
             # Convert dispersion to deltax/deltaf:
-            rfline = -dispbpm / rffreq / alpha
+            rfline = - dispbpm / rffreq / alpha
         return rfline
 
     def get_respm(self):
