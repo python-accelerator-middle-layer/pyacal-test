@@ -32,7 +32,7 @@ class FitInjTraj(BaseClass):
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.model = ring if ring is not None else si.create_accelerator()
         self.simul_model = sim_mod if sim_mod is not None else self.model[:]
-        self.model.vchamber_on = False
+        self.model.vchamber_on = True
         self.simul_model.vchamber_on = True
 
         injp = pyaccel.lattice.find_indices(
