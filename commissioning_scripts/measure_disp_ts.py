@@ -73,7 +73,7 @@ class MeasureDispTS(BaseClass):
     @property
     def trajx_bo(self):
         """."""
-        return self.devices['bo_sofb'].trajx_idx
+        return self.devices['bo_sofb'].trajx
 
     @property
     def trajy(self):
@@ -83,7 +83,7 @@ class MeasureDispTS(BaseClass):
     @property
     def trajy_bo(self):
         """."""
-        return self.devices['bo_sofb'].trajy_idx
+        return self.devices['bo_sofb'].trajy
 
     @property
     def injsi(self):
@@ -180,7 +180,7 @@ class MeasureDispTS(BaseClass):
 
         d_ene = ene1/ene0 - 1
         return np.array(orb).sum(axis=0) / d_ene, \
-               np.array(orb_bo).sum(axis=0) / d_ene
+            np.array(orb_bo).sum(axis=0) / d_ene
 
 
 def calc_model_dispersionTS(model, bpms):

@@ -49,13 +49,13 @@ class MeasureDispTBBO(BaseClass):
     def trajx(self):
         """."""
         return np.hstack(
-            [self.devices['tb_sofb'].trajx, self.devices['bo_sofb'].trajx_idx])
+            [self.devices['tb_sofb'].trajx, self.devices['bo_sofb'].trajx])
 
     @property
     def trajy(self):
         """."""
         return np.hstack(
-            [self.devices['tb_sofb'].trajy, self.devices['bo_sofb'].trajy_idx])
+            [self.devices['tb_sofb'].trajy, self.devices['bo_sofb'].trajy])
 
     @property
     def nr_points(self):
@@ -206,6 +206,7 @@ class MeasureDispMatTBBO(BaseClass):
                 return v
         print('ERR: delta not found!')
         return 0.0
+
 
 def calc_model_dispersionTBBO(model, bpms):
     """."""
