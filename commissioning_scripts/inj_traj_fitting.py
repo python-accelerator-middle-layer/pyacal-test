@@ -98,12 +98,15 @@ class FitInjTraj(BaseClass):
         de_ini = np.mean(trajx) / etax_ave
         return np.array([x_ini, xl_ini, y_ini, yl_ini, de_ini])
 
-    def do_fitting(self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6):
+    def do_fitting(
+            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6, full=False):
         """."""
         vec0 = vec0 if vec0 is not None else self.calc_init_vals(trajx, trajy)
         res0 = self.calc_residue(vec0, trajx, trajy)
         chi0 = self.calc_chisqr(res0)
         vecs = [vec0, ]
+        residues = [res0, ]
+        chis = [chi0, ]
 
         vec, res = vec0.copy(), res0.copy()
         factor = 1
@@ -123,12 +126,17 @@ class FitInjTraj(BaseClass):
             else:
                 vec0 = vec.copy()
                 res0 = res.copy()
-                vecs.append(vec0)
                 chi0 = chi
+                vecs.append(vec0)
+                residues.append(res0)
+                chis.append(chi0)
                 factor = min(factor*2, 1)
             if chi0 < tol:
                 break
-        return vecs
+        if full:
+            return vecs, residues, chis
+        else:
+            return vecs
 
     def get_traj_from_sofb(self):
         """."""
