@@ -24,7 +24,21 @@ class Params:
 
 
 class FitInjTraj(BaseClass):
-    """."""
+    """Fit injection trajectories in the Sirius storage ring.
+
+    Examples:
+    ---------
+    >>> import numpy as np
+    >>> from apsuite.commissioning_scripts.inj_traj_fitting import FitInjTraj
+    >>> np.random.seed(42)
+    >>> fit_traj = FitInjTraj()
+    >>> x0, xl0, y0, yl0, de0 = -9.0e-3, 0.0e-3, 0.0e-3, 0.0, 0.01
+    >>> trajx, trajy, trajsum = fit_traj.simulate_sofb(
+            x0, xl0, y0, yl0, de0)
+    >>> # trajx, trajy, trajsum = fit_traj.get_traj_from_sofb()
+    >>> vecs = fit_traj.do_fitting(trajx, trajy, tol=1e-8)
+
+    """
 
     def __init__(self, ring=None, sim_mod=None):
         """."""
