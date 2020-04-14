@@ -149,6 +149,8 @@ class FitInjTraj(BaseClass):
         maxidx = np.sum(indcs)
         trajx = trajx[:maxidx]
         trajy = trajx[:maxidx]
+        trajx *= 1e-6  # from um to m
+        trajy *= 1e-6  # from um to m
         return trajx, trajy, summ
 
     def simulate_sofb(
