@@ -21,6 +21,7 @@ class Params:
         self.simul_npart = 1000
         self.simul_cutoff = 6
         self.count_rel_thres = 1/3
+        self.count_init_ref = 3
 
 
 class FitInjTraj(BaseClass):
@@ -144,7 +145,7 @@ class FitInjTraj(BaseClass):
         trajy = self.devices['sofb'].trajy.copy()
         summ = self.devices['sofb'].sum.copy()
 
-        ini = np.mean(summ[:3])
+        ini = np.mean(summ[:self.params.count_init_ref])
         indcs = summ > ini * self.params.count_rel_thres
         maxidx = np.sum(indcs)
         trajx = trajx[:maxidx]
