@@ -28,4 +28,8 @@ def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
         indcs = _np.abs(parts) > cutoff
         numbers[above[~indcs]] = parts[~indcs]
         above = above[indcs]
+
+    if dist_type in 'uniform':
+        numbers -= 1/2
+        numbers *= 2
     return numbers
