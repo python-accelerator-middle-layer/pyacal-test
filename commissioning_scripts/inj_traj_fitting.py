@@ -149,7 +149,7 @@ class FitInjTraj(BaseClass):
         indcs = summ > ini * self.params.count_rel_thres
         maxidx = np.sum(indcs)
         trajx = trajx[:maxidx]
-        trajy = trajx[:maxidx]
+        trajy = trajy[:maxidx]
         trajx *= 1e-6  # from um to m
         trajy *= 1e-6  # from um to m
         return trajx, trajy, summ
