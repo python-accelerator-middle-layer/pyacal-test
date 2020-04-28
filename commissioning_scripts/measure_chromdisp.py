@@ -129,7 +129,7 @@ class MeasDispChrom(BaseClass):
             print('dtune y: {}'.format((tuney[-1] - tuney0)))
             print('')
         print('Restoring RF frequency...')
-        rf.cmd_set_frequency(value=f, timeout=self.params.timeout_wait_rf)
+        rf.cmd_set_frequency(value=freq0, timeout=self.params.timeout_wait_rf)
         self.data['freq'] = np.array(freq)
         self.data['tunex'] = np.array(tunex)
         self.data['tuney'] = np.array(tuney)
