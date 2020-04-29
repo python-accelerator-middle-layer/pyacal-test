@@ -8,10 +8,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
+from siriuspy.devices import SOFB, RFCav, Tune
+
 from pymodels import si
 import pyaccel
-
-from siriuspy.devices import SOFB, RFCav, Tune
 
 from .base import BaseClass
 
@@ -35,15 +35,15 @@ class MeasParams:
         """."""
         ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
-        st = ftmp('delta_freq [Hz]', self.delta_freq, '')
-        st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
-        st += ftmp('wait_tune [s]', self.wait_tune, '')
-        st += ftmp(
+        stg = ftmp('delta_freq [Hz]', self.delta_freq, '')
+        stg += dtmp('meas_nrsteps', self.meas_nrsteps, '')
+        stg += ftmp('wait_tune [s]', self.wait_tune, '')
+        stg += ftmp(
             'timeout_wait_rf [s]', self.timeout_wait_rf, '')
-        st += ftmp(
+        stg += ftmp(
             'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)')
-        st += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
-        return st
+        stg += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
+        return stg
 
 
 class MeasDispChrom(BaseClass):
@@ -88,7 +88,7 @@ class MeasDispChrom(BaseClass):
 
     def _do_meas(self):
         sofb = self.devices['sofb']
-        rf = self.devices['rf']
+        rfdev = self.devices['rf']
         tune = self.devices['tune']
 
         loop_on = False
@@ -100,7 +100,7 @@ class MeasDispChrom(BaseClass):
         delta_freq = self.params.delta_freq
         npoints = self.params.meas_nrsteps
         sofb.nr_points = self.params.sofb_nrpoints
-        freq0 = rf.dev_rfgen.frequency
+        freq0 = rfdev.dev_rfgen.frequency
         tunex0 = tune.tunex
         tuney0 = tune.tuney
         orbx0 = sofb.orbx
@@ -110,26 +110,28 @@ class MeasDispChrom(BaseClass):
         freq = []
         tunex, tuney = [], []
         orbx, orby = [], []
-        for f in span:
+        for frq in span:
             if self._stopevt.is_set():
                 print('   exiting...')
                 break
-            rf.cmd_set_frequency(value=f, timeout=self.params.timeout_wait_rf)
+            rfdev.cmd_set_frequency(
+                value=frq, timeout=self.params.timeout_wait_rf)
             sofb.cmd_reset()
             _time.sleep(self.params.wait_tune)
             sofb.wait_buffer(self.params.timeout_wait_sofb)
-            freq.append(rf.dev_rfgen.frequency)
+            freq.append(rfdev.dev_rfgen.frequency)
             orbx.append(sofb.orbx)
             orby.append(sofb.orby)
             tunex.append(tune.tunex)
             tuney.append(tune.tuney)
             print('delta frequency: {} Hz'.format((
-                rf.dev_rfgen.frequency-freq0)))
+                rfdev.dev_rfgen.frequency-freq0)))
             print('dtune x: {}'.format((tunex[-1] - tunex0)))
             print('dtune y: {}'.format((tuney[-1] - tuney0)))
             print('')
         print('Restoring RF frequency...')
-        rf.cmd_set_frequency(value=freq0, timeout=self.params.timeout_wait_rf)
+        rfdev.cmd_set_frequency(
+            value=freq0, timeout=self.params.timeout_wait_rf)
         self.data['freq'] = np.array(freq)
         self.data['tunex'] = np.array(tunex)
         self.data['tuney'] = np.array(tuney)
@@ -193,59 +195,16 @@ class MeasDispChrom(BaseClass):
         self.analysis['chromx_err'] = np.sqrt(np.diagonal(chromxcov))
         self.analysis['chromy_err'] = np.sqrt(np.diagonal(chromycov))
 
-    # Adapted from:
-    # https://perso.crans.org/besson/publis/notebooks/
-    # Demonstration%20of%20numpy.polynomial.
-    # Polynomial%20and%20nice%20display%20with%20LaTeX%20and%20MathJax%20
-    # (python3).html
-    @staticmethod
-    def polynomial_to_latex(p, error):
-        """ Small function to print nicely the polynomial p as we write it in
-        maths, in LaTeX code."""
-        p = np.poly1d(p)
-        coefs = p.coef  # List of coefficient, sorted by increasing degrees
-        res = ''  # The resulting string
-        for i, a in enumerate(coefs):
-            b = error[i]
-            sig_fig = int(floor(log10(abs(b))))
-            b = round(b, -sig_fig)
-            a = round(a, -sig_fig)
-            if int(a) == a:  # Remove the trailing .0
-                a = int(a)
-            if i == 0:  # First coefficient, no need for X
-                continue
-            elif i == 1:  # Second coefficient, only X and not X**i
-                if a == 1:  # a = 1 does not need to be displayed
-                    res += "\delta + "
-                elif a > 0:
-                    res += "({a} \pm {b}) \;\delta + ".format(
-                        a="{%g}" % a, b="{%g}" % b)
-                elif a < 0:
-                    res += "({a} \pm {b}) \;\delta + ".format(
-                        a="{%g}" % a, b="{%g}" % b)
-            else:
-                if a == 1:
-                    # A special care needs to be addressed to put the exponent
-                    # in {..} in LaTeX
-                    res += "\delta^{i} + ".format(i="{%d}" % i)
-                elif a > 0:
-                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
-                        a="{%g}" % a, b="{%g}" % b, i="{%d}" % i)
-                elif a < 0:
-                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
-                        a="{%g}" % a, b="{%g}" % b, i="{%d}" % i)
-        return "$" + res[:-3] + "$" if res else ""
-
     def make_figure_chrom(self, analysis=None, title='', fname=''):
         """."""
-        f = plt.figure(figsize=(10, 5))
-        gs = mpl_gs.GridSpec(1, 1)
-        gs.update(
+        fig = plt.figure(figsize=(10, 5))
+        grid = mpl_gs.GridSpec(1, 1)
+        grid.update(
             left=0.12, right=0.95, bottom=0.15, top=0.9,
             hspace=0.5, wspace=0.35)
 
         if title:
-            f.suptitle(title)
+            fig.suptitle(title)
 
         if analysis is None:
             analysis = self.analysis
@@ -262,7 +221,7 @@ class MeasDispChrom(BaseClass):
         dtunex_fit = np.polyval(chromx, den) - chromx[-1]
         dtuney_fit = np.polyval(chromy, den) - chromy[-1]
 
-        axx = plt.subplot(gs[0, 0])
+        axx = plt.subplot(grid[0, 0])
         axx.plot(den*100, dtunex*1000, '.b', label='horizontal')
         axx.plot(den*100, dtunex_fit*1000, '-b')
         axx.plot(den*100, dtuney*1000, '.r', label='vertical')
@@ -278,31 +237,31 @@ class MeasDispChrom(BaseClass):
         stx = MeasDispChrom.polynomial_to_latex(chromx, chromx_err)
         sty = MeasDispChrom.polynomial_to_latex(chromy, chromy_err)
 
-        st = r'$\Delta\nu_x = $' + stx + '\n'
-        st += r'$\Delta\nu_y = $' + sty
+        stg = r'$\Delta\nu_x = $' + stx + '\n'
+        stg += r'$\Delta\nu_y = $' + sty
         axx.text(
-            0.4, 0.05, st, horizontalalignment='left',
+            0.4, 0.05, stg, horizontalalignment='left',
             verticalalignment='bottom', transform=axx.transAxes,
             bbox=dict(edgecolor='k', facecolor='w', alpha=1.0))
         axx.legend()
         axx.grid(True)
 
         if fname:
-            f.savefig(fname+'.svg')
+            fig.savefig(fname+'.svg')
             plt.close()
         else:
-            f.show()
+            fig.show()
 
     def make_figure_disp(self, analysis=None, disporder=1, title='', fname=''):
         """."""
-        f = plt.figure(figsize=(10, 5))
-        gs = mpl_gs.GridSpec(1, 1)
-        gs.update(
+        fig = plt.figure(figsize=(10, 5))
+        grid = mpl_gs.GridSpec(1, 1)
+        grid.update(
             left=0.12, right=0.95, bottom=0.15, top=0.9,
             hspace=0.5, wspace=0.35)
 
         if title:
-            f.suptitle(title)
+            fig.suptitle(title)
 
         if analysis is None:
             analysis = self.analysis
@@ -316,7 +275,8 @@ class MeasDispChrom(BaseClass):
         fitorder_anlys = analysis['dispx'].shape[0] - 1
         if disporder > fitorder_anlys:
             raise Exception(
-                    'It does not make sense to plot a fit order higher than the analysis')
+                'It does not make sense to plot a fit order higher than' +
+                'the analysis')
         fitidx = fitorder_anlys - disporder
         dispx = analysis['dispx'][fitidx, :]
         dispy = analysis['dispy'][fitidx, :]
@@ -324,9 +284,10 @@ class MeasDispChrom(BaseClass):
         dispy_err = analysis['dispy_err'][:, fitidx]
 
         m2cm = 100
-        axx = plt.subplot(gs[0, 0])
+        axx = plt.subplot(grid[0, 0])
         axx.errorbar(
-            sposbpm, dispx*m2cm, dispx_err*m2cm, None, '.-b', label='horizontal')
+            sposbpm, dispx*m2cm, dispx_err*m2cm, None, '.-b',
+            label='horizontal')
         axx.errorbar(
             sposbpm, dispy*m2cm, dispy_err*m2cm, None, '.-r', label='vertical')
 
@@ -337,7 +298,50 @@ class MeasDispChrom(BaseClass):
         axx.grid(True)
 
         if fname:
-            f.savefig(fname+'.svg')
+            fig.savefig(fname+'.svg')
             plt.close()
         else:
-            f.show()
+            fig.show()
+
+    # Adapted from:
+    # https://perso.crans.org/besson/publis/notebooks/
+    # Demonstration%20of%20numpy.polynomial.
+    # Polynomial%20and%20nice%20display%20with%20LaTeX%20and%20MathJax%20
+    # (python3).html
+    @staticmethod
+    def polynomial_to_latex(poly, error):
+        """ Small function to print nicely the polynomial p as we write it in
+            maths, in LaTeX code."""
+        poly = np.poly1d(poly)
+        coefs = poly.coef  # List of coefficient, sorted by increasing degrees
+        res = ''  # The resulting string
+        for idx, coef_idx in enumerate(coefs):
+            err = error[idx]
+            sig_fig = int(floor(log10(abs(err))))
+            err = round(err, -sig_fig)
+            coef_idx = round(coef_idx, -sig_fig)
+            if int(coef_idx) == coef_idx:  # Remove the trailing .0
+                coef_idx = int(coef_idx)
+            if idx == 0:  # First coefficient, no need for X
+                continue
+            elif idx == 1:  # Second coefficient, only X and not X**i
+                if coef_idx == 1:  # coef_idx = 1 does not need to be displayed
+                    res += "\delta + "
+                elif coef_idx > 0:
+                    res += "({a} \pm {b}) \;\delta + ".format(
+                        a="{%g}" % coef_idx, b="{%g}" % err)
+                elif coef_idx < 0:
+                    res += "({a} \pm {b}) \;\delta + ".format(
+                        a="{%g}" % coef_idx, b="{%g}" % err)
+            else:
+                if coef_idx == 1:
+                    # A special care needs to be addressed to put the exponent
+                    # in {..} in LaTeX
+                    res += "\delta^{i} + ".format(i="{%d}" % idx)
+                elif coef_idx > 0:
+                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
+                        a="{%g}" % coef_idx, b="{%g}" % err, i="{%d}" % idx)
+                elif coef_idx < 0:
+                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
+                        a="{%g}" % coef_idx, b="{%g}" % err, i="{%d}" % idx)
+        return "$" + res[:-3] + "$" if res else ""
