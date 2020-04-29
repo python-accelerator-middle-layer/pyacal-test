@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
-from siriuspy.devices import SOFB, RFCav, Tune
+from siriuspy.devices import SOFB, RFGen, Tune
 
 from pymodels import si
 import pyaccel
@@ -27,7 +27,6 @@ class MeasParams:
         self.meas_nrsteps = 8
         self.npoints = 5
         self.wait_tune = 5  # [s]
-        self.timeout_wait_rf = 10  # [s]
         self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
 
@@ -38,8 +37,6 @@ class MeasParams:
         stg = ftmp('delta_freq [Hz]', self.delta_freq, '')
         stg += dtmp('meas_nrsteps', self.meas_nrsteps, '')
         stg += ftmp('wait_tune [s]', self.wait_tune, '')
-        stg += ftmp(
-            'timeout_wait_rf [s]', self.timeout_wait_rf, '')
         stg += ftmp(
             'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)')
         stg += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
@@ -55,7 +52,7 @@ class MeasDispChrom(BaseClass):
         self.params = MeasParams()
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
-        self.devices['rf'] = RFCav(RFCav.DEVICES.SI)
+        self.devices['rf'] = RFGen()
         self.analysis = dict()
         self._stopevt = _Event()
         self._thread = _Thread(target=self._do_meas, daemon=True)
@@ -88,7 +85,7 @@ class MeasDispChrom(BaseClass):
 
     def _do_meas(self):
         sofb = self.devices['sofb']
-        rfdev = self.devices['rf']
+        rfgen = self.devices['rf']
         tune = self.devices['tune']
 
         loop_on = False
@@ -100,7 +97,7 @@ class MeasDispChrom(BaseClass):
         delta_freq = self.params.delta_freq
         npoints = self.params.meas_nrsteps
         sofb.nr_points = self.params.sofb_nrpoints
-        freq0 = rfdev.dev_rfgen.frequency
+        freq0 = rfgen.frequency
         tunex0 = tune.tunex
         tuney0 = tune.tuney
         orbx0 = sofb.orbx
@@ -114,34 +111,32 @@ class MeasDispChrom(BaseClass):
             if self._stopevt.is_set():
                 print('   exiting...')
                 break
-            rfdev.cmd_set_frequency(
-                value=frq, timeout=self.params.timeout_wait_rf)
+            rfgen.frequency = frq
             sofb.cmd_reset()
             _time.sleep(self.params.wait_tune)
             sofb.wait_buffer(self.params.timeout_wait_sofb)
-            freq.append(rfdev.dev_rfgen.frequency)
+            freq.append(rfgen.frequency)
             orbx.append(sofb.orbx)
             orby.append(sofb.orby)
             tunex.append(tune.tunex)
             tuney.append(tune.tuney)
             print('delta frequency: {} Hz'.format((
-                rfdev.dev_rfgen.frequency-freq0)))
+                rfgen.frequency-freq0)))
             print('dtune x: {}'.format((tunex[-1] - tunex0)))
             print('dtune y: {}'.format((tuney[-1] - tuney0)))
             print('')
         print('Restoring RF frequency...')
-        rfdev.cmd_set_frequency(
-            value=freq0, timeout=self.params.timeout_wait_rf)
+        rfgen.frequency = freq0
         self.data['freq'] = np.array(freq)
         self.data['tunex'] = np.array(tunex)
         self.data['tuney'] = np.array(tuney)
+        self.data['orbx'] = np.array(orbx)
+        self.data['orby'] = np.array(orby)
+        self.data['freq0'] = freq0
         self.data['tunex0'] = tunex0
         self.data['tuney0'] = tuney0
         self.data['orbx0'] = np.array(orbx0)
         self.data['orby0'] = np.array(orby0)
-        self.data['orbx'] = np.array(orbx)
-        self.data['orby'] = np.array(orby)
-        self.data['freq0'] = freq0
         if loop_on:
             print('SOFB feedback was enable, restoring original state...')
             sofb.cmd_turn_on_autocorr()
