@@ -9,10 +9,10 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 import matplotlib.cm as cm
 
+from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import SOFB, PowerSupply
 
 import pyaccel as _pyacc
-from apsuite.commissioning_scripts.calc_orbcorr_mat import OrbRespmat
 
 from .base import BaseClass
 
@@ -184,6 +184,9 @@ class BBAParams:
         'SI-20C4:PS-Q1', 'SI-01M1:PS-QS',
         )
 
+    BPMNAMES = tuple([_PVName(bpm) for bpm in BPMNAMES])
+    QUADNAMES = tuple([_PVName(quad) for quad in QUADNAMES])
+
     def __init__(self):
         self.deltaorbx = 100  # [um]
         self.deltaorby = 100  # [um]
@@ -284,7 +287,7 @@ class DoBBA(BaseClass):
     def bpms2dobba(self):
         """."""
         if self._bpms2dobba:
-            return self._bpms2dobba
+            return _dcopy(self._bpms2dobba)
         return sorted(
             set(self.data['bpmnames']) - self.data['measure'].keys())
 
@@ -344,8 +347,6 @@ class DoBBA(BaseClass):
         sofb = self.devices['sofb']
 
         print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
-        print('    turning quadrupole ' + quadname + ' On', end='')
-        quad.cmd_turn_on(self.params.timeout_quad_turnon)
         if not quad.pwrstate:
             print('\n    error: quadrupole ' + quadname + ' is Off.')
             self._stopevt.set()
@@ -356,7 +357,7 @@ class DoBBA(BaseClass):
         deltakl = self.params.quad_deltakl
         cycling_curve = DoBBA.get_cycling_curve()
 
-        print(' and cycling it: ', end='')
+        print('cycling ' + quadname + ': ', end='')
         for _ in range(self.params.quad_nrcycles):
             print('.', end='')
             for fac in cycling_curve:
@@ -434,13 +435,6 @@ class DoBBA(BaseClass):
             _time.sleep(self.params.wait_correctors)
         sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
         sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
-
-        print('    turning quadrupole ' + quadname + ' Off')
-        quad.cmd_turn_off(self.params.timeout_quad_turnon)
-        if quad.pwrstate:
-            print('    error: quadrupole ' + quadname + ' is still On.')
-            self._stopevt.set()
-            print('    exiting...')
         print('')
 
     def correct_orbit(self, bpmname, x0, y0):
