@@ -7,7 +7,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
-import matplotlib.cm as cm
+import matplotlib.cm as _cmap
 
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import SOFB, PowerSupply
@@ -18,6 +18,7 @@ from .base import BaseClass
 
 
 class BBAParams:
+    """."""
 
     BPMNAMES = (
         'SI-01M2:DI-BPM', 'SI-01C1:DI-BPM-1',
@@ -188,15 +189,15 @@ class BBAParams:
     QUADNAMES = tuple([_PVName(quad) for quad in QUADNAMES])
 
     def __init__(self):
+        """."""
         self.deltaorbx = 100  # [um]
         self.deltaorby = 100  # [um]
         self.meas_nrsteps = 8
-        self.quad_deltakl = 0.02  # [1/m]
+        self.quad_deltakl = 0.01  # [1/m]
         self.quad_nrcycles = 1
         self.wait_sofb = 0.3  # [s]
         self.wait_correctors = 2  # [s]
         self.wait_quadrupole = 2  # [s]
-        self.timeout_quad_turnon = 5  # [s]
         self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
         self.sofb_maxcorriter = 5
@@ -214,7 +215,6 @@ class BBAParams:
         st += ftmp('wait_sofb [s]', self.wait_sofb, '(time to process calcs)')
         st += ftmp('wait_correctors [s]', self.wait_correctors, '')
         st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
-        st += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
         st += ftmp(
             'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)')
         st += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
@@ -224,12 +224,12 @@ class BBAParams:
 
 
 class DoBBA(BaseClass):
+    """."""
 
     def __init__(self):
+        """."""
         super().__init__()
         self.params = BBAParams()
-        self.data['bpmnames'] = list()
-        self.data['quadnames'] = list()
         self._bpms2dobba = list()
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
@@ -244,6 +244,7 @@ class DoBBA(BaseClass):
         self._thread = _Thread(target=self._do_bba, daemon=True)
 
     def __str__(self):
+        """."""
         stn = 'Params\n'
         stp = self.params.__str__()
         stp = '    ' + stp.replace('\n', '\n    ')
@@ -311,131 +312,10 @@ class DoBBA(BaseClass):
         sofb.wait_buffer(self.params.timeout_wait_sofb)
         return np.hstack([sofb.orbx, sofb.orby])
 
-    def _do_bba(self):
-        sofb = self.devices['sofb']
-        sofb.nr_points = self.params.sofb_nrpoints
-        loop_on = False
-        if sofb.autocorrsts:
-            loop_on = True
-            print('SOFB feedback is enable, disabling it...')
-            sofb.cmd_autocorr_turn_off()
-
-        for i, bpm in enumerate(self._bpms2dobba):
-            if self._stopevt.is_set():
-                print('stopped!')
-                return
-            print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
-            self._dobba_single_bpm(bpm)
-
-        if loop_on:
-            print('SOFB feedback was enable, restoring original state...')
-            sofb.cmd_autocorr_turn_on()
-        print('finished!')
-
     @staticmethod
     def get_cycling_curve():
         """."""
         return [1/2, -1/2, 0]
-
-    def _dobba_single_bpm(self, bpmname):
-        """."""
-        idx = self.data['bpmnames'].index(bpmname)
-        quadname = self.data['quadnames'][idx]
-        x0 = self.data['scancenterx'][idx]
-        y0 = self.data['scancentery'][idx]
-        quad = self.devices[quadname]
-        sofb = self.devices['sofb']
-
-        print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
-        if not quad.pwrstate:
-            print('\n    error: quadrupole ' + quadname + ' is Off.')
-            self._stopevt.set()
-            print('    exiting...')
-            return
-
-        korig = quad.strength
-        deltakl = self.params.quad_deltakl
-        cycling_curve = DoBBA.get_cycling_curve()
-
-        print('cycling ' + quadname + ': ', end='')
-        for _ in range(self.params.quad_nrcycles):
-            print('.', end='')
-            for fac in cycling_curve:
-                quad.strength = korig + deltakl*fac
-                _time.sleep(self.params.wait_quadrupole)
-
-        print(' Ok!')
-
-        nrsteps = self.params.meas_nrsteps
-        dorbsx = self._calc_dorb_scan(self.params.deltaorbx, nrsteps//2)
-        dorbsy = self._calc_dorb_scan(self.params.deltaorby, nrsteps//2)
-
-        refx0, refy0 = sofb.refx, sofb.refy
-        enblx0, enbly0 = sofb.bpmxenbl, sofb.bpmyenbl
-        ch0, cv0 = sofb.kickch, sofb.kickcv
-
-        enblx, enbly = 0*enblx0, 0*enbly0
-        enblx[idx], enbly[idx] = 1, 1
-        sofb.bpmxenbl, sofb.bpmyenbl = enblx, enbly
-        _time.sleep(self.params.wait_sofb)
-
-        orbini, orbpos, orbneg = [], [], []
-        npts = 2*(nrsteps//2) + 1
-        tmpl = '{:25s}'.format
-        for i in range(npts):
-            if self._stopevt.is_set():
-                print('   exiting...')
-                break
-            print('    {0:02d}/{1:02d} --> '.format(i+1, npts), end='')
-
-            print('orbit corr: ', end='')
-            ret, fmet = self.correct_orbit(bpmname, x0+dorbsx[i], y0+dorbsy[i])
-            if ret >= 0:
-                txt = tmpl('Ok! in {:02d} iters'.format(ret))
-            else:
-                txt = tmpl('NOT Ok! dorb={:5.1f} um'.format(fmet))
-            print(txt, end='')
-
-            orbini.append(self.get_orbit())
-
-            for j, fac in enumerate(cycling_curve):
-                quad.strength = korig + deltakl*fac
-                _time.sleep(self.params.wait_quadrupole)
-                if not j:
-                    orbpos.append(self.get_orbit())
-                elif j == 1:
-                    orbneg.append(self.get_orbit())
-
-            dorb = orbpos[-1] - orbneg[-1]
-            dorbx = dorb[:len(self.data['bpmnames'])]
-            dorby = dorb[len(self.data['bpmnames']):]
-            rmsx = np.sqrt(np.sum(dorbx*dorbx) / dorbx.shape[0])
-            rmsy = np.sqrt(np.sum(dorby*dorby) / dorby.shape[0])
-            print('rmsx = {:8.1f} rmsy = {:8.1f} um'.format(rmsx, rmsy))
-
-        self.data['measure'][bpmname] = {
-            'orbini': np.array(orbini), 'orbpos': np.array(orbpos),
-            'orbneg': np.array(orbneg), 'deltakl': deltakl}
-
-        print('    restoring initial conditions.')
-        sofb.refx, sofb.refy = refx0, refy0
-        sofb.bpmxenbl, sofb.bpmyenbl = enblx0, enbly0
-
-        # restore correctors gently to do not kill the beam.
-        factch, factcv = sofb.deltafactorch, sofb.deltafactorcv
-        chn, cvn = sofb.kickch, sofb.kickcv
-        dch, dcv = ch0 - chn, cv0 - cvn
-        sofb.deltakickch, sofb.deltakickcv = dch, dcv
-        nrsteps = np.ceil(max(np.abs(dch).max(), np.abs(dcv).max()) / 1.0)
-        for i in range(int(nrsteps)):
-            sofb.deltafactorch = (i+1)/nrsteps * 100
-            sofb.deltafactorcv = (i+1)/nrsteps * 100
-            _time.sleep(self.params.wait_sofb)
-            sofb.cmd_applycorr()
-            _time.sleep(self.params.wait_correctors)
-        sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
-        sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
-        print('')
 
     def correct_orbit(self, bpmname, x0, y0):
         """."""
@@ -673,8 +553,9 @@ class DoBBA(BaseClass):
                     dobba.data[item][idx] = bba.data[item][idx]
         return dobba
 
-    def filter_problems(self, maxstd=100, maxorb=9, maxrms=100,
-                        method='lin quad', probtype='std', pln='xy'):
+    def filter_problems(
+            self, maxstd=100, maxorb=9, maxrms=100, method='lin quad',
+            probtype='std', pln='xy'):
         """."""
         bpms = []
         islin = 'lin' in method
@@ -888,7 +769,7 @@ class DoBBA(BaseClass):
         ayy = plt.subplot(gs[1, 0])
 
         bpms = bpms or self.data['bpmnames']
-        colors = cm.brg(np.linspace(0, 1, len(bpms)))
+        colors = _cmap.brg(np.linspace(0, 1, len(bpms)))
         for i, bpm in enumerate(bpms):
             anl = self.analysis.get(bpm)
             if not anl:
@@ -941,8 +822,7 @@ class DoBBA(BaseClass):
         axy = plt.subplot(gs[1, 0])
 
         bpms = bpms or self.data['bpmnames']
-        indcs = np.array([self.data['bpmnames'].index(bpm) for bpm in bpms])
-        colors = cm.brg(np.linspace(0, 1, len(bpms)))
+        colors = _cmap.brg(np.linspace(0, 1, len(bpms)))
         for i, bpm in enumerate(bpms):
             anl = self.analysis.get(bpm)
             if not anl:
@@ -1080,7 +960,7 @@ class DoBBA(BaseClass):
         f = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(2, 1)
         gs.update(
-            left=0.15, right=0.98, bottom=0.12, top=0.95,
+            left=0.1, right=0.98, bottom=0.08, top=0.9,
             hspace=0.01, wspace=0.35)
 
         if title:
@@ -1091,11 +971,13 @@ class DoBBA(BaseClass):
 
         bpmsok = bpmsok or self.data['bpmnames']
         bpmsnok = bpmsnok or []
-        iok = np.array([self.data['bpmnames'].index(bpm) for bpm in bpmsok])
-        inok = np.array([self.data['bpmnames'].index(bpm) for bpm in bpmsnok])
+        iok = np.array(
+            [self.data['bpmnames'].index(bpm) for bpm in bpmsok], dtype=int)
+        inok = np.array(
+            [self.data['bpmnames'].index(bpm) for bpm in bpmsnok], dtype=int)
 
         labels = ['linear', 'quadratic']
-        cors = cm.brg(np.linspace(0, 1, 3))
+        cors = _cmap.brg(np.linspace(0, 1, 3))
 
         x0l, y0l, stdx0l, stdy0l = self.get_bba_results(
             method='linear_fitting', error=True)
@@ -1107,13 +989,17 @@ class DoBBA(BaseClass):
             x0l -= x0l
             y0l -= y0l
 
-        minx = np.min([x0q[iok], x0l[iok], x0q[inok], x0l[inok]])*1.1
-        maxx = np.max([x0q[iok], x0l[iok], x0q[inok], x0l[inok]])*1.1
-        miny = np.min([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
-        maxy = np.max([y0q[iok], y0l[iok], y0q[inok], y0l[inok]])*1.1
-        minx = -xlim if xlim is not None else minx
+        minx = np.min(
+            np.hstack([x0q[iok], x0l[iok], x0q[inok], x0l[inok]]))*1.1
+        maxx = np.max(
+            np.hstack([x0q[iok], x0l[iok], x0q[inok], x0l[inok]]))*1.1
+        miny = np.min(
+            np.hstack([y0q[iok], y0l[iok], y0q[inok], y0l[inok]]))*1.1
+        maxy = np.max(
+            np.hstack([y0q[iok], y0l[iok], y0q[inok], y0l[inok]]))*1.1
+        minx = -1*xlim if xlim is not None else minx
         maxx = xlim if xlim is not None else maxx
-        miny = -ylim if ylim is not None else miny
+        miny = -1*ylim if ylim is not None else miny
         maxy = ylim if ylim is not None else maxy
 
         axx.errorbar(
@@ -1121,27 +1007,29 @@ class DoBBA(BaseClass):
             label=labels[0])
         axx.errorbar(
             iok, x0q[iok], yerr=stdx0q[iok], fmt='o', color=cors[1],
-            label=labels[1])
+            label=labels[1], elinewidth=1)
         ayy.errorbar(
             iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[0])
         ayy.errorbar(
-            iok, y0q[iok], yerr=stdy0q[iok], fmt='o', color=cors[1])
+            iok, y0q[iok], yerr=stdy0q[iok], fmt='o', color=cors[1],
+            elinewidth=1)
 
         if inok.size:
             axx.errorbar(
                 inok, x0l[inok], yerr=stdx0l[inok], fmt='x', color=cors[0])
             axx.errorbar(
-                inok, x0q[inok], yerr=stdx0q[inok], fmt='x', color=cors[1])
+                inok, x0q[inok], yerr=stdx0q[inok], fmt='x', color=cors[1],
+                elinewidth=1,)
             ayy.errorbar(
                 inok, y0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[0],
                 label=labels[0])
             ayy.errorbar(
                 inok, y0q[inok], yerr=stdy0q[inok], fmt='x', color=cors[1],
-                label=labels[1])
+                elinewidth=1, label=labels[1])
 
         axx.legend(
             loc='lower right', bbox_to_anchor=(1, 1), fontsize='small',
-            title='Fitting method')
+            ncol=2, title='Fitting method')
         axx.grid(True)
         ayy.grid(True)
         axx.set_ylim([minx, maxx])
@@ -1153,6 +1041,7 @@ class DoBBA(BaseClass):
         else:
             axx.set_ylabel(r'$X_0$ [$\mu$m]')
             ayy.set_ylabel(r'$Y_0$ [$\mu$m]')
+        ayy.set_xlabel('BPM Index')
 
         if fname:
             f.savefig(fname+'.svg')
@@ -1161,10 +1050,11 @@ class DoBBA(BaseClass):
             f.show()
 
     @staticmethod
-    def make_figure_compare_bbas(bbalist, method='linear_fitting', labels=[],
-                                 bpmsok=None, bpmsnok=None, fname='',
-                                 xlim=None, ylim=None,
-                                 title='', plotdiff=True):
+    def make_figure_compare_bbas(
+            bbalist, method='linear_fitting', labels=[], bpmsok=None,
+            bpmsnok=None, fname='', xlim=None, ylim=None, title='',
+            plotdiff=True):
+        """."""
         f = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(2, 1)
         gs.update(
@@ -1187,12 +1077,12 @@ class DoBBA(BaseClass):
 
         if not labels:
             labels = [str(i) for i in range(len(bbalist))]
-        cors = cm.brg(np.linspace(0, 1, len(bbalist)))
+        cors = _cmap.brg(np.linspace(0, 1, len(bbalist)))
 
         minx = miny = np.inf
         maxx = maxy = -np.inf
-        x0li, y0li, stdx0li, stdy0li = bbalist[0].get_bba_results(
-            method=method, error=True)
+        x0li, y0li, = bbalist[0].get_bba_results(
+            method=method, error=False)
         for i, dobba in enumerate(bbalist):
             x0l, y0l, stdx0l, stdy0l = dobba.get_bba_results(
                 method=method, error=True)
@@ -1209,7 +1099,8 @@ class DoBBA(BaseClass):
                 iok, x0l[iok], yerr=stdx0l[iok], fmt='o', color=cors[i],
                 label=labels[i])
             ayy.errorbar(
-                iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i])
+                iok, y0l[iok], yerr=stdy0l[iok], fmt='o', color=cors[i],
+                elinewidth=1)
 
             if not inok.size:
                 continue
@@ -1218,7 +1109,7 @@ class DoBBA(BaseClass):
                 inok, x0l[inok], yerr=stdx0l[inok], fmt='x', color=cors[i])
             ayy.errorbar(
                 inok, y0l[inok], yerr=stdy0l[inok], fmt='x', color=cors[i],
-                label=labels[i])
+                elinewidth=1, label=labels[i])
 
         if inok.size:
             ayy.legend(
@@ -1230,9 +1121,9 @@ class DoBBA(BaseClass):
         axx.grid(True)
         ayy.grid(True)
 
-        minx = -xlim if xlim else minx*1.1
+        minx = -1*xlim if xlim else minx*1.1
         maxx = xlim if xlim else maxx*1.1
-        miny = -ylim if ylim else miny*1.1
+        miny = -1*ylim if ylim else miny*1.1
         maxy = ylim if ylim else maxy*1.1
 
         axx.set_ylim([minx, maxx])
@@ -1251,3 +1142,125 @@ class DoBBA(BaseClass):
             plt.close()
         else:
             f.show()
+
+    # #### private methods ####
+    def _do_bba(self):
+        sofb = self.devices['sofb']
+        sofb.nr_points = self.params.sofb_nrpoints
+        loop_on = False
+        if sofb.autocorrsts:
+            loop_on = True
+            print('SOFB feedback is enable, disabling it...')
+            sofb.cmd_autocorr_turn_off()
+
+        for i, bpm in enumerate(self._bpms2dobba):
+            if self._stopevt.is_set():
+                print('stopped!')
+                return
+            print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
+            self._dobba_single_bpm(bpm)
+
+        if loop_on:
+            print('SOFB feedback was enable, restoring original state...')
+            sofb.cmd_autocorr_turn_on()
+        print('finished!')
+
+    def _dobba_single_bpm(self, bpmname):
+        """."""
+        idx = self.data['bpmnames'].index(bpmname)
+        quadname = self.data['quadnames'][idx]
+        x0 = self.data['scancenterx'][idx]
+        y0 = self.data['scancentery'][idx]
+        quad = self.devices[quadname]
+        sofb = self.devices['sofb']
+
+        print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
+        if not quad.pwrstate:
+            print('\n    error: quadrupole ' + quadname + ' is Off.')
+            self._stopevt.set()
+            print('    exiting...')
+            return
+
+        korig = quad.strength
+        deltakl = self.params.quad_deltakl
+        cycling_curve = DoBBA.get_cycling_curve()
+
+        print('cycling ' + quadname + ': ', end='')
+        for _ in range(self.params.quad_nrcycles):
+            print('.', end='')
+            for fac in cycling_curve:
+                quad.strength = korig + deltakl*fac
+                _time.sleep(self.params.wait_quadrupole)
+
+        print(' Ok!')
+
+        nrsteps = self.params.meas_nrsteps
+        dorbsx = self._calc_dorb_scan(self.params.deltaorbx, nrsteps//2)
+        dorbsy = self._calc_dorb_scan(self.params.deltaorby, nrsteps//2)
+
+        refx0, refy0 = sofb.refx, sofb.refy
+        enblx0, enbly0 = sofb.bpmxenbl, sofb.bpmyenbl
+        ch0, cv0 = sofb.kickch, sofb.kickcv
+
+        enblx, enbly = 0*enblx0, 0*enbly0
+        enblx[idx], enbly[idx] = 1, 1
+        sofb.bpmxenbl, sofb.bpmyenbl = enblx, enbly
+        _time.sleep(self.params.wait_sofb)
+
+        orbini, orbpos, orbneg = [], [], []
+        npts = 2*(nrsteps//2) + 1
+        tmpl = '{:25s}'.format
+        for i in range(npts):
+            if self._stopevt.is_set():
+                print('   exiting...')
+                break
+            print('    {0:02d}/{1:02d} --> '.format(i+1, npts), end='')
+
+            print('orbit corr: ', end='')
+            ret, fmet = self.correct_orbit(bpmname, x0+dorbsx[i], y0+dorbsy[i])
+            if ret >= 0:
+                txt = tmpl('Ok! in {:02d} iters'.format(ret))
+            else:
+                txt = tmpl('NOT Ok! dorb={:5.1f} um'.format(fmet))
+            print(txt, end='')
+
+            orbini.append(self.get_orbit())
+
+            for j, fac in enumerate(cycling_curve):
+                quad.strength = korig + deltakl*fac
+                _time.sleep(self.params.wait_quadrupole)
+                if not j:
+                    orbpos.append(self.get_orbit())
+                elif j == 1:
+                    orbneg.append(self.get_orbit())
+
+            dorb = orbpos[-1] - orbneg[-1]
+            dorbx = dorb[:len(self.data['bpmnames'])]
+            dorby = dorb[len(self.data['bpmnames']):]
+            rmsx = np.sqrt(np.sum(dorbx*dorbx) / dorbx.shape[0])
+            rmsy = np.sqrt(np.sum(dorby*dorby) / dorby.shape[0])
+            print('rmsx = {:8.1f} rmsy = {:8.1f} um'.format(rmsx, rmsy))
+
+        self.data['measure'][bpmname] = {
+            'orbini': np.array(orbini), 'orbpos': np.array(orbpos),
+            'orbneg': np.array(orbneg), 'deltakl': deltakl}
+
+        print('    restoring initial conditions.')
+        sofb.refx, sofb.refy = refx0, refy0
+        sofb.bpmxenbl, sofb.bpmyenbl = enblx0, enbly0
+
+        # restore correctors gently to do not kill the beam.
+        factch, factcv = sofb.deltafactorch, sofb.deltafactorcv
+        chn, cvn = sofb.kickch, sofb.kickcv
+        dch, dcv = ch0 - chn, cv0 - cvn
+        sofb.deltakickch, sofb.deltakickcv = dch, dcv
+        nrsteps = np.ceil(max(np.abs(dch).max(), np.abs(dcv).max()) / 1.0)
+        for i in range(int(nrsteps)):
+            sofb.deltafactorch = (i+1)/nrsteps * 100
+            sofb.deltafactorcv = (i+1)/nrsteps * 100
+            _time.sleep(self.params.wait_sofb)
+            sofb.cmd_applycorr()
+            _time.sleep(self.params.wait_correctors)
+        sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
+        sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
+        print('')
