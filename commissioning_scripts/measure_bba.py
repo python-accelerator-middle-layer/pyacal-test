@@ -983,9 +983,100 @@ class DoBBA(BaseClass):
         else:
             f.show()
 
-    def make_figure_compare_methods(self, bpmsok=None, bpmsnok=None,
-                                    xlim=None, ylim=None, fname='', title='',
-                                    plotdiff=True):
+    def make_figure_compare_with_initial(
+            self, method='linear_fitting', bpmsok=None, bpmsnok=None,
+            xlim=None, ylim=None, fname='', title='', plotdiff=True):
+        """."""
+        f = plt.figure(figsize=(9.2, 9))
+        gs = mpl_gs.GridSpec(2, 1)
+        gs.update(
+            left=0.1, right=0.98, bottom=0.08, top=0.9,
+            hspace=0.01, wspace=0.35)
+
+        if title:
+            f.suptitle(title)
+
+        axx = plt.subplot(gs[0, 0])
+        ayy = plt.subplot(gs[1, 0], sharex=axx)
+
+        bpmsok = bpmsok or self.data['bpmnames']
+        bpmsnok = bpmsnok or []
+        iok = np.array(
+            [self.data['bpmnames'].index(bpm) for bpm in bpmsok], dtype=int)
+        inok = np.array(
+            [self.data['bpmnames'].index(bpm) for bpm in bpmsnok], dtype=int)
+
+        labels = ['initial', method]
+        cors = _cmap.brg(np.linspace(0, 1, 3))
+
+        x0c = np.array(self.data['scancenterx'])
+        y0c = np.array(self.data['scancentery'])
+        x0q, y0q, stdx0q, stdy0q = self.get_bba_results(
+            method=method, error=True)
+        if plotdiff:
+            x0q -= x0c
+            y0q -= y0c
+            x0c -= x0c
+            y0c -= y0c
+
+        minx = np.min(
+            np.hstack([x0q[iok], x0c[iok], x0q[inok], x0c[inok]]))*1.1
+        maxx = np.max(
+            np.hstack([x0q[iok], x0c[iok], x0q[inok], x0c[inok]]))*1.1
+        miny = np.min(
+            np.hstack([y0q[iok], y0c[iok], y0q[inok], y0c[inok]]))*1.1
+        maxy = np.max(
+            np.hstack([y0q[iok], y0c[iok], y0q[inok], y0c[inok]]))*1.1
+        minx = -1*xlim if xlim is not None else minx
+        maxx = xlim if xlim is not None else maxx
+        miny = -1*ylim if ylim is not None else miny
+        maxy = ylim if ylim is not None else maxy
+
+        axx.errorbar(iok, x0c[iok], fmt='o', color=cors[0], label=labels[0])
+        axx.errorbar(
+            iok, x0q[iok], yerr=stdx0q[iok], fmt='o', color=cors[1],
+            label=labels[1], elinewidth=1)
+        ayy.errorbar(iok, y0c[iok], fmt='o', color=cors[0])
+        ayy.errorbar(
+            iok, y0q[iok], yerr=stdy0q[iok], fmt='o', color=cors[1],
+            elinewidth=1)
+
+        if inok.size:
+            axx.errorbar(inok, x0c[inok], fmt='x', color=cors[0])
+            axx.errorbar(
+                inok, x0q[inok], yerr=stdx0q[inok], fmt='x', color=cors[1],
+                elinewidth=1)
+            ayy.errorbar(
+                inok, y0c[inok], fmt='x', color=cors[0], label=labels[0])
+            ayy.errorbar(
+                inok, y0q[inok], yerr=stdy0q[inok], fmt='x', color=cors[1],
+                elinewidth=1, label=labels[1])
+
+        axx.legend(
+            loc='lower right', bbox_to_anchor=(1, 1), fontsize='small', ncol=2)
+        axx.grid(True)
+        ayy.grid(True)
+        axx.set_ylim([minx, maxx])
+        ayy.set_ylim([miny, maxy])
+
+        if plotdiff:
+            axx.set_ylabel(r'$\Delta X_0$ [$\mu$m]')
+            ayy.set_ylabel(r'$\Delta Y_0$ [$\mu$m]')
+        else:
+            axx.set_ylabel(r'$X_0$ [$\mu$m]')
+            ayy.set_ylabel(r'$Y_0$ [$\mu$m]')
+        ayy.set_xlabel('BPM Index')
+
+        if fname:
+            f.savefig(fname+'.svg')
+            plt.close()
+        else:
+            f.show()
+
+    def make_figure_compare_methods(
+            self, bpmsok=None, bpmsnok=None, xlim=None, ylim=None, fname='',
+            title='', plotdiff=True):
+        """."""
         f = plt.figure(figsize=(9.2, 9))
         gs = mpl_gs.GridSpec(2, 1)
         gs.update(
