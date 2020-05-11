@@ -11,6 +11,7 @@ import matplotlib.cm as _cmap
 
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import SOFB as _SOFB, PowerSupply as _PowerSupply
+from siriuspy.clientconfigdb import ConfigDBClient
 
 import pyaccel as _pyacc
 
@@ -231,6 +232,7 @@ class DoBBA(_BaseClass):
         super().__init__()
         self.params = BBAParams()
         self._bpms2dobba = list()
+        self.clt_confdb = ConfigDBClient(config_type='si_bbadata')
         self.devices['sofb'] = _SOFB(_SOFB.DEVICES.SI)
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
@@ -626,6 +628,14 @@ class DoBBA(_BaseClass):
             if prob:
                 bpms.append(bpm)
         return bpms
+
+    def save_to_servconf(self, config_name):
+        """."""
+        self.clt_confdb.insert_config(config_name, self.data)
+
+    def load_from_servconf(self, config_name):
+        """."""
+        self.data = self.clt_confdb.get_config_value(config_name)
 
     # ##### Make Figures #####
     def make_figure_bpm_summary(self, bpm, save=False):
