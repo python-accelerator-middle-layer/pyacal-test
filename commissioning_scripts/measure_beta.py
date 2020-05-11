@@ -226,13 +226,13 @@ class MeasBeta(BaseClass):
         tunex_wfm_ini, tunex_wfm_neg, tunex_wfm_pos = [], [], []
         tuney_wfm_ini, tuney_wfm_neg, tuney_wfm_pos = [], [], []
 
-        for i in range(self.params.nr_measures):
+        for nrmeas in range(self.params.nr_measures):
 
             if self._stopevt.is_set():
                 print('exiting...')
                 break
             print('   meas. {0:02d}/{1:02d} --> '.format(
-                i+1, self.params.nr_measures), end='')
+                nrmeas+1, self.params.nr_measures), end='')
 
             tunex_ini.append(tune.tunex)
             tuney_ini.append(tune.tuney)
@@ -255,8 +255,9 @@ class MeasBeta(BaseClass):
                     tuney_pos.append(tune.tuney)
                     tunex_wfm_pos.append(tune.tunex_wfm)
                     tuney_wfm_pos.append(tune.tuney_wfm)
-            print('--> dnux = {:.5f}, dnuy = {:.5f}'.format(
-               tunex_pos[-1] - tunex_neg[-1], tuney_pos[-1] - tuney_neg[-1]))
+            dnux = tunex_pos[-1] - tunex_neg[-1]
+            dnuy = tuney_pos[-1] - tuney_neg[-1]
+            print('--> dnux = {:.5f}, dnuy = {:.5f}'.format(dnux, dnuy))
 
         meas = dict()
         meas['tunex_ini'] = np.array(tunex_ini)
@@ -326,21 +327,21 @@ class MeasBeta(BaseClass):
 
     def plot_results(self, quads=None, title=''):
         """."""
-        f = plt.figure(figsize=(9, 7))
-        gs = mpl_gs.GridSpec(ncols=1, nrows=2, figure=f)
-        gs.update(
+        fig = plt.figure(figsize=(9, 7))
+        grids = mpl_gs.GridSpec(ncols=1, nrows=2, figure=fig)
+        grids.update(
             left=0.1, right=0.8, bottom=0.15, top=0.9,
             hspace=0.0, wspace=0.35)
 
-        ax1 = f.add_subplot(gs[0, 0])
-        ax2 = f.add_subplot(gs[1, 0], sharex=ax1)
+        ax1 = fig.add_subplot(grids[0, 0])
+        ax2 = fig.add_subplot(grids[1, 0], sharex=ax1)
 
         if title:
-            f.suptitle(title)
+            fig.suptitle(title)
 
         quads = quads or self.data['quadnames']
         indcs, nom_bx, nom_by = [], [], []
-        mes_bx, mes_by, bx, by = [], [], [], []
+        mes_bx, mes_by, bx_ave, by_ave = [], [], [], []
         for quad in quads:
             if quad not in self.analysis:
                 continue
@@ -349,13 +350,13 @@ class MeasBeta(BaseClass):
             nom_by.append(self.data['betay_mid'][quad])
             mes_bx.append(self.analysis[quad]['betasx'])
             mes_by.append(self.analysis[quad]['betasy'])
-            bx.append(self.analysis[quad]['betax_ave'])
-            by.append(self.analysis[quad]['betay_ave'])
+            bx_ave.append(self.analysis[quad]['betax_ave'])
+            by_ave.append(self.analysis[quad]['betay_ave'])
 
-        ax1.plot(indcs, bx, '--bx')
+        ax1.plot(indcs, bx_ave, '--bx')
         ax1.plot(indcs, nom_bx, '-bo')
         ax1.plot(indcs, mes_bx, '.b')
-        ax2.plot(indcs, by, '--rx')
+        ax2.plot(indcs, by_ave, '--rx')
         ax2.plot(indcs, nom_by, '-ro')
         ax2.plot(indcs, mes_by, '.r')
 
@@ -366,4 +367,4 @@ class MeasBeta(BaseClass):
             bbox_to_anchor=(1, 0), fontsize='x-small')
         ax1.grid(True)
         ax2.grid(True)
-        f.show()
+        fig.show()
