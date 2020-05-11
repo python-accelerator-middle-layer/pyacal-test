@@ -163,7 +163,7 @@ class _FitInjTrajBase(BaseClass):
         if self.NONLINEAR:
             trajx, trajy = self._apply_polyxy(x_uncal, y_uncal)
         else:
-            trajx, trajx = self._apply_linearxy(x_uncal, y_uncal)
+            trajx, trajy = self._apply_linearxy(x_uncal, y_uncal)
 
         trajx += errx * (np.random.rand(trajx.size)-0.5)*2
         trajy += erry * (np.random.rand(trajy.size)-0.5)*2
@@ -287,7 +287,7 @@ class BOFitInjTraj(_FitInjTrajBase):
     >>> from apsuite.commissioning_scripts.inj_traj_fitting import BOFitInjTraj
     >>> np.random.seed(42)
     >>> fit_traj = BOFitInjTraj()
-    >>> x0, xl0, y0, yl0, de0 = -9.0e-3, 0.0e-3, 0.0e-3, 0.0, 0.01
+    >>> x0, xl0, y0, yl0, de0 = -2.0e-3, 0.0e-3, 0.0e-3, 0.0, -0.01
     >>> trajx, trajy, trajsum = fit_traj.simulate_sofb(
             x0, xl0, y0, yl0, de0)
     >>> # trajx, trajy, trajsum = fit_traj.get_traj_from_sofb()
@@ -296,7 +296,7 @@ class BOFitInjTraj(_FitInjTrajBase):
     """
 
     CHAMBER_RADIUS = 17.5e-3
-    ANT_ANGLE = 8.5 / CHAMBER_RADIUS  # 6/12*17.5
+    ANT_ANGLE = 8.5e-3 / CHAMBER_RADIUS  # 6/12*17.5
     POLYNOM = 1e-9 * np.array([
         1.30014e7, 7.67435e6, 5.80753e6, 4.2811e6, 3.02077e6, 5.78664e6,
         1.74211e7, 2.30335e7, 1.12014e8, 4.90624e6, 1.79161e7, 3.52371e8,
@@ -314,7 +314,7 @@ class BOFitInjTraj(_FitInjTrajBase):
         self.model = pyaccel.lattice.shift(self.model, injp[0]+1)
         self.simul_model = pyaccel.lattice.shift(self.simul_model, injp[0]+1)
 
-        self.famdata = si.get_family_data(self.model)
+        self.famdata = bo.get_family_data(self.model)
         self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
         self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
 
