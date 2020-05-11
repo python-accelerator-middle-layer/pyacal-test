@@ -29,6 +29,7 @@ class BetaParams:
         self.wait_quadrupole = 1  # [s]
         self.wait_tune = 3  # [s]
         self.timeout_quad_turnon = 10  # [s]
+        self.time_waitquad_cycle = 0.5  # [s]
 
     def __str__(self):
         """."""
@@ -39,6 +40,8 @@ class BetaParams:
         stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
         stg += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
         stg += ftmp('wait_tune [s]', self.wait_tune, '')
+        stg += ftmp(
+            'wait_quadrupole_cycle [s]', self.time_waitquad_cycle, '')
         stg += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
         return stg
 
@@ -55,6 +58,7 @@ class MeasBeta(BaseClass):
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['quadnames'] = list()
+        self.data['cycling'] = dict()
         self.data['betax_in'] = dict()
         self.data['betay_in'] = dict()
         self.data['betax_mid'] = dict()
@@ -142,20 +146,16 @@ class MeasBeta(BaseClass):
             self.data['betay_out'][qname] = twi.betay[idx+1]
         self.data['quadnames'] = quadnames
 
-    def _meas_beta(self):
-        """."""
-        sofb = self.devices['sofb']
-        loop_on_rf = False
-        if sofb.autocorrsts and sofb.rfenbl:
-            loop_on_rf = True
-            print('RF is enable in SOFB feedback, disabling it...')
-            sofb.rfenbl = 0
-
+    def _cycle_quads(self):
+        tune = self.devices['tune']
         deltakl = self.params.quad_deltakl
         cycling_curve = MeasBeta.get_cycling_curve()
-        print('cycling all quads: ', end='')
-        for _ in range(self.params.quad_nrcycles):
-            print('.', end='')
+        tunex_cycle = []
+        tuney_cycle = []
+        print('\n preparing all quads: ', end='')
+        for cynum in range(self.params.quad_nrcycles):
+            print('\n   cycle: {0:02d}/{1:02d} --> '.format(
+                cynum+1, self.params.quad_nrcycles), end='')
             for quadname in self.data['quadnames']:
                 if self._stopevt.is_set():
                     print('exiting...')
@@ -166,8 +166,24 @@ class MeasBeta(BaseClass):
                 for fac in cycling_curve:
                     quad.strength = korig + deltakl*fac
                     if fac:
-                        _time.sleep(0.500)
+                        _time.sleep(self.params.time_waitquad_cycle)
+                tunex_cycle.append(tune.tunex)
+                tuney_cycle.append(tune.tuney)
+
+        self.data['cycling']['tunex'] = np.array(tunex_cycle)
+        self.data['cycling']['tuney'] = np.array(tuney_cycle)
         print(' Ok!')
+
+    def _meas_beta(self):
+        """."""
+        sofb = self.devices['sofb']
+        loop_on_rf = False
+        if sofb.autocorrsts and sofb.rfenbl:
+            loop_on_rf = True
+            print('RF is enable in SOFB feedback, disabling it...')
+            sofb.rfenbl = 0
+
+        self._cycle_quads()
 
         for quadname in self.quads2meas:
             if self._stopevt.is_set():
