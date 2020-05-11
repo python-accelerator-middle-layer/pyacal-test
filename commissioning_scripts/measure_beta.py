@@ -25,22 +25,25 @@ class BetaParams:
         """."""
         self.nr_measures = 1
         self.quad_deltakl = 0.01  # [1/m]
-        self.quad_nrcycles = 0
-        self.wait_quadrupole = 2  # [s]
+        self.quad_nrcycles = 3
+        self.wait_quadrupole = 1  # [s]
         self.wait_tune = 3  # [s]
         self.timeout_quad_turnon = 10  # [s]
+        self.time_waitquad_cycle = 0.5  # [s]
 
     def __str__(self):
         """."""
         ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
-        st = dtmp('nr_measures', self.nr_measures, '')
-        st += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
-        st += ftmp('quad_nrcycles', self.quad_nrcycles, '')
-        st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
-        st += ftmp('wait_tune [s]', self.wait_tune, '')
-        st += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
-        return st
+        stg = dtmp('nr_measures', self.nr_measures, '')
+        stg += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
+        stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
+        stg += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
+        stg += ftmp('wait_tune [s]', self.wait_tune, '')
+        stg += ftmp(
+            'wait_quadrupole_cycle [s]', self.time_waitquad_cycle, '')
+        stg += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
+        return stg
 
 
 class MeasBeta(BaseClass):
@@ -55,6 +58,7 @@ class MeasBeta(BaseClass):
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['quadnames'] = list()
+        self.data['cycling'] = dict()
         self.data['betax_in'] = dict()
         self.data['betay_in'] = dict()
         self.data['betax_mid'] = dict()
@@ -85,10 +89,12 @@ class MeasBeta(BaseClass):
 
     @property
     def ismeasuring(self):
+        """."""
         return self._thread.is_alive()
 
     @property
     def measuredquads(self):
+        """."""
         return sorted(self.data['measure'])
 
     @property
@@ -140,6 +146,34 @@ class MeasBeta(BaseClass):
             self.data['betay_out'][qname] = twi.betay[idx+1]
         self.data['quadnames'] = quadnames
 
+    def _cycle_quads(self):
+        tune = self.devices['tune']
+        deltakl = self.params.quad_deltakl
+        cycling_curve = MeasBeta.get_cycling_curve()
+        tunex_cycle = []
+        tuney_cycle = []
+        print('\n preparing all quads: ', end='')
+        for cynum in range(self.params.quad_nrcycles):
+            print('\n   cycle: {0:02d}/{1:02d} --> '.format(
+                cynum+1, self.params.quad_nrcycles), end='')
+            for quadname in self.data['quadnames']:
+                if self._stopevt.is_set():
+                    print('exiting...')
+                    break
+                print('\n  cycling quad ' + quadname, end=' ')
+                quad = self.devices[quadname]
+                korig = quad.strength
+                for fac in cycling_curve:
+                    quad.strength = korig + deltakl*fac
+                    if fac:
+                        _time.sleep(self.params.time_waitquad_cycle)
+                tunex_cycle.append(tune.tunex)
+                tuney_cycle.append(tune.tuney)
+
+        self.data['cycling']['tunex'] = np.array(tunex_cycle)
+        self.data['cycling']['tuney'] = np.array(tuney_cycle)
+        print(' Ok!')
+
     def _meas_beta(self):
         """."""
         sofb = self.devices['sofb']
@@ -149,9 +183,12 @@ class MeasBeta(BaseClass):
             print('RF is enable in SOFB feedback, disabling it...')
             sofb.rfenbl = 0
 
+        self._cycle_quads()
+
         for quadname in self.quads2meas:
             if self._stopevt.is_set():
                 return
+            print('\n  measuring quad: ' + quadname, end=' ')
             self._meas_beta_single_quad(quadname)
 
         if loop_on_rf:
@@ -162,15 +199,18 @@ class MeasBeta(BaseClass):
 
     @staticmethod
     def get_cycling_curve():
-        return [-1/2, 1/2, -1/8, 0]
+        """."""
+        return [-1/2, 1/2, 0]
 
     def _meas_beta_single_quad(self, quadname):
         """."""
         quad = self.devices[quadname]
         tune = self.devices['tune']
 
-        print('turning quadrupole ' + quadname + ' On', end='')
-        quad.cmd_turn_on(self.params.timeout_quad_turnon)
+        if not quad.pwrstate:
+            print('turning quadrupole ' + quadname + ' On', end='')
+            quad.cmd_turn_on(self.params.timeout_quad_turnon)
+
         if not quad.pwrstate:
             print('\n    error: quadrupole ' + quadname + ' is Off.')
             self._stopevt.set()
@@ -181,25 +221,18 @@ class MeasBeta(BaseClass):
         korig = quad.strength
         cycling_curve = MeasBeta.get_cycling_curve()
 
-        print(' and cycling it: ', end='')
-        for _ in range(self.params.quad_nrcycles):
-            print('.', end='')
-            for fac in cycling_curve:
-                quad.strength = korig + deltakl*fac
-                _time.sleep(self.params.wait_quadrupole)
-        print(' Ok!')
-
         tunex_ini, tunex_neg, tunex_pos = [], [], []
         tuney_ini, tuney_neg, tuney_pos = [], [], []
         tunex_wfm_ini, tunex_wfm_neg, tunex_wfm_pos = [], [], []
         tuney_wfm_ini, tuney_wfm_neg, tuney_wfm_pos = [], [], []
 
-        for i in range(self.params.nr_measures):
+        for nrmeas in range(self.params.nr_measures):
+
             if self._stopevt.is_set():
                 print('exiting...')
                 break
-            print('    {0:02d}/{1:02d} --> '.format(
-                i+1, self.params.nr_measures), end='')
+            print('   meas. {0:02d}/{1:02d} --> '.format(
+                nrmeas+1, self.params.nr_measures), end='')
 
             tunex_ini.append(tune.tunex)
             tuney_ini.append(tune.tuney)
@@ -222,8 +255,9 @@ class MeasBeta(BaseClass):
                     tuney_pos.append(tune.tuney)
                     tunex_wfm_pos.append(tune.tunex_wfm)
                     tuney_wfm_pos.append(tune.tuney_wfm)
-            print('--> dnux = {:.5f}, dnuy = {:.5f}'.format(
-               tunex_pos[-1] - tunex_neg[-1], tuney_pos[-1] - tuney_neg[-1]))
+            dnux = tunex_pos[-1] - tunex_neg[-1]
+            dnuy = tuney_pos[-1] - tuney_neg[-1]
+            print('--> dnux = {:.5f}, dnuy = {:.5f}'.format(dnux, dnuy))
 
         meas = dict()
         meas['tunex_ini'] = np.array(tunex_ini)
@@ -241,12 +275,6 @@ class MeasBeta(BaseClass):
         meas['delta_kl'] = deltakl
 
         self.data['measure'][quadname] = meas
-
-        print('turning quadrupole ' + quadname + ' Off \n')
-        quad.cmd_turn_off(self.params.timeout_quad_turnon)
-        if quad.pwrstate:
-            print('    error: quadrupole ' + quadname + ' is still On.')
-            self._stopevt.set()
 
     def process_data(self, mode='symm', discardpoints=None):
         """."""
@@ -297,30 +325,23 @@ class MeasBeta(BaseClass):
             qnames.append(qname.strip('-'))
         return qnames, quads_idx
 
-    @staticmethod
-    def get_quad_families(quads):
-        fams = {quad[11:]: [] for quad in quads}
-        for quad in quads:
-            fams[quad[11:]].append(quad)
-        return fams
-
     def plot_results(self, quads=None, title=''):
-
-        f = plt.figure(figsize=(9, 7))
-        gs = mpl_gs.GridSpec(ncols=1, nrows=2, figure=f)
-        gs.update(
+        """."""
+        fig = plt.figure(figsize=(9, 7))
+        grids = mpl_gs.GridSpec(ncols=1, nrows=2, figure=fig)
+        grids.update(
             left=0.1, right=0.8, bottom=0.15, top=0.9,
             hspace=0.0, wspace=0.35)
 
-        ax1 = f.add_subplot(gs[0, 0])
-        ax2 = f.add_subplot(gs[1, 0], sharex=ax1)
+        ax1 = fig.add_subplot(grids[0, 0])
+        ax2 = fig.add_subplot(grids[1, 0], sharex=ax1)
 
         if title:
-            f.suptitle(title)
+            fig.suptitle(title)
 
         quads = quads or self.data['quadnames']
         indcs, nom_bx, nom_by = [], [], []
-        mes_bx, mes_by, bx, by = [], [], [], []
+        mes_bx, mes_by, bx_ave, by_ave = [], [], [], []
         for quad in quads:
             if quad not in self.analysis:
                 continue
@@ -329,13 +350,13 @@ class MeasBeta(BaseClass):
             nom_by.append(self.data['betay_mid'][quad])
             mes_bx.append(self.analysis[quad]['betasx'])
             mes_by.append(self.analysis[quad]['betasy'])
-            bx.append(self.analysis[quad]['betax_ave'])
-            by.append(self.analysis[quad]['betay_ave'])
+            bx_ave.append(self.analysis[quad]['betax_ave'])
+            by_ave.append(self.analysis[quad]['betay_ave'])
 
-        ax1.plot(indcs, bx, '--bx')
+        ax1.plot(indcs, bx_ave, '--bx')
         ax1.plot(indcs, nom_bx, '-bo')
         ax1.plot(indcs, mes_bx, '.b')
-        ax2.plot(indcs, by, '--rx')
+        ax2.plot(indcs, by_ave, '--rx')
         ax2.plot(indcs, nom_by, '-ro')
         ax2.plot(indcs, mes_by, '.r')
 
@@ -346,4 +367,4 @@ class MeasBeta(BaseClass):
             bbox_to_anchor=(1, 0), fontsize='x-small')
         ax1.grid(True)
         ax2.grid(True)
-        f.show()
+        fig.show()
