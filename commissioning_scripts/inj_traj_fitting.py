@@ -41,6 +41,7 @@ class _FitInjTrajBase(BaseClass):
         self.famdata = None
         self.bpm_idx = None
         self.twiss = None
+        self.etax_ave = 0.0
 
     def calc_traj(self, x0, xl0=0, y0=0, yl0=0, delta=0, size=160):
         """."""
@@ -77,13 +78,13 @@ class _FitInjTrajBase(BaseClass):
 
     def calc_init_vals(self, trajx, trajy):
         """."""
-        etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
         x_ini, y_ini, xl_ini, yl_ini = trajx[0], trajy[0], 0, 0
-        de_ini = np.mean(trajx) / etax_ave
+        de_ini = np.mean(trajx) / self.etax_ave
         return np.array([x_ini, xl_ini, y_ini, yl_ini, de_ini])
 
     def do_fitting(
-            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6, full=False):
+            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6,
+            jacobian=None, update_jacobian=True, full=False):
         """."""
         vec0 = vec0 if vec0 is not None else self.calc_init_vals(trajx, trajy)
         res0 = self.calc_residue(vec0, trajx, trajy)
@@ -94,10 +95,14 @@ class _FitInjTrajBase(BaseClass):
 
         vec, res = vec0.copy(), res0.copy()
         factor = 1
-        for _ in range(max_iter):
-            mat = self.calc_jacobian(vec0, size=trajx.size)
-            u_mat, s_mat, vh_mat = np.linalg.svd(mat, full_matrices=False)
-            imat = vh_mat.T @ np.diag(1/s_mat) @ u_mat.T
+        imat = None
+        for _ in range(1, max_iter):
+            if jacobian is None or update_jacobian:
+                jacobian = self.calc_jacobian(vec0, size=trajx.size)
+            if imat is None:
+                u_mat, s_mat, vh_mat = np.linalg.svd(
+                    jacobian, full_matrices=False)
+                imat = vh_mat.T @ np.diag(1/s_mat) @ u_mat.T
 
             dpos = imat @ res
             vec -= dpos * factor
@@ -250,7 +255,7 @@ class SIFitInjTraj(_FitInjTrajBase):
     """
 
     CHAMBER_RADIUS = 12e-3
-    ANT_ANGLE = 6 / CHAMBER_RADIUS
+    ANT_ANGLE = 6e-3 / CHAMBER_RADIUS
     POLYNOM = 1e-9 * np.array([
         8.57433100e6, 4.72784700e6, 4.03599000e6, 2.81406000e6,
         9.67341100e6, 4.01543800e6, 1.05648850e7, 9.85821200e6,
@@ -273,6 +278,7 @@ class SIFitInjTraj(_FitInjTrajBase):
         self.famdata = si.get_family_data(self.model)
         self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
         self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
+        self.etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
 
         self.model.vchamber_on = True
         self.simul_model.vchamber_on = True
@@ -317,6 +323,14 @@ class BOFitInjTraj(_FitInjTrajBase):
         self.famdata = bo.get_family_data(self.model)
         self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
         self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
+        self.etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
 
         self.model.vchamber_on = True
         self.simul_model.vchamber_on = True
+
+    def calc_init_vals(self, trajx, trajy):
+        """."""
+        arr = super().calc_init_vals(trajx, trajy)
+        arr[0] = 0
+        arr[2] = 0
+        return arr
