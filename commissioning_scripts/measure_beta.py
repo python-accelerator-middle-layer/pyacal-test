@@ -23,9 +23,9 @@ class BetaParams:
 
     def __init__(self):
         """."""
-        self.nr_measures = 5
+        self.nr_measures = 1
         self.quad_deltakl = 0.01  # [1/m]
-        self.quad_nrcycles = 0
+        self.quad_nrcycles = 3
         self.wait_quadrupole = 1  # [s]
         self.wait_tune = 3  # [s]
         self.timeout_quad_turnon = 10  # [s]
