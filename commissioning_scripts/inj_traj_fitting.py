@@ -4,7 +4,7 @@ import numpy as np
 
 from siriuspy.devices import SOFB
 import pyaccel
-from pymodels import si
+from pymodels import si, bo
 
 from .base import BaseClass
 
@@ -24,40 +24,24 @@ class Params:
         self.count_init_ref = 3
 
 
-class FitInjTraj(BaseClass):
-    """Fit injection trajectories in the Sirius storage ring.
+class _FitInjTrajBase(BaseClass):
+    """Base class for fitting injection trajectories."""
 
-    Examples:
-    ---------
-    >>> import numpy as np
-    >>> from apsuite.commissioning_scripts.inj_traj_fitting import FitInjTraj
-    >>> np.random.seed(42)
-    >>> fit_traj = FitInjTraj()
-    >>> x0, xl0, y0, yl0, de0 = -9.0e-3, 0.0e-3, 0.0e-3, 0.0, 0.01
-    >>> trajx, trajy, trajsum = fit_traj.simulate_sofb(
-            x0, xl0, y0, yl0, de0)
-    >>> # trajx, trajy, trajsum = fit_traj.get_traj_from_sofb()
-    >>> vecs = fit_traj.do_fitting(trajx, trajy, tol=1e-8)
+    CHAMBER_RADIUS = 0.0
+    ANT_ANGLE = 0.0
+    POLYNOM = 1e-9 * np.zeros(15, dtype=float)
+    NONLINEAR = True
 
-    """
-
-    def __init__(self, ring=None, sim_mod=None):
+    def __init__(self):
         """."""
         super().__init__(Params())
-        self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
-        self.model = ring if ring is not None else si.create_accelerator()
-        self.simul_model = sim_mod if sim_mod is not None else self.model[:]
-        self.model.vchamber_on = True
-        self.simul_model.vchamber_on = True
-
-        injp = pyaccel.lattice.find_indices(
-            self.model, 'fam_name', 'InjNLKckr')
-        self.model = pyaccel.lattice.shift(self.model, injp[0]+1)
-        self.simul_model = pyaccel.lattice.shift(self.simul_model, injp[0]+1)
-
-        self.famdata = si.get_family_data(self.model)
-        self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
-        self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
+        self.devices['sofb'] = None
+        self.model = None
+        self.simul_model = None
+        self.famdata = None
+        self.bpm_idx = None
+        self.twiss = None
+        self.etax_ave = 0.0
 
     def calc_traj(self, x0, xl0=0, y0=0, yl0=0, delta=0, size=160):
         """."""
@@ -94,13 +78,13 @@ class FitInjTraj(BaseClass):
 
     def calc_init_vals(self, trajx, trajy):
         """."""
-        etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
         x_ini, y_ini, xl_ini, yl_ini = trajx[0], trajy[0], 0, 0
-        de_ini = np.mean(trajx) / etax_ave
+        de_ini = np.mean(trajx) / self.etax_ave
         return np.array([x_ini, xl_ini, y_ini, yl_ini, de_ini])
 
     def do_fitting(
-            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6, full=False):
+            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6,
+            jacobian=None, update_jacobian=True, full=False):
         """."""
         vec0 = vec0 if vec0 is not None else self.calc_init_vals(trajx, trajy)
         res0 = self.calc_residue(vec0, trajx, trajy)
@@ -111,10 +95,14 @@ class FitInjTraj(BaseClass):
 
         vec, res = vec0.copy(), res0.copy()
         factor = 1
-        for _ in range(max_iter):
-            mat = self.calc_jacobian(vec0, size=trajx.size)
-            u_mat, s_mat, vh_mat = np.linalg.svd(mat, full_matrices=False)
-            imat = vh_mat.T @ np.diag(1/s_mat) @ u_mat.T
+        imat = None
+        for _ in range(1, max_iter):
+            if jacobian is None or update_jacobian:
+                jacobian = self.calc_jacobian(vec0, size=trajx.size)
+            if imat is None:
+                u_mat, s_mat, vh_mat = np.linalg.svd(
+                    jacobian, full_matrices=False)
+                imat = vh_mat.T @ np.diag(1/s_mat) @ u_mat.T
 
             dpos = imat @ res
             vec -= dpos * factor
@@ -177,29 +165,30 @@ class FitInjTraj(BaseClass):
         x_uncal = np.nanmean(x_uncal[:, indcs], axis=0)
         y_uncal = np.nanmean(y_uncal[:, indcs], axis=0)
 
-        #     trajx, trajx = self._apply_linearxy(x_uncal, y_uncal)
-        trajx, trajy = self._apply_polyxy(x_uncal, y_uncal)
+        if self.NONLINEAR:
+            trajx, trajy = self._apply_polyxy(x_uncal, y_uncal)
+        else:
+            trajx, trajy = self._apply_linearxy(x_uncal, y_uncal)
 
         trajx += errx * (np.random.rand(trajx.size)-0.5)*2
         trajy += erry * (np.random.rand(trajy.size)-0.5)*2
         return trajx, trajy, snan
 
-    @staticmethod
-    def _calc_bpm_uncal_pos(x_pos, y_pos):
+    # ##### private methods #####
+    @classmethod
+    def _calc_bpm_uncal_pos(cls, x_pos, y_pos):
         """."""
-        cham_radius = 12e-3
-        ang_ant = 6e-3/cham_radius
         phi = np.array([1, 3, 5, 7])*np.pi/4
         phi = np.expand_dims(phi, axis=tuple([i+1 for i in range(x_pos.ndim)]))
 
-        dist = np.sqrt(x_pos*x_pos + y_pos*y_pos)[None, ...] / cham_radius
         theta = np.arctan2(y_pos, x_pos)[None, ...]
-
+        dist = np.sqrt(x_pos*x_pos + y_pos*y_pos)[None, ...]
+        dist /= cls.CHAMBER_RADIUS
         dist2 = dist*dist
 
         sup_esq, sup_dir, inf_dir, inf_esq = np.arctan2(
-            (1-dist2)*np.sin(ang_ant/2),
-            (1+dist2)*np.cos(ang_ant/2) - 2*dist*np.cos(theta - phi))
+            (1-dist2)*np.sin(cls.ANT_ANGLE/2),
+            (1+dist2)*np.cos(cls.ANT_ANGLE/2) - 2*dist*np.cos(theta - phi))
 
         sum1 = sup_esq + inf_dir
         sum2 = inf_esq + sup_dir
@@ -211,26 +200,24 @@ class FitInjTraj(BaseClass):
 
         return x_uncal, y_uncal
 
-    @staticmethod
-    def _apply_linearxy(x_uncal, y_uncal):
+    @classmethod
+    def _apply_linearxy(cls, x_uncal, y_uncal):
         """."""
-        cham_radius = 12e-3
-        ang_ant = 6e-3/cham_radius
-
-        gain = cham_radius/np.sqrt(2) / np.sin(ang_ant)*ang_ant
+        gain = cls.CHAMBER_RADIUS/np.sqrt(2)
+        gain *= cls.ANT_ANGLE / np.sin(cls.ANT_ANGLE)
         x_cal = x_uncal * gain
         y_cal = y_uncal * gain
         return x_cal, y_cal
 
-    @staticmethod
-    def _apply_polyxy(x_uncal, y_uncal):
+    @classmethod
+    def _apply_polyxy(cls, x_uncal, y_uncal):
         """."""
-        x_cal = FitInjTraj._calc_poly(x_uncal, y_uncal)
-        y_cal = FitInjTraj._calc_poly(y_uncal, x_uncal)
+        x_cal = cls._calc_poly(x_uncal, y_uncal)
+        y_cal = cls._calc_poly(y_uncal, x_uncal)
         return x_cal, y_cal
 
-    @staticmethod
-    def _calc_poly(th1, ot1):
+    @classmethod
+    def _calc_poly(cls, th1, ot1):
         """."""
         ot2 = ot1*ot1
         ot4 = ot2*ot2
@@ -241,15 +228,109 @@ class FitInjTraj(BaseClass):
         th5 = th3*th2
         th7 = th5*th2
         th9 = th7*th2
-        pol = 1e-9 * np.array([
-            8.57433100e6, 4.72784700e6, 4.03599000e6, 2.81406000e6,
-            9.67341100e6, 4.01543800e6, 1.05648850e7, 9.85821200e6,
-            8.68409560e7, 3.94657800e6, 5.27686400e6, 2.28461777e8,
-            -1.13979600e6, 9.54919660e7, 2.43619500e7])
-
+        pol = cls.POLYNOM
         return (
             th1*(pol[0] + ot2*pol[1] + ot4*pol[2] + ot6*pol[3] + ot8*pol[4]) +
             th3*(pol[5] + ot2*pol[6] + ot4*pol[7] + ot6*pol[8]) +
             th5*(pol[9] + ot2*pol[10] + ot4*pol[11]) +
             th7*(pol[12] + ot2*pol[13]) +
             th9*pol[14])
+
+
+class SIFitInjTraj(_FitInjTrajBase):
+    """Fit injection trajectories in the Sirius storage ring.
+
+    Examples:
+    ---------
+    >>> import numpy as np
+    >>> from apsuite.commissioning_scripts.inj_traj_fitting import SIFitInjTraj
+    >>> np.random.seed(42)
+    >>> fit_traj = SIFitInjTraj()
+    >>> x0, xl0, y0, yl0, de0 = -9.0e-3, 0.0e-3, 0.0e-3, 0.0, 0.01
+    >>> trajx, trajy, trajsum = fit_traj.simulate_sofb(
+            x0, xl0, y0, yl0, de0)
+    >>> # trajx, trajy, trajsum = fit_traj.get_traj_from_sofb()
+    >>> vecs = fit_traj.do_fitting(trajx, trajy, tol=1e-8)
+
+    """
+
+    CHAMBER_RADIUS = 12e-3
+    ANT_ANGLE = 6e-3 / CHAMBER_RADIUS
+    POLYNOM = 1e-9 * np.array([
+        8.57433100e6, 4.72784700e6, 4.03599000e6, 2.81406000e6,
+        9.67341100e6, 4.01543800e6, 1.05648850e7, 9.85821200e6,
+        8.68409560e7, 3.94657800e6, 5.27686400e6, 2.28461777e8,
+        -1.13979600e6, 9.54919660e7, 2.43619500e7])
+    NONLINEAR = True
+
+    def __init__(self, ring=None, sim_mod=None):
+        """."""
+        super().__init__()
+        self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
+        self.model = ring if ring is not None else si.create_accelerator()
+        self.simul_model = sim_mod if sim_mod is not None else self.model[:]
+
+        injp = pyaccel.lattice.find_indices(
+            self.model, 'fam_name', 'InjNLKckr')
+        self.model = pyaccel.lattice.shift(self.model, injp[0]+1)
+        self.simul_model = pyaccel.lattice.shift(self.simul_model, injp[0]+1)
+
+        self.famdata = si.get_family_data(self.model)
+        self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
+        self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
+        self.etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
+
+        self.model.vchamber_on = True
+        self.simul_model.vchamber_on = True
+
+
+class BOFitInjTraj(_FitInjTrajBase):
+    """Fit injection trajectories in the Sirius booster.
+
+    Examples:
+    ---------
+    >>> import numpy as np
+    >>> from apsuite.commissioning_scripts.inj_traj_fitting import BOFitInjTraj
+    >>> np.random.seed(42)
+    >>> fit_traj = BOFitInjTraj()
+    >>> x0, xl0, y0, yl0, de0 = -2.0e-3, 0.0e-3, 0.0e-3, 0.0, -0.01
+    >>> trajx, trajy, trajsum = fit_traj.simulate_sofb(
+            x0, xl0, y0, yl0, de0)
+    >>> # trajx, trajy, trajsum = fit_traj.get_traj_from_sofb()
+    >>> vecs = fit_traj.do_fitting(trajx, trajy, tol=1e-8)
+
+    """
+
+    CHAMBER_RADIUS = 17.5e-3
+    ANT_ANGLE = 8.5e-3 / CHAMBER_RADIUS  # 6/12*17.5
+    POLYNOM = 1e-9 * np.array([
+        1.30014e7, 7.67435e6, 5.80753e6, 4.2811e6, 3.02077e6, 5.78664e6,
+        1.74211e7, 2.30335e7, 1.12014e8, 4.90624e6, 1.79161e7, 3.52371e8,
+        1.54782e6, 9.90632e7, 2.06262e7, 0, 0, 0, 0, 0])
+    NONLINEAR = False
+
+    def __init__(self, ring=None, sim_mod=None):
+        """."""
+        super().__init__()
+        self.devices['sofb'] = SOFB(SOFB.DEVICES.BO)
+        self.model = ring if ring is not None else bo.create_accelerator()
+        self.simul_model = sim_mod if sim_mod is not None else self.model[:]
+
+        injp = pyaccel.lattice.find_indices(self.model, 'fam_name', 'InjKckr')
+        self.model = pyaccel.lattice.shift(self.model, injp[0]+1)
+        self.simul_model = pyaccel.lattice.shift(self.simul_model, injp[0]+1)
+
+        self.famdata = bo.get_family_data(self.model)
+        self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
+        self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
+        self.etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
+
+        self.model.vchamber_on = True
+        self.simul_model.vchamber_on = True
+
+    def calc_init_vals(self, trajx, trajy):
+        """."""
+        arr = super().calc_init_vals(trajx, trajy)
+        arr[0] = 0
+        arr[2] = 0
+        return arr
