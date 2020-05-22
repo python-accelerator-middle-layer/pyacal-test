@@ -32,6 +32,7 @@ class BetaParams:
         self.time_waitquad_cycle = 0.5  # [s]
         self.recover_tune = True
         self.recover_tune_tol = 1e-4
+        self.recover_tune_maxiter = 3
 
     def __str__(self):
         """."""
@@ -46,7 +47,9 @@ class BetaParams:
             'wait_quadrupole_cycle [s]', self.time_waitquad_cycle, '')
         stg += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
         stg += ftmp('recover tune?', self.recover_tune, '')
-        stg += ftmp('tolerance to recover tune [s]', self.recover_tune_tol, '')
+        stg += ftmp('tolerance to recover tune', self.recover_tune_tol, '')
+        stg += dtmp(
+            'max iter to recover tune', self.recover_tune_maxiter, '')
         return stg
 
 
@@ -230,7 +233,7 @@ class MeasBeta(BaseClass):
         dtuney = tuney_now - tuney0
 
         tol = self.params.recover_tune_tol
-        niter = 3
+        niter = self.params.recover_tune_maxiter
 
         for _ in range(niter):
             if np.abs(dtunex) < tol and np.abs(dtuney) < tol:
@@ -238,6 +241,7 @@ class MeasBeta(BaseClass):
             print('   delta tune x: {:.6f}'.format(dtunex))
             print('   delta tune y: {:.6f}'.format(dtuney))
 
+            # minimization of squares [cx cy]*dkl = [dtunex dtuney]
             dkl = (cxx * dtunex + cyy * dtuney)/(cxx*cxx + cyy*cyy)
 
             if np.abs(dkl) > deltakl:
