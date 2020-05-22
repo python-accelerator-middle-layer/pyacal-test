@@ -685,7 +685,8 @@ class DoBBA(_BaseClass):
         idx = self.data['bpmnames'].index(bpm)
         xini = self.data['scancenterx'][idx]
         yini = self.data['scancentery'][idx]
-        
+        qname = self.data['quadnames'][idx]
+
         klpos = self.data['measure'][bpm].get('klpos')
         klneg = self.data['measure'][bpm].get('klneg')
         if klpos is not None and klneg is not None:
@@ -693,7 +694,6 @@ class DoBBA(_BaseClass):
         else:
             deltakl = self.data['measure'][bpm]['deltakl']
 
-            qname = self.data['quadnames'][idx]
         tmp = '{:6.1f} ' + r'$\pm$' + ' {:<6.1f}'
         st = 'Quad: {:15s} (dKL={:.4f} 1/m)\n'.format(qname, deltakl)
         st += '\nInitial Search values = ({:.2f}, {:.2f})\n'.format(xini, yini)
@@ -1164,6 +1164,7 @@ class DoBBA(_BaseClass):
     # #### private methods ####
     def _do_bba(self):
         tini = _datetime.datetime.fromtimestamp(_time.time())
+
         print('Starting measurement at {:s}'.format(
             tini.strftime('%Y-%m-%d %Hh%Mm%Ss')))
 
@@ -1194,7 +1195,7 @@ class DoBBA(_BaseClass):
     def _dobba_single_bpm(self, bpmname):
         """."""
         tini = _datetime.datetime.fromtimestamp(_time.time())
-        
+
         idx = self.data['bpmnames'].index(bpmname)
         quadname = self.data['quadnames'][idx]
         x0 = self.data['scancenterx'][idx]
@@ -1215,12 +1216,13 @@ class DoBBA(_BaseClass):
         korig = quad.strength
         deltakl = self.params.quad_deltakl
         cycling_curve = DoBBA.get_cycling_curve()
+
         upp = quad.pv_object('KL-SP').upper_disp_limit
         low = quad.pv_object('KL-SP').lower_disp_limit
         # Limits are interchanged in some quads:
         upplim = max(upp, low) - 0.0005
         lowlim = min(upp, low) + 0.0005
-        
+
         print('cycling ' + quadname + ': ', end='')
         for _ in range(self.params.quad_nrcycles):
             print('.', end='')
