@@ -1194,7 +1194,7 @@ class DoBBA(_BaseClass):
     def _dobba_single_bpm(self, bpmname):
         """."""
         tini = _datetime.datetime.fromtimestamp(_time.time())
-        strtini = tinit.strftime('%Hh%Mm%Ss')
+        strtini = tini.strftime('%Hh%Mm%Ss')
         print('{:s} --> Doing BBA for BPM {:03d}: {:s}'.format(
             strtini, idx, bpmname))
 
