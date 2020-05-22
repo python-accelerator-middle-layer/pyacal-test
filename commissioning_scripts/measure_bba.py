@@ -1164,7 +1164,6 @@ class DoBBA(_BaseClass):
     # #### private methods ####
     def _do_bba(self):
         tini = _datetime.datetime.fromtimestamp(_time.time())
-
         print('Starting measurement at {:s}'.format(
             tini.strftime('%Y-%m-%d %Hh%Mm%Ss')))
 
@@ -1195,6 +1194,9 @@ class DoBBA(_BaseClass):
     def _dobba_single_bpm(self, bpmname):
         """."""
         tini = _datetime.datetime.fromtimestamp(_time.time())
+        strtini = tinit.strftime('%Hh%Mm%Ss')
+        print('{:s} --> Doing BBA for BPM {:03d}: {:s}'.format(
+            strtini, idx, bpmname))
 
         idx = self.data['bpmnames'].index(bpmname)
         quadname = self.data['quadnames'][idx]
@@ -1202,10 +1204,6 @@ class DoBBA(_BaseClass):
         y0 = self.data['scancentery'][idx]
         quad = self.devices[quadname]
         sofb = self.devices['sofb']
-
-        strtini = tinit.strftime('%Hh%Mm%Ss')
-        print('{:s} --> Doing BBA for BPM {:03d}: {:s}'.format(
-            strtini, idx, bpmname))
 
         if not quad.pwrstate:
             print('\n    error: quadrupole ' + quadname + ' is Off.')
@@ -1231,7 +1229,6 @@ class DoBBA(_BaseClass):
                     max(korig + deltakl*fac, lowlim), upplim)
                 quad.strength = newkl
                 _time.sleep(self.params.wait_quadrupole)
-
         print(' Ok!')
 
         nrsteps = self.params.meas_nrsteps
