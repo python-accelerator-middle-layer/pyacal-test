@@ -36,8 +36,8 @@ class BetaParams:
 
     def __str__(self):
         """."""
-        ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
-        dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
+        ftmp = '{0:26s} = {1:9.6f}  {2:s}\n'.format
+        dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
         stg = dtmp('nr_measures', self.nr_measures, '')
         stg += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
         stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
@@ -73,6 +73,8 @@ class MeasBeta(BaseClass):
         self.data['betax_out'] = dict()
         self.data['betay_out'] = dict()
         self.data['measure'] = dict()
+        self.data['tunex_ref'] = 0
+        self.data['tuney_ref'] = 0
         self.analysis = dict()
         self._quads2meas = list()
         self._stopevt = _Event()
@@ -185,6 +187,13 @@ class MeasBeta(BaseClass):
         """."""
         sofb = self.devices['sofb']
         loop_on_rf = False
+        t0 = _time.time()
+        print('initial time: {:.2f}'.format(t0))
+
+        _time.sleep(self.params.wait_tune)
+        self.data['tunex_ref'] = self.devices['tune'].tunex
+        self.data['tuney_ref'] = self.devices['tune'].tuney
+
         if sofb.autocorrsts and sofb.rfenbl:
             loop_on_rf = True
             print('RF is enable in SOFB feedback, disabling it...')
@@ -203,6 +212,9 @@ class MeasBeta(BaseClass):
                 'RF was enable in SOFB feedback, restoring original state...')
             sofb.rfenbl = 1
         print('finished!')
+        tf = _time.time()
+        print('final time: {:.2f}'.format(tf))
+        print('delta time: {:.2f} min'.format((tf-t0)/60))
 
     @staticmethod
     def get_cycling_curve():
@@ -211,16 +223,16 @@ class MeasBeta(BaseClass):
 
     def _recover_tune(self, meas, quadname):
         print('recovering tune...')
-        tunex0 = meas['tunex_ini']
-        tuney0 = meas['tuney_ini']
+        tunex0 = meas['tunex_ini'][0]
+        tuney0 = meas['tuney_ini'][0]
         deltakl = self.params.quad_deltakl
 
-        dnux1 = meas['tunex_neg'] - tunex0
-        dnuy1 = meas['tuney_neg'] - tuney0
+        dnux1 = meas['tunex_neg'][-1] - meas['tunex_ini'][-1]
+        dnuy1 = meas['tuney_neg'][-1] - meas['tuney_ini'][-1]
         cx1 = -dnux1/deltakl/2
         cy1 = -dnuy1/deltakl/2
-        dnux2 = meas['tunex_pos'] - meas['tunex_neg']
-        dnuy2 = meas['tuney_pos'] - meas['tuney_neg']
+        dnux2 = meas['tunex_pos'][-1] - meas['tunex_neg'][-1]
+        dnuy2 = meas['tuney_pos'][-1] - meas['tuney_neg'][-1]
         cx2 = dnux2/deltakl
         cy2 = dnuy2/deltakl
         cxx = (cx1 + cx2)/2
@@ -236,10 +248,12 @@ class MeasBeta(BaseClass):
         niter = self.params.recover_tune_maxiter
 
         for _ in range(niter):
-            if np.abs(dtunex) < tol and np.abs(dtuney) < tol:
+            dtune_mod = np.sqrt(dtunex*dtunex + dtuney*dtuney)
+            if dtune_mod < tol:
                 return True
-            print('   delta tune x: {:.6f}'.format(dtunex))
-            print('   delta tune y: {:.6f}'.format(dtuney))
+            print(
+                '   delta tune x, y: {0:.6f}, {1:.6f} ({2:.6f})'.format(
+                    dtunex, dtuney, dtune_mod))
 
             # minimization of squares [cx cy]*dkl = [dtunex dtuney]
             dkl = (cxx * dtunex + cyy * dtuney)/(cxx*cxx + cyy*cyy)
