@@ -31,7 +31,7 @@ class BetaParams:
         self.timeout_quad_turnon = 10  # [s]
         self.time_waitquad_cycle = 0.5  # [s]
         self.recover_tune = True
-        self.recover_tune_tol = 1e-6
+        self.recover_tune_tol = 1e-4
 
     def __str__(self):
         """."""
@@ -208,39 +208,42 @@ class MeasBeta(BaseClass):
 
     def _recover_tune(self, meas, quadname):
         print('recovering tune...')
+        tunex0 = meas['tunex_ini']
+        tuney0 = meas['tuney_ini']
         deltakl = self.params.quad_deltakl
-        dnux1 = meas['tunex_neg'] - meas['tunex_ini']
-        dnuy1 = meas['tuney_neg'] - meas['tuney_ini']
+
+        dnux1 = meas['tunex_neg'] - tunex0
+        dnuy1 = meas['tuney_neg'] - tuney0
         cx1 = -dnux1/deltakl/2
         cy1 = -dnuy1/deltakl/2
         dnux2 = meas['tunex_pos'] - meas['tunex_neg']
         dnuy2 = meas['tuney_pos'] - meas['tuney_neg']
         cx2 = dnux2/deltakl
         cy2 = dnuy2/deltakl
-        cx = (cx1 + cx2)/2
-        cy = (cy1 + cy2)/2
+        cxx = (cx1 + cx2)/2
+        cyy = (cy1 + cy2)/2
 
-        tunex0 = meas['tunex_ini']
-        tuney0 = meas['tuney_ini']
+        _time.sleep(self.params.wait_tune)
         tunex_now = self.devices['tune'].tunex
         tuney_now = self.devices['tune'].tuney
         dtunex = tunex_now - tunex0
         dtuney = tuney_now - tuney0
 
         tol = self.params.recover_tune_tol
-        niter = 0
+        niter = 3
 
-        while np.abs(dtunex) > tol or np.abs(dtuney) > tol:
+        for _ in range(niter):
+            if np.abs(dtunex) < tol and np.abs(dtuney) < tol:
+                return True
             print('   delta tune x: {:.6f}'.format(dtunex))
             print('   delta tune y: {:.6f}'.format(dtuney))
-            if niter > 2:
-                print(
-                    'Cannot recover tune for :{:s}'.format(quadname))
-                return
 
-            dklx = cx * dtunex
-            dkly = cy * dtuney
-            dkl = (dklx + dkly)/2
+            dkl = (cxx * dtunex + cyy * dtuney)/(cxx*cxx + cyy*cyy)
+
+            if np.abs(dkl) > deltakl:
+                print('   deltakl calculated is too big!')
+                return False
+
             self.devices[quadname].strength -= dkl
 
             _time.sleep(self.params.wait_quadrupole)
@@ -250,9 +253,7 @@ class MeasBeta(BaseClass):
             tuney_now = self.devices['tune'].tuney
             dtunex = tunex_now - tunex0
             dtuney = tuney_now - tuney0
-
-            niter += 1
-        print('tune recovered!')
+        return False
 
     def _meas_beta_single_quad(self, quadname):
         """."""
@@ -327,7 +328,10 @@ class MeasBeta(BaseClass):
         meas['delta_kl'] = deltakl
 
         if self.params.recover_tune:
-            self._recover_tune(meas, quadname)
+            if self._recover_tune(meas, quadname):
+                print('tune recovered!')
+            else:
+                print('cannot recover tune for :{:s}'.format(quadname))
 
         self.data['measure'][quadname] = meas
 
