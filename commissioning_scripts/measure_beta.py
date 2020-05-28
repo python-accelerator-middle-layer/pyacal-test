@@ -22,11 +22,9 @@ class BetaParams:
         """."""
         self.nr_measures = 1
         self.quad_deltakl = 0.01  # [1/m]
-        self.quad_nrcycles = 0
         self.wait_quadrupole = 1  # [s]
         self.wait_tune = 3  # [s]
         self.timeout_quad_turnon = 10  # [s]
-        self.time_wait_quad_cycle = 0.5  # [s]
         self.recover_tune = True
         self.recover_tune_tol = 1e-4
         self.recover_tune_maxiter = 3
@@ -37,11 +35,8 @@ class BetaParams:
         dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
         stg = dtmp('nr_measures', self.nr_measures, '')
         stg += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
-        stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
         stg += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
         stg += ftmp('wait_tune [s]', self.wait_tune, '')
-        stg += ftmp(
-            'time_wait_quad_cycle [s]', self.time_wait_quad_cycle, '')
         stg += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
         stg += ftmp('recover_tune', self.recover_tune, '')
         stg += ftmp('recover_tune_tol', self.recover_tune_tol, '')
@@ -152,34 +147,6 @@ class MeasBeta(BaseClass):
             self.data['betay_out'][qname] = twi.betay[idx+1]
         self.data['quadnames'] = quadnames
 
-    def _cycle_quads(self):
-        tune = self.devices['tune']
-        deltakl = self.params.quad_deltakl
-        cycling_curve = MeasBeta.get_cycling_curve()
-        tunex_cycle = []
-        tuney_cycle = []
-        print('\n preparing all quads: ', end='')
-        for cynum in range(self.params.quad_nrcycles):
-            print('\n   cycle: {0:02d}/{1:02d} --> '.format(
-                cynum+1, self.params.quad_nrcycles), end='')
-            for quadname in self.data['quadnames']:
-                if self._stopevt.is_set():
-                    print('exiting...')
-                    break
-                print('\n  cycling quad ' + quadname, end=' ')
-                quad = self.devices[quadname]
-                korig = quad.strength
-                for fac in cycling_curve:
-                    quad.strength = korig + deltakl*fac
-                    if fac:
-                        _time.sleep(self.params.time_wait_quad_cycle)
-                tunex_cycle.append(tune.tunex)
-                tuney_cycle.append(tune.tuney)
-
-        self.data['cycling']['tunex'] = np.array(tunex_cycle)
-        self.data['cycling']['tuney'] = np.array(tuney_cycle)
-        print(' Ok!')
-
     def _meas_beta(self):
         """."""
         sofb = self.devices['sofb']
@@ -194,8 +161,6 @@ class MeasBeta(BaseClass):
             loop_on_rf = True
             print('RF is enable in SOFB feedback, disabling it...')
             sofb.rfenbl = 0
-
-        self._cycle_quads()
 
         for quadname in self.quads2meas:
             if self._stopevt.is_set():
