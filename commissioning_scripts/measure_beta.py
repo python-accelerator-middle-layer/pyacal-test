@@ -225,18 +225,16 @@ class MeasBeta(BaseClass):
         print('recovering tune...')
         tunex0 = meas['tunex_ini'][0]
         tuney0 = meas['tuney_ini'][0]
-        deltakl = self.params.quad_deltakl
+        deltakl = meas['delta_kl']
 
-        dnux1 = meas['tunex_neg'][-1] - meas['tunex_ini'][-1]
-        dnuy1 = meas['tuney_neg'][-1] - meas['tuney_ini'][-1]
-        cx1 = -dnux1/deltakl/2
-        cy1 = -dnuy1/deltakl/2
-        dnux2 = meas['tunex_pos'][-1] - meas['tunex_neg'][-1]
-        dnuy2 = meas['tuney_pos'][-1] - meas['tuney_neg'][-1]
-        cx2 = dnux2/deltakl
-        cy2 = dnuy2/deltakl
-        cxx = (cx1 + cx2)/2
-        cyy = (cy1 + cy2)/2
+        # dnux1 = meas['tunex_neg'][-1] - meas['tunex_ini'][-1]
+        # dnuy1 = meas['tuney_neg'][-1] - meas['tuney_ini'][-1]
+        # cx1 = -dnux1/deltakl/2
+        # cy1 = -dnuy1/deltakl/2
+        dnux = meas['tunex_pos'][-1] - meas['tunex_ini'][-1]
+        dnuy = meas['tuney_pos'][-1] - meas['tuney_ini'][-1]
+        cxx = dnux/deltakl
+        cyy = dnuy/deltakl
 
         _time.sleep(self.params.wait_tune)
         tunex_now = self.devices['tune'].tunex
@@ -258,7 +256,7 @@ class MeasBeta(BaseClass):
             # minimization of squares [cx cy]*dkl = [dtunex dtuney]
             dkl = (cxx * dtunex + cyy * dtuney)/(cxx*cxx + cyy*cyy)
 
-            if np.abs(dkl) > deltakl:
+            if np.abs(dkl) > np.abs(deltakl):
                 print('   deltakl calculated is too big!')
                 return False
 
@@ -290,7 +288,10 @@ class MeasBeta(BaseClass):
 
         deltakl = self.params.quad_deltakl
         korig = quad.strength
-        cycling_curve = MeasBeta.get_cycling_curve()
+        # cycling_curve = MeasBeta.get_cycling_curve()
+        cycling_curve = [+1, 0]
+        if 'QD' in quadname:
+            deltakl *= -1
 
         tunex_ini, tunex_neg, tunex_pos = [], [], []
         tuney_ini, tuney_neg, tuney_pos = [], [], []
@@ -312,22 +313,27 @@ class MeasBeta(BaseClass):
             for j, fac in enumerate(cycling_curve):
                 quad.strength = korig + deltakl*fac
                 _time.sleep(self.params.wait_quadrupole)
+                # if not j:
+                #     print(' -dk/2 ', end='')
+                #     _time.sleep(self.params.wait_tune)
+                #     tunex_neg.append(tune.tunex)
+                #     tuney_neg.append(tune.tuney)
+                #     tunex_wfm_neg.append(tune.tunex_wfm)
+                #     tuney_wfm_neg.append(tune.tuney_wfm)
                 if not j:
-                    print(' -dk/2 ', end='')
-                    _time.sleep(self.params.wait_tune)
-                    tunex_neg.append(tune.tunex)
-                    tuney_neg.append(tune.tuney)
-                    tunex_wfm_neg.append(tune.tunex_wfm)
-                    tuney_wfm_neg.append(tune.tuney_wfm)
-                elif j == 1:
-                    print(' +dk/2 ', end='')
+                    if 'QD' in quadname:
+                        print(' -dk ', end='')
+                    else:
+                        print(' +dk ', end='')
                     _time.sleep(self.params.wait_tune)
                     tunex_pos.append(tune.tunex)
                     tuney_pos.append(tune.tuney)
                     tunex_wfm_pos.append(tune.tunex_wfm)
                     tuney_wfm_pos.append(tune.tuney_wfm)
-            dnux = tunex_pos[-1] - tunex_neg[-1]
-            dnuy = tuney_pos[-1] - tuney_neg[-1]
+            # dnux = tunex_pos[-1] - tunex_neg[-1]
+            # dnuy = tuney_pos[-1] - tuney_neg[-1]
+            dnux = tunex_pos[-1] - tunex_ini[-1]
+            dnuy = tuney_pos[-1] - tuney_ini[-1]
             print('--> dnux = {:.5f}, dnuy = {:.5f}'.format(dnux, dnuy))
 
         meas = dict()
