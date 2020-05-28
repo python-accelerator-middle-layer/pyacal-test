@@ -11,7 +11,7 @@ class FitTunes(_SimulAnneal):
     """Tune Fit.
 
     tunex = coeff1 * quad_parameter + offset1
-    tuney = coeff2 * quad_parameter + offset1
+    tuney = coeff2 * quad_parameter + offset2
 
     tune1, tune2 = Eigenvalues([[tunex, coupling/2], [coupling/2, tuney]])
 
@@ -28,13 +28,18 @@ class FitTunes(_SimulAnneal):
 
     def __init__(self, param, tune1, tune2):
         """."""
-        self._param = _np.array(param)
-        self._tune1 = _np.array(tune1)
-        self._tune2 = _np.array(tune2)
+        self._param = _np.asarray(param)
+        self._tune1 = _np.asarray(tune1)
+        self._tune2 = _np.asarray(tune2)
 
         # sort tune1 > tune2 at each point
         sel = self._tune1 <= self._tune2
-        self._tune1[sel], self._tune2[sel] = self._tune2[sel], self._tune1[sel]
+        if sel:
+            self._param = _np.array(param)
+            self._tune1 = _np.array(tune1)
+            self._tune2 = _np.array(tune2)
+            self._tune1[sel], self._tune2[sel] = \
+                self._tune2[sel], self._tune1[sel]
 
         super().__init__(use_thread=False)
 
