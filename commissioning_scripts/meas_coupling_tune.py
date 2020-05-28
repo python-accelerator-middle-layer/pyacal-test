@@ -18,8 +18,8 @@ class FitTunes(_SimulAnneal):
     fit parameters: coeff1, offset1, coeff2, offset2, coupling
 
     Ex.:
-            fittune = FitTunes(param=quad_strengths, tune1=meas_tune1, tune2=meas_tune2)
-            fittune.coupling = 0.01
+            fittune = FitTunes(
+                param=quad_strengths, tune1=meas_tune1, tune2=meas_tune2)
             fittune.fitting_plot()
             fittune.niter = 1000
             fittune.start()
