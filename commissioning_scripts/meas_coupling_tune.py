@@ -24,6 +24,9 @@ class FitTunes(_SimulAnneal):
             fittune.niter = 1000
             fittune.start()
             fittune.fitting_plot()
+
+    NOTE: It maybe necessary to add a quadratic quadrupole strength
+          dependency for tunes!
     """
 
     def __init__(self, param, tune1, tune2):
