@@ -97,7 +97,8 @@ class FitTunes(_SimulAnneal):
         _, tune1, tune2 = \
             FitTunes.calc_tunes(
                 self._param, coeff1, offset1, coeff2, offset2, coupling)
-        residue = sum((tune1 - self._tune1)**2 + (tune2 - self._tune2)**2)
+        diff = ((tune1 - self._tune1)**2 + (tune2 - self._tune2)**2)**0.5
+        residue = _np.mean(diff)
         return residue
 
     def initialization(self):
@@ -128,12 +129,19 @@ class FitTunes(_SimulAnneal):
                 tune1[i], tune2[i] = tune2[i], tune1[i]
         return param, tune1, tune2
 
-    def fitting_plot(self, title=None, fig=None):
+    def fitting_plot(self, title=None, xlabel=None, fig=None):
         """."""
         position = self.position
+
+        # NOTE: do error estimate properly!
+        coup_error = self.calc_obj_fun()
+
+        if xlabel is None:
+            xlabel = 'Quadrupole Integrated Strength [1/m]'
         if title is None:
-            title = 'Transverse Linear Coupling: {:.2f} %'.format(
-                position[-1] * 100)
+            title = 'Transverse Linear Coupling: {:.2f} ± {:.2f}%'.format(
+                position[-1] * 100, coup_error * 100)
+
         prop_cycle = _plt.rcParams['axes.prop_cycle']
         colors = prop_cycle.by_key()['color']
         if fig is None:
@@ -150,8 +158,8 @@ class FitTunes(_SimulAnneal):
         _plt.plot(param, fittune1, color=colors[1], label='fitting')
         _plt.plot(param, fittune2, color=colors[1])
         _plt.legend()
-        _plt.xlabel('Quadrupole Integrated Strength [1/m]')
-        _plt.ylabel('Tunes')
+        _plt.xlabel(xlabel)
+        _plt.ylabel('Transverse Tunes')
         _plt.title(title)
         _plt.grid()
         _plt.show()
