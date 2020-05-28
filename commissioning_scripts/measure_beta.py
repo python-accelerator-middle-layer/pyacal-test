@@ -28,6 +28,8 @@ class BetaParams:
         self.recover_tune = True
         self.recover_tune_tol = 1e-4
         self.recover_tune_maxiter = 3
+        self.quad_nrcycles = 0
+        self.time_wait_quad_cycle = 0.5  # [s]
 
     def __str__(self):
         """."""
@@ -42,6 +44,9 @@ class BetaParams:
         stg += ftmp('recover_tune_tol', self.recover_tune_tol, '')
         stg += dtmp(
             'recover_tune_maxiter', self.recover_tune_maxiter, '')
+        stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
+        stg += ftmp(
+            'time_wait_quad_cycle [s]', self.time_wait_quad_cycle, '')
         return stg
 
 
@@ -162,6 +167,8 @@ class MeasBeta(BaseClass):
             print('RF is enable in SOFB feedback, disabling it...')
             sofb.rfenbl = 0
 
+        self._cycle_quads()
+
         for quadname in self.quads2meas:
             if self._stopevt.is_set():
                 return
@@ -180,6 +187,34 @@ class MeasBeta(BaseClass):
     def get_cycling_curve():
         """."""
         return [+1, 0]
+
+    def _cycle_quads(self):
+        tune = self.devices['tune']
+        deltakl = self.params.quad_deltakl
+        cycling_curve = MeasBeta.get_cycling_curve()
+        tunex_cycle = []
+        tuney_cycle = []
+        print('\n preparing all quads: ', end='')
+        for cynum in range(self.params.quad_nrcycles):
+            print('\n   cycle: {0:02d}/{1:02d} --> '.format(
+                cynum+1, self.params.quad_nrcycles), end='')
+            for quadname in self.data['quadnames']:
+                if self._stopevt.is_set():
+                    print('exiting...')
+                    break
+                print('\n  cycling quad ' + quadname, end=' ')
+                quad = self.devices[quadname]
+                korig = quad.strength
+                for fac in cycling_curve:
+                    quad.strength = korig + deltakl*fac
+                    if fac:
+                        _time.sleep(self.params.time_wait_quad_cycle)
+                tunex_cycle.append(tune.tunex)
+                tuney_cycle.append(tune.tuney)
+
+        self.data['cycling']['tunex'] = np.array(tunex_cycle)
+        self.data['cycling']['tuney'] = np.array(tuney_cycle)
+        print(' Ok!')
 
     def _recover_tune(self, meas, quadname):
         print('recovering tune...')
