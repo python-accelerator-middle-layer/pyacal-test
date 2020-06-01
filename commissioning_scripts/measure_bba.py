@@ -233,6 +233,7 @@ class DoBBA(_BaseClass):
         self.params = BBAParams()
         self._bpms2dobba = list()
         self.clt_confdb = ConfigDBClient(config_type='si_bbadata')
+        self.clt_confdb._TIMEOUT_DEFAULT = 20
         self.devices['sofb'] = _SOFB(_SOFB.DEVICES.SI)
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
@@ -684,8 +685,15 @@ class DoBBA(_BaseClass):
         idx = self.data['bpmnames'].index(bpm)
         xini = self.data['scancenterx'][idx]
         yini = self.data['scancentery'][idx]
-        deltakl = self.data['measure'][bpm]['deltakl']
         qname = self.data['quadnames'][idx]
+
+        klpos = self.data['measure'][bpm].get('klpos')
+        klneg = self.data['measure'][bpm].get('klneg')
+        if klpos is not None and klneg is not None:
+            deltakl = klpos - klneg
+        else:
+            deltakl = self.data['measure'][bpm]['deltakl']
+
         tmp = '{:6.1f} ' + r'$\pm$' + ' {:<6.1f}'
         st = 'Quad: {:15s} (dKL={:.4f} 1/m)\n'.format(qname, deltakl)
         st += '\nInitial Search values = ({:.2f}, {:.2f})\n'.format(xini, yini)
@@ -1155,6 +1163,10 @@ class DoBBA(_BaseClass):
 
     # #### private methods ####
     def _do_bba(self):
+        tini = _datetime.datetime.fromtimestamp(_time.time())
+        print('Starting measurement at {:s}'.format(
+            tini.strftime('%Y-%m-%d %Hh%Mm%Ss')))
+
         sofb = self.devices['sofb']
         sofb.nr_points = self.params.sofb_nrpoints
         loop_on = False
@@ -1173,10 +1185,19 @@ class DoBBA(_BaseClass):
         if loop_on:
             print('SOFB feedback was enable, restoring original state...')
             sofb.cmd_autocorr_turn_on()
-        print('finished!')
 
+        tfin = _datetime.datetime.fromtimestamp(_time.time())
+        dtime = str(tfin - tini)
+        dtime = dtime.split('.')[0]
+        print('finished! Elapsed time {:s}'.format(dtime))
+        
     def _dobba_single_bpm(self, bpmname):
         """."""
+        tini = _datetime.datetime.fromtimestamp(_time.time())
+        strtini = tini.strftime('%Hh%Mm%Ss')
+        print('{:s} --> Doing BBA for BPM {:03d}: {:s}'.format(
+            strtini, idx, bpmname))
+
         idx = self.data['bpmnames'].index(bpmname)
         quadname = self.data['quadnames'][idx]
         x0 = self.data['scancenterx'][idx]
@@ -1184,7 +1205,6 @@ class DoBBA(_BaseClass):
         quad = self.devices[quadname]
         sofb = self.devices['sofb']
 
-        print('Doing BBA for BPM {:03d}: {:s}'.format(idx, bpmname))
         if not quad.pwrstate:
             print('\n    error: quadrupole ' + quadname + ' is Off.')
             self._stopevt.set()
@@ -1195,13 +1215,20 @@ class DoBBA(_BaseClass):
         deltakl = self.params.quad_deltakl
         cycling_curve = DoBBA.get_cycling_curve()
 
+        upp = quad.pv_object('KL-SP').upper_disp_limit
+        low = quad.pv_object('KL-SP').lower_disp_limit
+        # Limits are interchanged in some quads:
+        upplim = max(upp, low) - 0.0005
+        lowlim = min(upp, low) + 0.0005
+
         print('cycling ' + quadname + ': ', end='')
         for _ in range(self.params.quad_nrcycles):
             print('.', end='')
             for fac in cycling_curve:
-                quad.strength = korig + deltakl*fac
+                newkl = min(
+                    max(korig + deltakl*fac, lowlim), upplim)
+                quad.strength = newkl
                 _time.sleep(self.params.wait_quadrupole)
-
         print(' Ok!')
 
         nrsteps = self.params.meas_nrsteps
@@ -1220,6 +1247,7 @@ class DoBBA(_BaseClass):
         orbini, orbpos, orbneg = [], [], []
         npts = 2*(nrsteps//2) + 1
         tmpl = '{:25s}'.format
+        klpos = klneg = 0.0
         for i in range(npts):
             if self._stopevt.is_set():
                 print('   exiting...')
@@ -1237,23 +1265,28 @@ class DoBBA(_BaseClass):
             orbini.append(self.get_orbit())
 
             for j, fac in enumerate(cycling_curve):
-                quad.strength = korig + deltakl*fac
+                newkl = min(
+                    max(korig + deltakl*fac, lowlim), upplim)
+                quad.strength = newkl
                 _time.sleep(self.params.wait_quadrupole)
                 if not j:
                     orbpos.append(self.get_orbit())
+                    klpos = quad.strength
                 elif j == 1:
                     orbneg.append(self.get_orbit())
+                    klneg = quad.strength
 
             dorb = orbpos[-1] - orbneg[-1]
             dorbx = dorb[:len(self.data['bpmnames'])]
             dorby = dorb[len(self.data['bpmnames']):]
             rmsx = _np.sqrt(_np.sum(dorbx*dorbx) / dorbx.shape[0])
             rmsy = _np.sqrt(_np.sum(dorby*dorby) / dorby.shape[0])
-            print('rmsx = {:8.1f} rmsy = {:8.1f} um'.format(rmsx, rmsy))
+            print('rmsx = {:5.1f} rmsy = {:5.1f} um dkl = {:.1g}'.format(
+                rmsx, rmsy, klpos - klneg))
 
         self.data['measure'][bpmname] = {
             'orbini': _np.array(orbini), 'orbpos': _np.array(orbpos),
-            'orbneg': _np.array(orbneg), 'deltakl': deltakl}
+            'orbneg': _np.array(orbneg), 'klpos': klpos, 'klneg': klneg}
 
         print('    restoring initial conditions.')
         sofb.refx, sofb.refy = refx0, refy0
@@ -1273,4 +1306,8 @@ class DoBBA(_BaseClass):
             _time.sleep(self.params.wait_correctors)
         sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
         sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
-        print('')
+
+        tfin = _datetime.datetime.fromtimestamp(_time.time())
+        dtime = str(tfin - tini)
+        dtime = dtime.split('.')[0]
+        print('Done! Elapsed time: {:s}\n'.format(dtime))
