@@ -37,7 +37,7 @@ class FitTunes(_SimulAnneal):
 
         # sort tune1 > tune2 at each point
         sel = self._tune1 <= self._tune2
-        if sel:
+        if sel.any():
             self._param = _np.array(param)
             self._tune1 = _np.array(tune1)
             self._tune2 = _np.array(tune2)
