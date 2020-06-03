@@ -178,8 +178,10 @@ class FitTunes(_SimulAnneal):
         vyb = self._tune1[0], self._tune2[0]
         vye = self._tune1[-1], self._tune2[-1]
         dparm = parm[-1] - parm[0]
-        position = [
-            (min(vye) - max(vyb)) / dparm, max(vyb),
-            (max(vye) - min(vyb)) / dparm, min(vyb),
-            min(_np.abs(self._tune1 - self._tune2))]
+        coeff1 = (min(vye) - max(vyb)) / dparm
+        offset1 = max(vyb) - coeff1 * parm[0]
+        coeff2 = (max(vye) - min(vyb)) / dparm
+        offset2 = min(vyb) - coeff2 * parm[0]
+        coupling = min(_np.abs(self._tune1 - self._tune2))
+        position = [coeff1, offset1, coeff2, offset2, coupling]
         self.position = position
