@@ -49,6 +49,21 @@ class FitTunes(_SimulAnneal):
     # --- fitting parameters ---
 
     @property
+    def param(self):
+        """."""
+        return self._param
+
+    @property
+    def tune1(self):
+        """."""
+        return self._tune1
+
+    @property
+    def tune2(self):
+        """."""
+        return self._tune2
+
+    @property
     def coeff1(self):
         """."""
         return self.position[0]
