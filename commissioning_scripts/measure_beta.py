@@ -18,31 +18,35 @@ from .base import BaseClass
 class BetaParams:
     """."""
 
-    SYM = 0
-    UNI = 1
-
     def __init__(self):
         """."""
         self.nr_measures = 1
         self.quad_deltakl = 0.01  # [1/m]
-        self.quad_nrcycles = 3
         self.wait_quadrupole = 1  # [s]
         self.wait_tune = 3  # [s]
         self.timeout_quad_turnon = 10  # [s]
-        self.time_waitquad_cycle = 0.5  # [s]
+        self.recover_tune = True
+        self.recover_tune_tol = 1e-4
+        self.recover_tune_maxiter = 3
+        self.quad_nrcycles = 0
+        self.time_wait_quad_cycle = 0.5  # [s]
 
     def __str__(self):
         """."""
-        ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
-        dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
+        ftmp = '{0:26s} = {1:9.6f}  {2:s}\n'.format
+        dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
         stg = dtmp('nr_measures', self.nr_measures, '')
         stg += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
-        stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
         stg += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
         stg += ftmp('wait_tune [s]', self.wait_tune, '')
-        stg += ftmp(
-            'wait_quadrupole_cycle [s]', self.time_waitquad_cycle, '')
         stg += ftmp('timeout_quad_turnon [s]', self.timeout_quad_turnon, '')
+        stg += ftmp('recover_tune', self.recover_tune, '')
+        stg += ftmp('recover_tune_tol', self.recover_tune_tol, '')
+        stg += dtmp(
+            'recover_tune_maxiter', self.recover_tune_maxiter, '')
+        stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
+        stg += ftmp(
+            'time_wait_quad_cycle [s]', self.time_wait_quad_cycle, '')
         return stg
 
 
@@ -66,6 +70,8 @@ class MeasBeta(BaseClass):
         self.data['betax_out'] = dict()
         self.data['betay_out'] = dict()
         self.data['measure'] = dict()
+        self.data['tunex_ref'] = 0
+        self.data['tuney_ref'] = 0
         self.analysis = dict()
         self._quads2meas = list()
         self._stopevt = _Event()
@@ -146,6 +152,42 @@ class MeasBeta(BaseClass):
             self.data['betay_out'][qname] = twi.betay[idx+1]
         self.data['quadnames'] = quadnames
 
+    def _meas_beta(self):
+        """."""
+        sofb = self.devices['sofb']
+        loop_on_rf = False
+        ti0 = _time.time()
+
+        _time.sleep(self.params.wait_tune)
+        self.data['tunex_ref'] = self.devices['tune'].tunex
+        self.data['tuney_ref'] = self.devices['tune'].tuney
+
+        if sofb.autocorrsts and sofb.rfenbl:
+            loop_on_rf = True
+            print('RF is enable in SOFB feedback, disabling it...')
+            sofb.rfenbl = 0
+
+        self._cycle_quads()
+
+        for quadname in self.quads2meas:
+            if self._stopevt.is_set():
+                return
+            print('\n  measuring quad: ' + quadname, end=' ')
+            self._meas_beta_single_quad(quadname)
+
+        if loop_on_rf:
+            print(
+                'RF was enable in SOFB feedback, restoring original state...')
+            sofb.rfenbl = 1
+        print('finished!')
+        tif = _time.time()
+        print('time elapsed: {:.2f} min'.format((tif-ti0)/60))
+
+    @staticmethod
+    def get_cycling_curve():
+        """."""
+        return [+1, 0]
+
     def _cycle_quads(self):
         tune = self.devices['tune']
         deltakl = self.params.quad_deltakl
@@ -166,7 +208,7 @@ class MeasBeta(BaseClass):
                 for fac in cycling_curve:
                     quad.strength = korig + deltakl*fac
                     if fac:
-                        _time.sleep(self.params.time_waitquad_cycle)
+                        _time.sleep(self.params.time_wait_quad_cycle)
                 tunex_cycle.append(tune.tunex)
                 tuney_cycle.append(tune.tuney)
 
@@ -174,33 +216,51 @@ class MeasBeta(BaseClass):
         self.data['cycling']['tuney'] = np.array(tuney_cycle)
         print(' Ok!')
 
-    def _meas_beta(self):
-        """."""
-        sofb = self.devices['sofb']
-        loop_on_rf = False
-        if sofb.autocorrsts and sofb.rfenbl:
-            loop_on_rf = True
-            print('RF is enable in SOFB feedback, disabling it...')
-            sofb.rfenbl = 0
+    def _recover_tune(self, meas, quadname):
+        print('recovering tune...')
+        tunex0 = meas['tunex_ini'][0]
+        tuney0 = meas['tuney_ini'][0]
+        deltakl = meas['delta_kl']
 
-        self._cycle_quads()
+        dnux = meas['tunex_pos'][-1] - meas['tunex_ini'][-1]
+        dnuy = meas['tuney_pos'][-1] - meas['tuney_ini'][-1]
+        cxx = dnux/deltakl
+        cyy = dnuy/deltakl
 
-        for quadname in self.quads2meas:
-            if self._stopevt.is_set():
-                return
-            print('\n  measuring quad: ' + quadname, end=' ')
-            self._meas_beta_single_quad(quadname)
+        _time.sleep(self.params.wait_tune)
+        tunex_now = self.devices['tune'].tunex
+        tuney_now = self.devices['tune'].tuney
+        dtunex = tunex_now - tunex0
+        dtuney = tuney_now - tuney0
 
-        if loop_on_rf:
+        tol = self.params.recover_tune_tol
+        niter = self.params.recover_tune_maxiter
+
+        for _ in range(niter):
+            dtune_mod = np.sqrt(dtunex*dtunex + dtuney*dtuney)
+            if dtune_mod < tol:
+                return True
             print(
-                'RF was enable in SOFB feedback, restoring original state...')
-            sofb.rfenbl = 1
-        print('finished!')
+                '   delta tune x, y: {0:.6f}, {1:.6f} ({2:.6f})'.format(
+                    dtunex, dtuney, dtune_mod))
 
-    @staticmethod
-    def get_cycling_curve():
-        """."""
-        return [-1/2, 1/2, 0]
+            # minimization of squares [cx cy]*dkl = [dtunex dtuney]
+            dkl = (cxx * dtunex + cyy * dtuney)/(cxx*cxx + cyy*cyy)
+
+            if np.abs(dkl) > np.abs(deltakl):
+                print('   deltakl calculated is too big!')
+                return False
+
+            self.devices[quadname].strength -= dkl
+
+            _time.sleep(self.params.wait_quadrupole)
+            _time.sleep(self.params.wait_tune)
+
+            tunex_now = self.devices['tune'].tunex
+            tuney_now = self.devices['tune'].tuney
+            dtunex = tunex_now - tunex0
+            dtuney = tuney_now - tuney0
+        return False
 
     def _meas_beta_single_quad(self, quadname):
         """."""
@@ -220,6 +280,10 @@ class MeasBeta(BaseClass):
         deltakl = self.params.quad_deltakl
         korig = quad.strength
         cycling_curve = MeasBeta.get_cycling_curve()
+
+        # measurement always increases the power supply current
+        if 'QD' in quadname:
+            deltakl *= -1
 
         tunex_ini, tunex_neg, tunex_pos = [], [], []
         tuney_ini, tuney_neg, tuney_pos = [], [], []
@@ -242,21 +306,17 @@ class MeasBeta(BaseClass):
                 quad.strength = korig + deltakl*fac
                 _time.sleep(self.params.wait_quadrupole)
                 if not j:
-                    print(' -dk/2 ', end='')
-                    _time.sleep(self.params.wait_tune)
-                    tunex_neg.append(tune.tunex)
-                    tuney_neg.append(tune.tuney)
-                    tunex_wfm_neg.append(tune.tunex_wfm)
-                    tuney_wfm_neg.append(tune.tuney_wfm)
-                elif j == 1:
-                    print(' +dk/2 ', end='')
+                    if 'QD' in quadname:
+                        print(' -dk ', end='')
+                    else:
+                        print(' +dk ', end='')
                     _time.sleep(self.params.wait_tune)
                     tunex_pos.append(tune.tunex)
                     tuney_pos.append(tune.tuney)
                     tunex_wfm_pos.append(tune.tunex_wfm)
                     tuney_wfm_pos.append(tune.tuney_wfm)
-            dnux = tunex_pos[-1] - tunex_neg[-1]
-            dnuy = tuney_pos[-1] - tuney_neg[-1]
+            dnux = tunex_pos[-1] - tunex_ini[-1]
+            dnuy = tuney_pos[-1] - tuney_ini[-1]
             print('--> dnux = {:.5f}, dnuy = {:.5f}'.format(dnux, dnuy))
 
         meas = dict()
@@ -274,6 +334,12 @@ class MeasBeta(BaseClass):
         meas['tuney_wfm_pos'] = np.array(tuney_wfm_pos)
         meas['delta_kl'] = deltakl
 
+        if self.params.recover_tune:
+            if self._recover_tune(meas, quadname):
+                print('tune recovered!')
+            else:
+                print('cannot recover tune for :{:s}'.format(quadname))
+
         self.data['measure'][quadname] = meas
 
     def process_data(self, mode='symm', discardpoints=None):
@@ -282,7 +348,7 @@ class MeasBeta(BaseClass):
             self.analysis[quad] = self.calc_beta(
                 quad, mode=mode, discardpoints=discardpoints)
 
-    def calc_beta(self, quadname, mode='symm', discardpoints=None):
+    def calc_beta(self, quadname, mode='pos', discardpoints=None):
         """."""
         anl = dict()
         datameas = self.data['measure'][quadname]
