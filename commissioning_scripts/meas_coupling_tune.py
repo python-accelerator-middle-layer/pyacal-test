@@ -29,6 +29,8 @@ class FitTunes(_SimulAnneal):
           dependency for tunes!
     """
 
+    COUPLING_RESOLUTION = 0.02/100
+
     def __init__(self, param, tune1, tune2):
         """."""
         self._param = _np.asarray(param)
@@ -43,6 +45,13 @@ class FitTunes(_SimulAnneal):
             self._tune2 = _np.array(tune2)
             self._tune1[sel], self._tune2[sel] = \
                 self._tune2[sel], self._tune1[sel]
+
+        # remove nearly degenerate measurement points
+        dtunes = _np.abs(self._tune1 - self._tune2)
+        sel = _np.where(dtunes < FitTunes.COUPLING_RESOLUTION)[0]
+        self._param = _np.delete(self._param, sel)
+        self._tune1 = _np.delete(self._tune1, sel)
+        self._tune2 = _np.delete(self._tune2, sel)
 
         super().__init__(use_thread=False)
 
@@ -122,6 +131,7 @@ class FitTunes(_SimulAnneal):
                 self._param, coeff1, offset1, coeff2, offset2, coupling)
         diff = ((tune1 - self._tune1)**2 + (tune2 - self._tune2)**2)**0.5
         residue = _np.mean(diff)
+        # print(self.position, residue)
         return residue
 
     def initialization(self):
@@ -129,10 +139,10 @@ class FitTunes(_SimulAnneal):
         self._calc_init_parms()
         coeff1, offset1, coeff2, offset2, _ = self.position
         self.deltas = _np.array([
-            0.002 * (coeff1 - coeff2),
-            0.002 * (offset1 - offset2),
-            0.002 * (coeff1 - coeff2),
-            0.002 * (offset1 - offset2),
+            0.01 * 0.002 * (coeff1 - coeff2),
+            0.01 * 0.002 * (offset1 - offset2),
+            0.01 * 0.002 * (coeff1 - coeff2),
+            0.01 * 0.002 * (offset1 - offset2),
             0.5 * 0.1/100])
 
     @staticmethod
