@@ -56,7 +56,7 @@ class MeasAPUFFWD(_BaseClass):
         super().__init__()
         self.params = APUFFWDParams()
         self._idname = idname
-        self.data['sofb'], self.devices['apu'], self.data['corr'] = \
+        self.devices['sofb'], self.devices['apu'], self.devices['corr'] = \
             self._create_devices()
         self._nr_corrs = len(self.devices['corr'].orbitcorr_psnames)
         self.data['ffwd'] = self._init_ffwd_table()
@@ -148,9 +148,13 @@ class MeasAPUFFWD(_BaseClass):
 
     def measure(self):
         """."""
+        ffwd = self.data['ffwd']
         for phase, i in enumerate(self.params.phase):
+            self._print(
+                'Measuring FFWD table for phase {} mm...'.format(phase))
             currs_delta, *_ = self.measure_at_phase(phase)
-            self._ffwd[i, :] += currs_delta
+            ffwd[i, :] += currs_delta
+        self._print('End of measurements.')
 
     def move(self, phase):
         """."""
