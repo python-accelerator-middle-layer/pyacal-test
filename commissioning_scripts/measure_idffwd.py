@@ -18,6 +18,7 @@ class APUFFWDParams:
         """."""
         self.phase_parking = 11.0  # [mm]
         self.phases = _np.linspace(0, 11, 23)
+        self.phase_speed = 1.5  # [mm/s]
         self.verbose = 0
         self.wait_corr = 0.5  # [s]
         self.wait_sofb = 2.0  # [s]
@@ -153,6 +154,7 @@ class MeasAPUFFWD(_BaseClass):
 
     def move(self, phase):
         """."""
+        self.devices['apu'].phase_speed = self.params.phase_speed
         self.devices['apu'].phase = phase
         while self.devices['apu'].is_moving:
             _time.sleep(MeasAPUFFWD._PHASE_SLEEP)
