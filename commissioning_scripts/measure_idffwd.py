@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+"""Measuremt classes for ID feedforward tables."""
 
 import time as _time
 import numpy as _np
