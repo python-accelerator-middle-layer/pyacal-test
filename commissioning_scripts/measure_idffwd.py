@@ -22,7 +22,6 @@ class APUFFWDParams:
         self.verbose = 0
         self.wait_corr = 0.5  # [s]
         self.wait_sofb = 2.0  # [s]
-        self.tol_phase = 0.010  # [mm]
         self.sofb_nrpts = 10
         self.corr_delta = 0.1  # [A]
 
@@ -35,7 +34,6 @@ class APUFFWDParams:
         rst += 'wait_corr [s]: {}'.format(self.wait_corr)
         rst += 'wait_sofb [s]: {}'.format(self.wait_sofb)
         rst += 'sofb_nrpts: {}'.format(self.sofb_nrpts)
-        rst += 'phase_tol [mm]: {}'.format(self.phase_tol)
         rst += 'corr_delta [A]: {}'.format(self.corr_delta)
         return rst
 
@@ -99,7 +97,7 @@ class MeasAPUFFWD(_BaseClass):
         """."""
         # move APU to parked phase
         self._print('- move APU to parking phase...')
-        self.move_apu(self.params.phase_parking)
+        self.move(self.params.phase_parking)
 
         # get initial trajectory
         self._print('- measure init traj...')
@@ -107,7 +105,7 @@ class MeasAPUFFWD(_BaseClass):
 
         # move APU to measurement phase
         self._print('- move APU to measurement phase...')
-        self.move_apu(phase)
+        self.move(phase)
 
         # get trajectory at phase
         self._print('- measure traj at phase...')
@@ -160,6 +158,7 @@ class MeasAPUFFWD(_BaseClass):
         """."""
         self.devices['apu'].phase_speed = self.params.phase_speed
         self.devices['apu'].phase = phase
+        self.devices['apu'].cmd_move()
         while self.devices['apu'].is_moving:
             _time.sleep(MeasAPUFFWD._PHASE_SLEEP)
 
