@@ -19,13 +19,23 @@ class APUFFWDParams:
         self.phase_parking = 11.0  # [mm]
         self.phases = _np.linspace(0, 11, 23)
         self.verbose = 0
+        self.wait_corr = 0.5  # [s]
+        self.wait_sofb = 2.0  # [s]
+        self.tol_phase = 0.010  # [mm]
+        self.sofb_nrpts = 10
+        self.corr_delta = 0.1  # [A]
 
     def __str__(self):
         """."""
         rst = ''
-        rst += 'phase parking: {} mm'.format(self.phase_parking)
-        rst += 'phases: {} mm'.format(self.phases)
-        rst += 'phase'
+        rst += 'phase_parking [mm]: {}'.format(self.phase_parking)
+        rst += 'phases [mm]: {}'.format(self.phases)
+        rst += 'verbose: {}'.format(self.verbose)
+        rst += 'wait_corr [s]: {}'.format(self.wait_corr)
+        rst += 'wait_sofb [s]: {}'.format(self.wait_sofb)
+        rst += 'sofb_nrpts: {}'.format(self.sofb_nrpts)
+        rst += 'phase_tol [mm]: {}'.format(self.phase_tol)
+        rst += 'corr_delta [A]: {}'.format(self.corr_delta)
         return rst
 
 
@@ -37,22 +47,19 @@ class MeasAPUFFWD(_BaseClass):
 
     DEVICES = _APUFeedForward.DEVICES
 
-    WAIT_CORR = 0.5  # [s]
-    WAIT_SOFB = 2.0  # [s]
-    SOFB_NRPTS = 10
-    SOFB_FREQ = 10  # [Hz]
-    APU_PHASE_TOL = 0.010  # [mm]
-    CORR_DELTA = 0.1  #
+    _PHASE_SLEEP = 0.1  # [s]
+    _SOFB_FREQ = 10  # [Hz]
 
     def __init__(self, idname):
         """."""
         super().__init__()
         self.params = APUFFWDParams()
         self._idname = idname
-        self._sofb, self._apu, self._correctors = self._create_devices()
-        self._nr_corrs = len(self._correctors.orbitcorr_psnames)
+        self.data['sofb'], self.devices['apu'], self.data['corr'] = \
+            self._create_devices()
+        # DevCtrl-Cmd = 3
+        self._nr_corrs = len(self.devices['corr'].orbitcorr_psnames)
         self._ffwd = self._init_ffwd_table()
-        self.devices = (self._sofb, self._apu, self._correctors)
 
     def __str__(self):
         """Print FFWD table in cs-constants format."""
@@ -107,36 +114,37 @@ class MeasAPUFFWD(_BaseClass):
         traj1 = self._static_get_trajectory()
 
         # measure response matrix
-        curr = self._correctors.orbitcorr_current_sp
+        curr = self.devices['corr'].orbitcorr_current_sp
         mat = _np.zeros((len(traj0), len(curr)))
         for _, corr_idx in enumerate(curr):
+            # register initial current value
             val0 = curr[corr_idx]
 
             # set negative
-            curr[corr_idx] = val0 - MeasAPUFFWD.CORR_DELTA/2
-            self._correctors.orbitcorr_current = curr
-            _time.sleep(MeasAPUFFWD.WAIT_CORR)
+            curr[corr_idx] = val0 - self.params.corr_delta/2
+            self.devices['corr'].orbitcorr_current = curr
+            _time.sleep(self.params.wait_corr)
             trajn = self._static_get_trajectory()
 
             # set positive
-            curr[corr_idx] = val0 + MeasAPUFFWD.CORR_DELTA/2
-            self._correctors.orbitcorr_current = curr
-            _time.sleep(MeasAPUFFWD.WAIT_CORR)
+            curr[corr_idx] = val0 + self.params.corr_delta/2
+            self.devices['corr'].orbitcorr_current = curr
+            _time.sleep(self.params.wait_corr)
             trajp = self._static_get_trajectory()
 
-            # return to init and register matrix column
+            # return current to init and register matrix column
             curr[corr_idx] = val0
-            self._correctors.orbitcorr_current = curr
-            mat[:, corr_idx] = (trajp - trajn) / MeasAPUFFWD.CORR_DELTA
-        _time.sleep(MeasAPUFFWD.WAIT_CORR)
+            self.devices['corr'].orbitcorr_current = curr
+            mat[:, corr_idx] = (trajp - trajn) / self.params.corr_delta
+        _time.sleep(self.params.wait_corr)
 
-        # find corrector values
+        # find correctors values
         dtraj = traj1 - traj0
-        umat, smat, vmat = _np.linalg.svd(mat, full_matrices=False)
+        umat, smat, vhmat = _np.linalg.svd(mat, full_matrices=False)
         inv_s = 1/smat
-        inv_respm = _np.dot(_np.dot(vmat.T, inv_s), umat.T)
+        inv_respm = _np.dot(_np.dot(vhmat.T, inv_s), umat.T)
         currs_delta = - _np.dot(inv_respm, dtraj)
-        return currs_delta, mat, traj0, traj1, umat, smat, vmat
+        return currs_delta, mat, traj0, traj1, umat, smat, vhmat
 
     def measure(self):
         """."""
@@ -144,11 +152,11 @@ class MeasAPUFFWD(_BaseClass):
             currs_delta, *_ = self.measure_at_phase(phase)
             self._ffwd[i, :] += currs_delta
 
-    def move_apu(self, phase):
+    def move(self, phase):
         """."""
-        self._apu.phase = phase
-        while abs(self._apu.phase - phase) > MeasAPUFFWD.APU_PHASE_TOL:
-            _time.sleep(0.1)
+        self.devices['apu'].phase = phase
+        while self.devices['apu'].is_moving:
+            _time.sleep(MeasAPUFFWD._PHASE_SLEEP)
 
     # --- private methods ---
 
@@ -166,48 +174,37 @@ class MeasAPUFFWD(_BaseClass):
         """."""
         # set currents of orbit correctors to zero
         self._print('initialize APU correctors...')
-        self._correctors.orbcorr_current = \
+        self.devices['corr'].orbcorr_current = \
             _np.zeros(self._nr_corrs)
-        _time.sleep(MeasAPUFFWD.WAIT_CORR)
+        _time.sleep(self.params.wait_corr)
 
         # turn SOFB correction off
         self._print('initialize SOFB...')
-        self._sofb.opmode = 1  # SlowOrb
-        self._sofb.nr_points = MeasAPUFFWD.SOFB_NRPTS
-        self._sofb.cmd_turn_off_autocorr()
+        self.devices['sofb'].opmode = 1  # SlowOrb
+        self.devices['sofb'].nr_points = self.params.sofb_nrpts
+        self.devices['sofb'].cmd_turn_off_autocorr()
         # NOTE: Should additional commands be inserted here?
-        _time.sleep(MeasAPUFFWD.WAIT_SOFB)
+        _time.sleep(self.params.wait_sofb)
 
     def _init_ffwd_table(self):
         """."""
         if self.params.verbose:
             print('initialize APU ffwd table...')
-        nr_corrs = len(self._correctors.orbitcorr_psnames)
+        nr_corrs = len(self.devices['corr'].orbitcorr_psnames)
         ffwd = _np.zeros((len(self.params.phases), nr_corrs))
         return ffwd
 
     def _static_get_trajectory(self):
         """."""
         # reset SOFB buffer and wait for filling
-        self._sofb.cmd_reset()
-        _time.sleep(2 * MeasAPUFFWD.SOFB_NRPTS * 1/MeasAPUFFWD.SOFB_FREQ)
+        self.devices['sofb'].cmd_reset()
+        _time.sleep(2 * self.params.sofb_nrpts * 1/MeasAPUFFWD._SOFB_FREQ)
 
-        trajx = self._sofb.trajx
-        trajy = self._sofb.trajy
+        trajx = self.devices['sofb'].trajx
+        trajy = self.devices['sofb'].trajy
         traj = _np.vstack((trajx, trajy))
         return traj
 
     def _print(self, message):
         if self.params.verbose:
             print(message)
-
-
-def run():
-    """."""
-    idname = _APU.DEVICES.APU22_09SA
-    phases = _np.linspace(11, 0, 23)
-    m = MeasAPUFFWD(idname, phases)
-    print(m)
-
-
-run()
