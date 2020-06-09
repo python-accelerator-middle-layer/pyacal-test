@@ -52,14 +52,7 @@ class MeasAPUFFWD(_BaseClass):
         self._sofb, self._apu, self._correctors = self._create_devices()
         self._nr_corrs = len(self._correctors.orbitcorr_psnames)
         self._ffwd = self._init_ffwd_table()
-
-    @property
-    def connected(self):
-        """."""
-        return \
-            self._sofb.connected and \
-            self._apu.connected and \
-            self._correctors.connected
+        self.devices = (self._sofb, self._apu, self._correctors)
 
     def __str__(self):
         """Print FFWD table in cs-constants format."""
@@ -142,8 +135,14 @@ class MeasAPUFFWD(_BaseClass):
         umat, smat, vmat = _np.linalg.svd(mat, full_matrices=False)
         inv_s = 1/smat
         inv_respm = _np.dot(_np.dot(vmat.T, inv_s), umat.T)
-        currs_delta = _np.dot(inv_respm, dtraj)
+        currs_delta = - _np.dot(inv_respm, dtraj)
         return currs_delta, mat, traj0, traj1, umat, smat, vmat
+
+    def measure(self):
+        """."""
+        for phase, i in enumerate(self.params.phase):
+            currs_delta, *_ = self.measure_at_phase(phase)
+            self._ffwd[i, :] += currs_delta
 
     def move_apu(self, phase):
         """."""
