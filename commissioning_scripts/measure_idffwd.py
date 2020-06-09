@@ -57,7 +57,6 @@ class MeasAPUFFWD(_BaseClass):
         self._idname = idname
         self.data['sofb'], self.devices['apu'], self.data['corr'] = \
             self._create_devices()
-        # DevCtrl-Cmd = 3
         self._nr_corrs = len(self.devices['corr'].orbitcorr_psnames)
         self.data['ffwd'] = self._init_ffwd_table()
 
@@ -77,10 +76,10 @@ class MeasAPUFFWD(_BaseClass):
         rst += '# CORRECTOR FEEDFORWARD TABLE\n'
         rst += '# ===========================\n'
         line = '       '.join(
-            ['CH-{}[A]       CV-{}[A]'.format(2*i+1, 2*i+2) for i \
+            ['CH-{}[A]       CV-{}[A]'.format(2*i+1, 2*i+2) for i
                 in range(self._nr_corrs // 2)])
         rst += '# Phase[mm] ' + line + '\n'
-        for i, values in enumerate(self._ffwd):
+        for i, values in enumerate(self.data['ffwd']):
             # values = ffwd[i, :]
             line = ' '.join(['{:+.6e}'.format(value) for value in values])
             rst += '{:+08.2f}    {}\n'.format(self.params.phases[i], line)
