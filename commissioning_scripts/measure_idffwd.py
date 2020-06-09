@@ -59,7 +59,7 @@ class MeasAPUFFWD(_BaseClass):
             self._create_devices()
         # DevCtrl-Cmd = 3
         self._nr_corrs = len(self.devices['corr'].orbitcorr_psnames)
-        self._ffwd = self._init_ffwd_table()
+        self.data['ffwd'] = self._init_ffwd_table()
 
     def __str__(self):
         """Print FFWD table in cs-constants format."""
