@@ -119,7 +119,7 @@ class MeasAPUFFWD(_BaseClass):
 
         # measure response matrix
         curr = self.devices['corr'].orbitcorr_current_sp
-        mat = _np.zeros((len(traj0), len(curr)))
+        respm = _np.zeros((len(traj0), len(curr)))
         for corr_idx, val0 in enumerate(curr):
             # set negative
             curr[corr_idx] = val0 - self.params.corr_delta/2
@@ -136,29 +136,55 @@ class MeasAPUFFWD(_BaseClass):
             # return current to init and register matrix column
             curr[corr_idx] = val0
             self.devices['corr'].orbitcorr_current = curr
-            mat[:, corr_idx] = (trajp - trajn) / self.params.corr_delta
+            respm[:, corr_idx] = (trajp - trajn) / self.params.corr_delta
         _time.sleep(self.params.wait_corr)
 
-        # find correctors values
-        dtraj = traj1 - traj0
-        umat, smat, vhmat = _np.linalg.svd(mat, full_matrices=False)
-        inv_s = 1/smat
-        inv_respm = _np.dot(_np.dot(vhmat.T, inv_s), umat.T)
-        currs_delta = - _np.dot(inv_respm, dtraj)
-        return currs_delta, mat, traj0, traj1, umat, smat, vhmat
+        return {'respm': respm, 'traj0': traj0, 'traj1': traj1}
 
     def measure(self):
         """."""
-        ffwd = self.data['ffwd']
+        self.data['meas'] = dict()
+        meas = self.data['meas']
+        # ffwd = self.data['ffwd']
         self._print('Measurements begin...')
-        for phase, i in enumerate(self.params.phase):
+
+        for phase in self.params.phases:
             self._print(
                 'Measuring FFWD table for phase {} mm...'.format(phase))
-            currs_delta, *_ = self.measure_at_phase(phase)
-            ffwd[i, :] += currs_delta
+            meas_datum = self.measure_at_phase(phase)
+            meas[phase] = meas_datum
+            # ffwd[i, :] += currs_delta
             self._print('')
         self._static_move(self.params.phase_parking)
         self._print('Measurements end.')
+
+    def calculate_at_phase(self, respm, traj0, traj1):
+        """Calculate correctors current from orbit data."""
+        dtraj = traj1 - traj0
+        umat, smat, vhmat = _np.linalg.svd(respm, full_matrices=False)
+        inv_s = 1/smat
+        inv_respm = _np.dot(_np.dot(vhmat.T, inv_s), umat.T)
+        curr_deltas = - _np.dot(inv_respm, dtraj)
+        return curr_deltas, smat, umat, vhmat
+
+    def calculate(self):
+        """Calculate corrector currents from measurements."""
+        if 'meas' not in self.data:
+            return
+
+        phases = sorted(self.data['meas'].keys())
+        nr_corrs = len(self.devices['corr'].orbitcorr_psnames)
+
+        # init ffwd array
+        ffwd = _np.zeros((len(phases), nr_corrs))
+        self.data['ffwd'] = ffwd
+
+        # loop through different phases
+        for i, phase in enumerate(phases):
+            mdatum = self.data['meas'][phase]
+            curr_deltas, *_ = \
+                self.calculate_at_phase(**mdatum)
+            ffwd[i, :] = curr_deltas
 
     # --- private methods ---
 
