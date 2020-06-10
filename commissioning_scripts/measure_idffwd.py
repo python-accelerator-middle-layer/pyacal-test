@@ -22,7 +22,7 @@ class APUFFWDParams:
         self.verbose = 0
         self.wait_corr = 0.5  # [s]
         self.wait_sofb = 2.0  # [s]
-        self.sofb_nrpts = 10
+        self.sofb_buffersize = 10
         self.sofb_overwait = 100  # [%]
         self.corr_delta = 0.1  # [A]
 
@@ -34,7 +34,7 @@ class APUFFWDParams:
         rst += 'verbose: {}'.format(self.verbose)
         rst += 'wait_corr [s]: {}'.format(self.wait_corr)
         rst += 'wait_sofb [s]: {}'.format(self.wait_sofb)
-        rst += 'sofb_nrpts: {}'.format(self.sofb_nrpts)
+        rst += 'sofb_buffersize: {}'.format(self.sofb_buffersize)
         rst += 'sofb_overwait [%]: {}'.format(self.sofb_overwait)
         rst += 'corr_delta [A]: {}'.format(self.corr_delta)
         return rst
@@ -98,12 +98,12 @@ class MeasAPUFFWD(_BaseClass):
 
     def measure_at_phase(self, phase):
         """."""
-        # initial preparation
-        self._static_init_devices()
-
         # move APU to parked phase
         self._print('- move APU to parking phase...')
         self._static_move(self.params.phase_parking)
+
+        # correct orbit with SOFB
+        self._static_correct_orbit()
 
         # get initial trajectory
         self._print('- measure init traj...')
@@ -172,14 +172,20 @@ class MeasAPUFFWD(_BaseClass):
         correctors.wait_for_connection()
         return sofb, apu, correctors
 
-    def _static_init_devices(self):
+    def _static_correct_orbit(self):
         """."""
+        self._print('corrector initial orbit with SOFB...')
+
         # turn SOFB correction off
         self._print('initialize SOFB...')
         self.devices['sofb'].opmode = MeasAPUFFWD._SOFB_SLOWORB
-        self.devices['sofb'].nr_points = self.params.sofb_nrpts
+
+        # correct orbit
+        # TODO: to be implemented!
+
+        # prepare soft for orbit distortion aquisitions.
+        self.devices['sofb'].nr_points = self.params.sofb_buffersize
         self.devices['sofb'].cmd_turn_off_autocorr()
-        # NOTE: Should additional commands be inserted here?
         _time.sleep(self.params.wait_sofb)
 
     def _init_ffwd_table(self):
