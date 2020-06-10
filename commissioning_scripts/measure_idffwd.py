@@ -23,6 +23,7 @@ class APUFFWDParams:
         self.wait_corr = 0.5  # [s]
         self.wait_sofb = 2.0  # [s]
         self.sofb_nrpts = 10
+        self.sofb_overwait = 100  # [%]
         self.corr_delta = 0.1  # [A]
 
     def __str__(self):
@@ -34,6 +35,7 @@ class APUFFWDParams:
         rst += 'wait_corr [s]: {}'.format(self.wait_corr)
         rst += 'wait_sofb [s]: {}'.format(self.wait_sofb)
         rst += 'sofb_nrpts: {}'.format(self.sofb_nrpts)
+        rst += 'sofb_overwait [%]: {}'.format(self.sofb_overwait)
         rst += 'corr_delta [A]: {}'.format(self.corr_delta)
         return rst
 
@@ -46,7 +48,9 @@ class MeasAPUFFWD(_BaseClass):
 
     DEVICES = _APUFeedForward.DEVICES
 
+    _SOFB_SLOWORB = 1  # SOFB SlowOrb Mode
     _PHASE_SLEEP = 0.1  # [s]
+    _MOVE_SLEEP = 0.2  # [s]
     _SOFB_FREQ = 10  # [Hz]
 
     def __init__(self, idname):
@@ -95,9 +99,12 @@ class MeasAPUFFWD(_BaseClass):
 
     def measure_at_phase(self, phase):
         """."""
+        # initial preparation
+        self._static_init_devices()
+
         # move APU to parked phase
         self._print('- move APU to parking phase...')
-        self.move(self.params.phase_parking)
+        self._static_move(self.params.phase_parking)
 
         # get initial trajectory
         self._print('- measure init traj...')
@@ -105,7 +112,7 @@ class MeasAPUFFWD(_BaseClass):
 
         # move APU to measurement phase
         self._print('- move APU to measurement phase...')
-        self.move(phase)
+        self._static_move(phase)
 
         # get trajectory at phase
         self._print('- measure traj at phase...')
@@ -147,20 +154,15 @@ class MeasAPUFFWD(_BaseClass):
     def measure(self):
         """."""
         ffwd = self.data['ffwd']
+        self._print('Measurements begin...')
         for phase, i in enumerate(self.params.phase):
             self._print(
                 'Measuring FFWD table for phase {} mm...'.format(phase))
             currs_delta, *_ = self.measure_at_phase(phase)
             ffwd[i, :] += currs_delta
-        self._print('End of measurements.')
-
-    def move(self, phase):
-        """."""
-        self.devices['apu'].phase_speed = self.params.phase_speed
-        self.devices['apu'].phase = phase
-        self.devices['apu'].cmd_move()
-        while self.devices['apu'].is_moving:
-            _time.sleep(MeasAPUFFWD._PHASE_SLEEP)
+            self._print('')
+        self._static_move(self.params.phase_parking)
+        self._print('Measurements end.')
 
     # --- private methods ---
 
@@ -176,15 +178,9 @@ class MeasAPUFFWD(_BaseClass):
 
     def _static_init_devices(self):
         """."""
-        # set currents of orbit correctors to zero
-        self._print('initialize APU correctors...')
-        self.devices['corr'].orbcorr_current = \
-            _np.zeros(self._nr_corrs)
-        _time.sleep(self.params.wait_corr)
-
         # turn SOFB correction off
         self._print('initialize SOFB...')
-        self.devices['sofb'].opmode = 1  # SlowOrb
+        self.devices['sofb'].opmode = MeasAPUFFWD._SOFB_SLOWORB
         self.devices['sofb'].nr_points = self.params.sofb_nrpts
         self.devices['sofb'].cmd_turn_off_autocorr()
         # NOTE: Should additional commands be inserted here?
@@ -200,15 +196,31 @@ class MeasAPUFFWD(_BaseClass):
 
     def _static_get_trajectory(self):
         """."""
-        # reset SOFB buffer and wait for filling
-        self.devices['sofb'].cmd_reset()
-        _time.sleep(2 * self.params.sofb_nrpts * 1/MeasAPUFFWD._SOFB_FREQ)
+        sofb = self.devices['sofb']
 
-        trajx = self.devices['sofb'].trajx
-        trajy = self.devices['sofb'].trajy
-        traj = _np.vstack((trajx, trajy))
+        # reset SOFB buffer and wait for filling
+        sofb.cmd_reset()
+        wait_factor = 1 + self.params.sofb_overwait/100
+        wait_nominal = self.params.sofb_nrpts * 1/MeasAPUFFWD._SOFB_FREQ
+        _time.sleep(wait_factor * wait_nominal)
+
+        # get trajectory
+        traj = _np.vstack((sofb.trajx, sofb.trajy))
+
         return traj
 
-    def _print(self, message):
+    def _static_move(self, phase):
+        """."""
+        self._print('- moving to phase {} ... '.format(phase), end='')
+        self.devices['apu'].phase_speed = self.params.phase_speed
+        self.devices['apu'].phase = phase
+        self.devices['apu'].cmd_move()
+        _time.sleep(MeasAPUFFWD._MOVE_SLEEP)
+        while self.devices['apu'].is_moving:
+            _time.sleep(MeasAPUFFWD._PHASE_SLEEP)
+        self._print('ok')
+
+
+    def _print(self, message, end=None):
         if self.params.verbose:
-            print(message)
+            print(message, end=end)
