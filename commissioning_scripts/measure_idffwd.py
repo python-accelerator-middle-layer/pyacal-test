@@ -174,7 +174,7 @@ class MeasAPUFFWD(_BaseClass):
 
     def _static_correct_orbit(self):
         """."""
-        self._print('corrector initial orbit with SOFB...')
+        self._print('correct initial orbit with SOFB...')
 
         # turn SOFB correction off
         self._print('initialize SOFB...')
