@@ -107,7 +107,7 @@ class MeasAPUFFWD(_BaseClass):
 
         # get initial trajectory
         self._print('- measure init traj...')
-        traj0 = self._static_get_trajectory()
+        traj0 = self._static_get_orbit()
 
         # move APU to measurement phase
         self._print('- move APU to measurement phase...')
@@ -115,7 +115,7 @@ class MeasAPUFFWD(_BaseClass):
 
         # get trajectory at phase
         self._print('- measure traj at phase...')
-        traj1 = self._static_get_trajectory()
+        traj1 = self._static_get_orbit()
 
         # measure response matrix
         curr = self.devices['corr'].orbitcorr_current_sp
@@ -125,13 +125,13 @@ class MeasAPUFFWD(_BaseClass):
             curr[corr_idx] = val0 - self.params.corr_delta/2
             self.devices['corr'].orbitcorr_current = curr
             _time.sleep(self.params.wait_corr)
-            trajn = self._static_get_trajectory()
+            trajn = self._static_get_orbit()
 
             # set positive
             curr[corr_idx] = val0 + self.params.corr_delta/2
             self.devices['corr'].orbitcorr_current = curr
             _time.sleep(self.params.wait_corr)
-            trajp = self._static_get_trajectory()
+            trajp = self._static_get_orbit()
 
             # return current to init and register matrix column
             curr[corr_idx] = val0
@@ -196,7 +196,7 @@ class MeasAPUFFWD(_BaseClass):
         ffwd = _np.zeros((len(self.params.phases), nr_corrs))
         return ffwd
 
-    def _static_get_trajectory(self):
+    def _static_get_orbit(self):
         """."""
         sofb = self.devices['sofb']
 
@@ -205,7 +205,7 @@ class MeasAPUFFWD(_BaseClass):
         sofb.wait_buffer()
 
         # get trajectory
-        traj = _np.vstack((sofb.trajx, sofb.trajy))
+        traj = _np.vstack((sofb.orbx, sofb.orby))
 
         return traj
 
@@ -215,7 +215,6 @@ class MeasAPUFFWD(_BaseClass):
         self.devices['apu'].phase_speed = self.params.phase_speed
         self.devices['apu'].phase = phase
         self.devices['apu'].cmd_move()
-        _time.sleep(MeasAPUFFWD._MOVE_SLEEP)
         self.devices['apu'].wait_move()
         self._print('ok')
 
