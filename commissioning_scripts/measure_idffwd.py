@@ -49,7 +49,6 @@ class MeasAPUFFWD(_BaseClass):
     DEVICES = _APUFeedForward.DEVICES
 
     _SOFB_SLOWORB = 1  # SOFB SlowOrb Mode
-    _PHASE_SLEEP = 0.1  # [s]
     _MOVE_SLEEP = 0.2  # [s]
     _SOFB_FREQ = 10  # [Hz]
 
@@ -121,10 +120,7 @@ class MeasAPUFFWD(_BaseClass):
         # measure response matrix
         curr = self.devices['corr'].orbitcorr_current_sp
         mat = _np.zeros((len(traj0), len(curr)))
-        for _, corr_idx in enumerate(curr):
-            # register initial current value
-            val0 = curr[corr_idx]
-
+        for corr_idx, val0 in enumerate(curr):
             # set negative
             curr[corr_idx] = val0 - self.params.corr_delta/2
             self.devices['corr'].orbitcorr_current = curr
@@ -200,9 +196,7 @@ class MeasAPUFFWD(_BaseClass):
 
         # reset SOFB buffer and wait for filling
         sofb.cmd_reset()
-        wait_factor = 1 + self.params.sofb_overwait/100
-        wait_nominal = self.params.sofb_nrpts * 1/MeasAPUFFWD._SOFB_FREQ
-        _time.sleep(wait_factor * wait_nominal)
+        sofb.wait_buffer()
 
         # get trajectory
         traj = _np.vstack((sofb.trajx, sofb.trajy))
@@ -216,10 +210,8 @@ class MeasAPUFFWD(_BaseClass):
         self.devices['apu'].phase = phase
         self.devices['apu'].cmd_move()
         _time.sleep(MeasAPUFFWD._MOVE_SLEEP)
-        while self.devices['apu'].is_moving:
-            _time.sleep(MeasAPUFFWD._PHASE_SLEEP)
+        self.devices['apu'].wait_move()
         self._print('ok')
-
 
     def _print(self, message, end=None):
         if self.params.verbose:
