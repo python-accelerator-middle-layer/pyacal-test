@@ -19,7 +19,7 @@ def get_tb_posang_respm(model=None):
     return _calc_posang_matrices(model, ch_idx, cv_idx)
 
 
-def get_ts_posang_respm(corrs_type='CH-Sept', model=None):
+def get_ts_posang_respm(corrs_type='Sept-Sept', model=None):
     """Return TS position and angle correction matrix."""
     if model is None:
         model, _ = ts.create_accelerator()
