@@ -52,8 +52,8 @@ def _calc_posang_matrices(model, ch_idx, cv_idx):
         mat_h_aux[:, idx] = (pos1[0:2] - pos2[0:2])/KICK
 
     if len(ch_idx) == 3:
-        mat_h = [[mat_h_aux[0, 0]+mat_h_aux[0, 1], mat_h_aux[0, 2]],
-                 [mat_h_aux[1, 0]+mat_h_aux[1, 1], mat_h_aux[1, 2]]]
+        mat_h = np.array([[mat_h_aux[0, 0]+mat_h_aux[0, 1], mat_h_aux[0, 2]],
+                          [mat_h_aux[1, 0]+mat_h_aux[1, 1], mat_h_aux[1, 2]]])
     else:
         mat_h = mat_h_aux
 
