@@ -40,15 +40,15 @@ def get_ts_posang_respm(corrs_type='CH-Sept', model=None):
 def _calc_posang_matrices(model, ch_idx, cv_idx):
     ini = ch_idx[0][0]
     mat_h_aux = np.zeros((2, len(ch_idx)))
-    for idx in range(len(ch_idx)):
+    for idx, corr in enumerate(ch_idx):
         pyaccel.lattice.set_attribute(
-            model, 'hkick_polynom', ch_idx[idx], KICK/2/len(ch_idx[idx]))
+            model, 'hkick_polynom', corr, KICK/2/len(corr))
         pos1, *_ = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
-            model, 'hkick_polynom', ch_idx[idx], -KICK/2/len(ch_idx[idx]))
+            model, 'hkick_polynom', corr, -KICK/2/len(corr))
         pos2, *_ = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
-            model, 'hkick_polynom', ch_idx[idx], 0)
+            model, 'hkick_polynom', corr, 0)
         mat_h_aux[:, idx] = (pos1[0:2] - pos2[0:2])/KICK
 
     if len(ch_idx) == 3:
@@ -58,16 +58,15 @@ def _calc_posang_matrices(model, ch_idx, cv_idx):
         mat_h = mat_h_aux
 
     ini = cv_idx[0][0]
-    mat_v = np.zeros((2, 2))
-    for idx in range(len(cv_idx)):
+    for idx, corr in enumerate(cv_idx):
         pyaccel.lattice.set_attribute(
-            model, 'vkick_polynom', cv_idx[idx], KICK/2/len(cv_idx[idx]))
+            model, 'vkick_polynom', corr, KICK/2/len(corr))
         pos1, *_ = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
-            model, 'vkick_polynom', cv_idx[idx], -KICK/2/len(cv_idx[idx]))
+            model, 'vkick_polynom', corr, -KICK/2/len(corr))
         pos2, *_ = pyaccel.tracking.line_pass(model[ini:len(model)], 6*[0])
         pyaccel.lattice.set_attribute(
-            model, 'vkick_polynom', cv_idx[idx], 0)
+            model, 'vkick_polynom', corr, 0)
         mat_v[:, idx] = (pos1[2:4] - pos2[2:4])/KICK
 
     return mat_h, mat_v
