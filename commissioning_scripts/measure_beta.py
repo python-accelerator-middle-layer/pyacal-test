@@ -238,11 +238,11 @@ class MeasBeta(BaseClass):
 
         for _ in range(niter):
             dtune_mod = np.sqrt(dtunex*dtunex + dtuney*dtuney)
-            if dtune_mod < tol:
-                return True
             print(
                 '   delta tune x, y: {0:.6f}, {1:.6f} ({2:.6f})'.format(
                     dtunex, dtuney, dtune_mod))
+            if dtune_mod < tol:
+                return True
 
             # minimization of squares [cx cy]*dkl = [dtunex dtuney]
             dkl = (cxx * dtunex + cyy * dtuney)/(cxx*cxx + cyy*cyy)
@@ -342,7 +342,7 @@ class MeasBeta(BaseClass):
 
         self.data['measure'][quadname] = meas
 
-    def process_data(self, mode='symm', discardpoints=None):
+    def process_data(self, mode='pos', discardpoints=None):
         """."""
         for quad in self.data['measure']:
             self.analysis[quad] = self.calc_beta(
