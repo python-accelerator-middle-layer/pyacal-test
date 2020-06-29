@@ -5,6 +5,7 @@ import math
 
 from copy import deepcopy as _dcopy
 import numpy as np
+from collections import namedtuple as _namedtuple
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
@@ -53,14 +54,21 @@ class BetaParams:
 class MeasBeta(BaseClass):
     """."""
 
-    def __init__(self, model, famdata=None):
+    METHODS = _namedtuple('Methods', ['Analytic', 'Numeric'])(0, 1)
+
+    def __init__(
+            self, model, famdata=None,
+            is_online=True, calc_method=None):
         """."""
         super().__init__()
+        self.is_online = is_online
         self.quads_betax = []
         self.quads_betay = []
         self.params = BetaParams()
-        self.devices['tune'] = Tune(Tune.DEVICES.SI)
-        self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
+        self._calc_method = MeasBeta.METHODS.Numeric
+        if self.is_online:
+            self.devices['tune'] = Tune(Tune.DEVICES.SI)
+            self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['quadnames'] = list()
         self.data['cycling'] = dict()
         self.data['betax_in'] = dict()
@@ -77,9 +85,30 @@ class MeasBeta(BaseClass):
         self._stopevt = _Event()
         self._thread = _Thread(target=self._meas_beta, daemon=True)
         self.model = model
+        self.calc_method = calc_method
         self.famdata = famdata or si.get_family_data(model)
         self._initialize_data()
-        self._connect_to_objects()
+        if self.is_online:
+            self._connect_to_objects()
+
+    @property
+    def calc_method(self):
+        """."""
+        return self._calc_method
+
+    @calc_method.setter
+    def calc_method(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._calc_method = int(value in MeasBeta.METHODS._fields[1])
+        elif int(value) in MeasBeta.METHODS:
+            self._calc_method = int(value)
+
+    @property
+    def calc_method_str(self):
+        """."""
+        return MeasBeta.METHODS._fields[self._calc_method]
 
     def start(self):
         """."""
@@ -125,32 +154,50 @@ class MeasBeta(BaseClass):
     def _initialize_data(self):
         """."""
         quadnames, quadsidx = MeasBeta.get_quads(self.model, self.famdata)
-        twi, *_ = pyaccel.optics.calc_twiss(self.model, indices='open')
-        for idx, qname in zip(quadsidx, quadnames):
-            L = self.model[idx].length/2
-            K = self.model[idx].K
-            Kr = np.sqrt(abs(K))
-            Cx = math.cos(Kr*L) if K > 0 else math.cosh(Kr*L)
-            Sx = math.sin(Kr*L) if K > 0 else math.sinh(Kr*L)
-            Sx = (Sx / Kr) if Kr > 0 else L
-            Cy = math.cos(Kr*L) if K < 0 else math.cosh(Kr*L)
-            Sy = math.sin(Kr*L) if K < 0 else math.sinh(Kr*L)
-            Sy = (Sy / Kr) if Kr > 0 else L
-            bxi = twi.betax[idx]
-            byi = twi.betay[idx]
-            axi = twi.alphax[idx]
-            ayi = twi.alphay[idx]
-            gxi = (1+axi*axi)/bxi
-            gyi = (1+ayi*ayi)/byi
-            bxm = Cx*Cx*bxi - 2*Cx*Sx*axi + Sx*Sx*gxi
-            bym = Cy*Cy*byi - 2*Cy*Sy*ayi + Sy*Sy*gyi
-            self.data['betax_in'][qname] = bxi
-            self.data['betay_in'][qname] = byi
-            self.data['betax_mid'][qname] = bxm
-            self.data['betay_mid'][qname] = bym
-            self.data['betax_out'][qname] = twi.betax[idx+1]
-            self.data['betay_out'][qname] = twi.betay[idx+1]
         self.data['quadnames'] = quadnames
+        twi, *_ = pyaccel.optics.calc_twiss(self.model, indices='open')
+
+        if self.calc_method == MeasBeta.METHODS.Analytic:
+            for idx, qname in zip(quadsidx, quadnames):
+                L = self.model[idx].length/2
+                K = self.model[idx].K
+                Kr = np.sqrt(abs(K))
+                Cx = math.cos(Kr*L) if K > 0 else math.cosh(Kr*L)
+                Sx = math.sin(Kr*L) if K > 0 else math.sinh(Kr*L)
+                Sx = (Sx / Kr) if Kr > 0 else L
+                Cy = math.cos(Kr*L) if K < 0 else math.cosh(Kr*L)
+                Sy = math.sin(Kr*L) if K < 0 else math.sinh(Kr*L)
+                Sy = (Sy / Kr) if Kr > 0 else L
+                bxi = twi.betax[idx]
+                byi = twi.betay[idx]
+                axi = twi.alphax[idx]
+                ayi = twi.alphay[idx]
+                gxi = (1+axi*axi)/bxi
+                gyi = (1+ayi*ayi)/byi
+                bxm = Cx*Cx*bxi - 2*Cx*Sx*axi + Sx*Sx*gxi
+                bym = Cy*Cy*byi - 2*Cy*Sy*ayi + Sy*Sy*gyi
+                self.data['betax_in'][qname] = bxi
+                self.data['betay_in'][qname] = byi
+                self.data['betax_mid'][qname] = bxm
+                self.data['betay_mid'][qname] = bym
+                self.data['betax_out'][qname] = twi.betax[idx+1]
+                self.data['betay_out'][qname] = twi.betay[idx+1]
+        elif self.calc_method == MeasBeta.METHODS.Numeric:
+            nux0, nuy0, *_ = pyaccel.optics.get_frac_tunes(self.model)
+            dkl = self.params.quad_deltakl
+            for idx, qname in zip(quadsidx, quadnames):
+                korig = self.model[idx].KL
+                if 'QF' in self.model[idx].fam_name:
+                    deltakl = +dkl
+                else:
+                    deltakl = -dkl
+                self.model[idx].KL = korig + deltakl
+                nuxp, nuyp, *_ = pyaccel.optics.get_frac_tunes(self.model)
+                dnux = nuxp - nux0
+                dnuy = nuyp - nuy0
+                self.data['betax_mid'][qname] = +4 * np.pi * dnux/deltakl
+                self.data['betay_mid'][qname] = -4 * np.pi * dnuy/deltakl
+                self.model[idx].KL = korig
 
     def _meas_beta(self):
         """."""
