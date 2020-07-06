@@ -162,7 +162,7 @@ class MeasIDIntegral(BaseClass):
         # sending to initial phase
         self.apu_move(self.params.phases[0], ph_spd)
 
-        apu_phase_mon = self.devices['apu'].pv_object['Phase-Mon']
+        apu_phase_mon = self.devices['apu'].pv_object('Phase-Mon')
         ph_mon = []
         ph_tstamp = []
 
