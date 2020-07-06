@@ -52,7 +52,7 @@ class MeasIDIntegral(BaseClass):
         self.famdata = si.get_family_data(model)
         self.params = IDParams(phases, meas_type)
         self.id_name = id_name
-        self.devices['apu'] = APU(APU.DEVICES.APU22_09SA)
+        self.devices['apu'] = APU(self.id_name)
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.devices['study_event'] = PV('AS-RaMO:TI-EVG:StudyExtTrig-Cmd')
