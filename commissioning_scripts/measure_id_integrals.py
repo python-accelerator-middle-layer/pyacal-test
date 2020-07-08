@@ -16,7 +16,7 @@ from .base import BaseClass
 class IDParams:
     """."""
 
-    def __init__(self, phases=None, meas_type='static'):
+    def __init__(self, phases, meas_type):
         """."""
         self.phases = phases
         self.meas_type = meas_type
@@ -38,9 +38,13 @@ class IDParams:
         ftmp = '{0:26s} = {1:9.6f}  {2:s}\n'.format
         stmp = '{0:35s}: {1:}  {2:s}\n'.format
         dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
-        stg = ftmp('phase_speed', self.phase_speed, '')
+        stg = ftmp('phases', self.phases, '[mm]')
+        stg += stmp('meas_type', self.meas_type, '')
+        stg += ftmp('phase_speed', self.phase_speed, '[mm/s]')
         stg += stmp('sofb_mode', self.sofb_mode, '')
         stg += dtmp('sofb_buffer', self.sofb_buffer, '')
+        stg += ftmp('wait_sofb', self.wait_sofb, '[s]')
+        stg += ftmp('wait_to_move', self.wait_to_move, '[s]')
         return stg
 
 
