@@ -6,7 +6,7 @@ import time as _time
 import numpy as _np
 from siriuspy.devices import SOFB, APU, Tune
 from apsuite.optics_analysis.tune_correction import TuneCorr
-from siriuspy.namesys import _SiriusPVName
+from siriuspy.namesys import SiriusPVName as _SiriusPVName
 
 from epics import PV
 import pyaccel
