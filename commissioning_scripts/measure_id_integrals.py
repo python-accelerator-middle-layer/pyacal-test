@@ -33,14 +33,15 @@ class IDParams:
             self.sofb_buffer = 1
             self.wait_sofb = 10
             self.wait_to_move = 1
+        self.meas_type_str = MeasIDIntegral.MEAS_TYPE._fields[self.meas_type]
 
     def __str__(self):
         """."""
-        ftmp = '{0:26s} = {1:9.6f}  {2:s}\n'.format
-        stmp = '{0:35s}: {1:}  {2:s}\n'.format
-        dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
-        stg = ftmp('phases', self.phases, '[mm]')
-        stg += stmp('meas_type', self.meas_type, '')
+        ftmp = '{0:15s} = {1:9.6f}  {2:s}\n'.format
+        stmp = '{0:15s} = {1:9}  {2:s}\n'.format
+        dtmp = '{0:15s} = {1:9d}  {2:s}\n'.format
+        print('phases = {} [mm]'.format(self.phases))
+        stg = stmp('meas_type', self.meas_type_str, '')
         stg += ftmp('phase_speed', self.phase_speed, '[mm/s]')
         stg += stmp('sofb_mode', self.sofb_mode, '')
         stg += dtmp('sofb_buffer', self.sofb_buffer, '')
