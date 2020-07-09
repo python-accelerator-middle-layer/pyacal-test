@@ -6,6 +6,7 @@ import time as _time
 import numpy as _np
 from siriuspy.devices import SOFB, APU, Tune
 from apsuite.optics_analysis.tune_correction import TuneCorr
+from siriuspy.namesys import _SiriusPVName
 
 from epics import PV
 import pyaccel
@@ -66,8 +67,9 @@ class MeasIDIntegral(BaseClass):
         else:
             self.meas_type = meas_type
         self.params = IDParams(phases, self.meas_type)
-        self.id_name = id_name
-        self.id_idx = _np.array(self.famdata[self.id_name]['index']).flatten()
+        self.id_name = _SiriusPVName(id_name)
+        self.id_idx = _np.array(
+            self.famdata[self.id_name.dev]['index']).flatten()
         self.bpm_idx = _np.array(self.famdata['BPM']['index']).flatten()
         self.devices['apu'] = APU(self.id_name)
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
