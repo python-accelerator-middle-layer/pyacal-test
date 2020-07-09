@@ -195,8 +195,8 @@ class MeasIDIntegral(BaseClass):
         meas['tunex'] = nux
         meas['tuney'] = nuy
         meas['stored_current'] = curr
-        meas['phases'] = phs_mon
-        meas['orbits'] = orb
+        meas['phase'] = phs_mon
+        meas['orbit'] = orb
         self.data['measure'] = meas
         print('finished!')
 
