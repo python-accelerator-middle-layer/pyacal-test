@@ -17,22 +17,25 @@ from .base import BaseClass
 class IDParams:
     """."""
 
-    def __init__(self, phases, meas_type):
+    def __init__(self, phases, meas_type, sofb):
         """."""
         self.phases = phases
         self.meas_type = meas_type
         if self.meas_type == MeasIDIntegral.MEAS_TYPE.Static:
             self.phase_speed = 0.5
-            self.sofb_mode = 'SlowOrb'
+            self.sofb_mode = sofb.data.SOFBMode._fields[1]
             self.sofb_buffer = 20
             self.wait_sofb = 1
             self.wait_to_move = 0
         elif self.meas_type == MeasIDIntegral.MEAS_TYPE.Dynamic:
             self.phase_speed = 0.5
-            self.sofb_mode = 'Monit1'
+            self.sofb_mode = sofb.data.SOFBMode._fields[2]
+            self.sofb_rate = sofb.data.TrigAcqChan._fields[0]
             self.sofb_buffer = 1
+            self.sofb_nr_samples_post = 4000
             self.wait_sofb = 10
             self.wait_to_move = 1
+
         self.meas_type_str = MeasIDIntegral.MEAS_TYPE._fields[self.meas_type]
 
     def __str__(self):
@@ -44,7 +47,9 @@ class IDParams:
         stg = stmp('meas_type', self.meas_type_str, '')
         stg += ftmp('phase_speed', self.phase_speed, '[mm/s]')
         stg += stmp('sofb_mode', self.sofb_mode, '')
+        stg += stmp('sofb_rate', self.sofb_rate, '')
         stg += dtmp('sofb_buffer', self.sofb_buffer, '')
+        stg += dtmp('sofb_nr_samples_post', self.sofb_nr_samples_post, '')
         stg += ftmp('wait_sofb', self.wait_sofb, '[s]')
         stg += ftmp('wait_to_move', self.wait_to_move, '[s]')
         return stg
@@ -67,16 +72,17 @@ class MeasIDIntegral(BaseClass):
             self._meas_type = MeasIDIntegral.MEAS_TYPE.Static
         else:
             self.meas_type = meas_type
-        self.params = IDParams(phases, self.meas_type)
         self.id_name = _SiriusPVName(id_name)
-        self.id_idx = _np.array(
-            self.famdata[self.id_name.dev]['index']).flatten()
-        self.bpm_idx = _np.array(self.famdata['BPM']['index']).flatten()
         self.devices['apu'] = APU(self.id_name)
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.devices['study_event'] = PV('AS-RaMO:TI-EVG:StudyExtTrig-Cmd')
         self.devices['current_info'] = PV('SI-Glob:AP-CurrInfo:Current-Mon')
+        self.params = IDParams(phases, self.meas_type, self.devices['sofb'])
+        self.id_idx = _np.array(
+            self.famdata[self.id_name.dev]['index']).flatten()
+        self.bpm_idx = _np.array(self.famdata['BPM']['index']).flatten()
+        self.sofb_init_config = dict()
         self.ph_dyn_tstamp = []
         self.ph_dyn_mon = []
         self.analysis = dict()
@@ -169,8 +175,32 @@ class MeasIDIntegral(BaseClass):
         self.devices['study_event'].value = 1
         return _time.time()
 
+    def _get_sofb_config(self):
+        sofb = self.devices['sofb']
+        self.sofb_init_config['opmode'] = sofb.opmode_str
+        self.sofb_init_config['trigsample'] = sofb.trigsample
+        self.sofb_init_config['trigchannel'] = sofb.trigchannel
+        self.sofb_init_config['nr_points'] = sofb.nr_points
+
+    def _recover_sofb_config(self):
+        sofb = self.devices['sofb']
+        sofb.opmode = self.sofb_init_config['opmode']
+        sofb.trigsample = self.sofb_init_config['trigsample']
+        sofb.trigchannel = self.sofb_init_config['trigchannel']
+        sofb.nr_points = self.sofb_init_config['nr_points']
+
+    def _configure_sofb(self):
+        sofb = self.devices['sofb']
+        sofb.nr_points = self.params.sofb_buffer
+        sofb.opmode = self.params.sofb_mode
+        if self.params.meas_type == MeasIDIntegral.MEAS_TYPE.Dynamic:
+            sofb.trigchannel = self.params.sofb_rate
+            sofb.trigsample = self.params.sofb_nr_samples_post
+
 # measurement
     def _meas_integral_static(self):
+        self._get_sofb_config()
+        self._configure_sofb()
         ph_spd = self.params.phase_speed
         # sending to initial phase
         self.apu_move(self.params.phases[0], ph_spd)
@@ -199,8 +229,11 @@ class MeasIDIntegral(BaseClass):
         meas['orbit'] = orb
         self.data['measure'] = meas
         print('finished!')
+        self._recover_sofb_config()
 
     def _meas_integral_dynamic(self):
+        self._get_sofb_config()
+        self._configure_sofb()
         ph_spd = self.params.phase_speed
         # sending to initial phase
         self.apu_move(self.params.phases[0], ph_spd)
@@ -264,6 +297,7 @@ class MeasIDIntegral(BaseClass):
         meas['final']['stored_current'] = currf
         self.data['measure'] = meas
         print('finished!')
+        self._recover_sofb_config()
 
 # analysis
     def _add_id_correctors(self, model=None, corr_len=None):
@@ -292,11 +326,11 @@ class MeasIDIntegral(BaseClass):
             # apply +delta/2
             MeasIDIntegral.apply_id_deltakick(model, id_knb, dkick/2, 'x')
             codp = pyaccel.tracking.find_orbit6(
-                self.model, indices=self.bpm_idx)
+                model, indices=self.bpm_idx)
             # apply -delta/2
             MeasIDIntegral.apply_id_deltakick(model, id_knb, -dkick, 'x')
             codn = pyaccel.tracking.find_orbit6(
-                self.model, indices=self.bpm_idx)
+                model, indices=self.bpm_idx)
             # recover model
             MeasIDIntegral.apply_id_deltakick(model, id_knb, dkick/2, 'x')
             diffcod = codp - codn
@@ -307,11 +341,11 @@ class MeasIDIntegral(BaseClass):
             # apply +delta/2
             MeasIDIntegral.apply_id_deltakick(model, id_knb, dkick/2, 'y')
             codp = pyaccel.tracking.find_orbit6(
-                self.model, indices=self.bpm_idx)
+                model, indices=self.bpm_idx)
             # apply -delta/2
             MeasIDIntegral.apply_id_deltakick(model, id_knb, -dkick, 'y')
             codn = pyaccel.tracking.find_orbit6(
-                self.model, indices=self.bpm_idx)
+                model, indices=self.bpm_idx)
             # recover model
             MeasIDIntegral.apply_id_deltakick(model, id_knb, dkick/2, 'y')
             diffcod = codp - codn
@@ -332,6 +366,7 @@ class MeasIDIntegral(BaseClass):
         cod0 = pyaccel.tracking.find_orbit6(model, indices=self.bpm_idx)
         cod0xy = _np.hstack((cod0[0, :], cod0[2, :]))
         err = cod0xy - diff_orbit
+
         print(
             'initial error: {:.2f} um'.format(
                 MeasIDIntegral._calc_error(err)*1e6))
@@ -367,7 +402,7 @@ class MeasIDIntegral(BaseClass):
         else:
             orbref = orbs[-1]
 
-        mod = _dcopy(self.model[:])
+        mod = _dcopy(self.model)
         nux_goal = 49 + self.data['measure']['tunex']
         nuy_goal = 14 + self.data['measure']['tunex']
         MeasIDIntegral._adjust_tune(mod, nux_goal, nuy_goal)
@@ -379,9 +414,11 @@ class MeasIDIntegral(BaseClass):
         kicky = _np.zeros((npts, 2))
 
         for phidx in range(npts):
+            print('')
+            print('phase {:.2f} mm'.format(phs[phidx]))
             diffx = orbs[phidx][0, :] - orbref[0, :]
             diffy = orbs[phidx][1, :] - orbref[1, :]
-            diff_orb = _np.hstack((diffx, diffy))
+            diff_orb = _np.hstack((diffx, diffy)) * 1e-6  # [um] -> [m]
             mod = self.fit_kicks(
                 diff_orb, model=mod, corr_idx=corr_idx, invmat=invmat)
             kickx[phidx, 0] = mod[corr_idx[0]].hkick_polynom
@@ -393,13 +430,14 @@ class MeasIDIntegral(BaseClass):
             mod[corr_idx[1]].hkick_polynom = 0
             mod[corr_idx[1]].vkick_polynom = 0
 
-        intx = (kicky[:, 0] + kicky[:, 1]) * mod.brho
-        inty = (kickx[:, 0] + kickx[:, 1]) * mod.brho
+        brho = self.model.brho
+        intx = (kicky[:, 0] + kicky[:, 1]) * brho
+        inty = (kickx[:, 0] + kickx[:, 1]) * brho
         spos = pyaccel.lattice.find_spos(mod)
         dist = spos[corr_idx[-1]] - spos[corr_idx[0]]
         dist -= MeasIDIntegral.DEFAULT_CORR_LEN
-        iintx = kicky[:, 0] * dist * mod.brho
-        iinty = kickx[:, 0] * dist * mod.brho
+        iintx = kicky[:, 0] * dist * brho
+        iinty = kickx[:, 0] * dist * brho
 
         self.analysis['phase'] = phs
         self.analysis['kickx'] = kickx
