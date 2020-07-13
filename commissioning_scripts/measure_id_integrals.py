@@ -79,8 +79,7 @@ class MeasIDIntegral(BaseClass):
         self.devices['study_event'] = PV('AS-RaMO:TI-EVG:StudyExtTrig-Cmd')
         self.devices['current_info'] = PV('SI-Glob:AP-CurrInfo:Current-Mon')
         self.params = IDParams(phases, self.meas_type, self.devices['sofb'])
-        self.id_idx = _np.array(
-            self.famdata[self.id_name.dev]['index']).flatten()
+        self.id_idx = self._get_id_idx()
         self.bpm_idx = _np.array(self.famdata['BPM']['index']).flatten()
         self.sofb_init_config = dict()
         self.ph_dyn_tstamp = []
@@ -130,6 +129,12 @@ class MeasIDIntegral(BaseClass):
     def ismeasuring(self):
         """."""
         return self._thread.is_alive()
+
+    def _get_id_idx(self):
+        id_sub = self.famdata[self.id_name.dev]['subsection']
+        id_num = id_sub.index(self.id_name.sub)
+        id_idx = self.famdata[self.id_name.dev]['index'][id_num]
+        return _np.array(id_idx).flatten()
 
     def get_orbit(self):
         """."""
