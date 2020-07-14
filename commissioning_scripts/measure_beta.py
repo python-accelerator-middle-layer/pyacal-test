@@ -464,10 +464,10 @@ class MeasBeta(BaseClass):
             by_ave.append(self.analysis[quad]['betay_ave'])
 
         ax1.plot(indcs, bx_ave, '--bx')
-        ax1.plot(indcs, nom_bx, '-bo')
+        ax1.plot(indcs, nom_bx, '.-b')
         ax1.plot(indcs, mes_bx, '.b')
         ax2.plot(indcs, by_ave, '--rx')
-        ax2.plot(indcs, nom_by, '-ro')
+        ax2.plot(indcs, nom_by, '.-r')
         ax2.plot(indcs, mes_by, '.r')
 
         ax1.set_ylabel(r'$\beta_x$ [m]')
