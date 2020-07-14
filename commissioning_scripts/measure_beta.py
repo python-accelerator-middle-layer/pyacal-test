@@ -71,12 +71,8 @@ class MeasBeta(BaseClass):
             self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['quadnames'] = list()
         self.data['cycling'] = dict()
-        self.data['betax_in'] = dict()
-        self.data['betay_in'] = dict()
-        self.data['betax_mid'] = dict()
-        self.data['betay_mid'] = dict()
-        self.data['betax_out'] = dict()
-        self.data['betay_out'] = dict()
+        self.data['betax_int'] = dict()
+        self.data['betay_int'] = dict()
         self.data['measure'] = dict()
         self.data['tunex_ref'] = 0
         self.data['tuney_ref'] = 0
@@ -159,29 +155,19 @@ class MeasBeta(BaseClass):
 
         if self.calc_method == MeasBeta.METHODS.Analytic:
             for idx, qname in zip(quadsidx, quadnames):
-                L = self.model[idx].length/2
+                L = self.model[idx].length
                 K = self.model[idx].K
                 Kr = np.sqrt(abs(K))
-                Cx = math.cos(Kr*L) if K > 0 else math.cosh(Kr*L)
-                Sx = math.sin(Kr*L) if K > 0 else math.sinh(Kr*L)
-                Sx = (Sx / Kr) if Kr > 0 else L
-                Cy = math.cos(Kr*L) if K < 0 else math.cosh(Kr*L)
-                Sy = math.sin(Kr*L) if K < 0 else math.sinh(Kr*L)
-                Sy = (Sy / Kr) if Kr > 0 else L
                 bxi = twi.betax[idx]
                 byi = twi.betay[idx]
                 axi = twi.alphax[idx]
                 ayi = twi.alphay[idx]
                 gxi = (1+axi*axi)/bxi
                 gyi = (1+ayi*ayi)/byi
-                bxm = Cx*Cx*bxi - 2*Cx*Sx*axi + Sx*Sx*gxi
-                bym = Cy*Cy*byi - 2*Cy*Sy*ayi + Sy*Sy*gyi
-                self.data['betax_in'][qname] = bxi
-                self.data['betay_in'][qname] = byi
-                self.data['betax_mid'][qname] = bxm
-                self.data['betay_mid'][qname] = bym
-                self.data['betax_out'][qname] = twi.betax[idx+1]
-                self.data['betay_out'][qname] = twi.betay[idx+1]
+                self.data['betax_int'][qname] = self._calc_beta_integral(
+                    K, L, bxi, axi, gxi)
+                self.data['betay_int'][qname] = self._calc_beta_integral(
+                    -K, L, bxi, axi, gxi)
         elif self.calc_method == MeasBeta.METHODS.Numeric:
             nux0, nuy0, *_ = pyaccel.optics.get_frac_tunes(self.model)
             dkl = self.params.quad_deltakl
@@ -195,9 +181,20 @@ class MeasBeta(BaseClass):
                 nuxp, nuyp, *_ = pyaccel.optics.get_frac_tunes(self.model)
                 dnux = nuxp - nux0
                 dnuy = nuyp - nuy0
-                self.data['betax_mid'][qname] = +4 * np.pi * dnux/deltakl
-                self.data['betay_mid'][qname] = -4 * np.pi * dnuy/deltakl
+                self.data['betax_int'][qname] = +4 * np.pi * dnux/deltakl
+                self.data['betay_int'][qname] = -4 * np.pi * dnuy/deltakl
                 self.model[idx].KL = korig
+
+    @staticmethod
+    def _calc_beta_integral(K, L, beta0, alpha0, gamma0):
+        Kr = np.sqrt(abs(K))
+        fac1 = math.sin(2*Kr*L) if K > 0 else math.sinh(2*Kr*L)
+        fac2 = (math.sin(Kr*L))**2 if K > 0 else \
+            (math.sinh(Kr*L))**2
+        beta_int = (beta0 + gamma0/K)/2
+        beta_int += fac1/Kr/L/4 * (beta0 - gamma0/K)
+        beta_int -= alpha0*fac2/abs(K)/L
+        return beta_int
 
     def _meas_beta(self):
         """."""
@@ -459,8 +456,8 @@ class MeasBeta(BaseClass):
             if quad not in self.analysis:
                 continue
             indcs.append(self.data['quadnames'].index(quad))
-            nom_bx.append(self.data['betax_mid'][quad])
-            nom_by.append(self.data['betay_mid'][quad])
+            nom_bx.append(self.data['betax_int'][quad])
+            nom_by.append(self.data['betay_int'][quad])
             mes_bx.append(self.analysis[quad]['betasx'])
             mes_by.append(self.analysis[quad]['betasy'])
             bx_ave.append(self.analysis[quad]['betax_ave'])
