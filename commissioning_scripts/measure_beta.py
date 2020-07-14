@@ -167,7 +167,7 @@ class MeasBeta(BaseClass):
                 self.data['betax_int'][qname] = self._calc_beta_integral(
                     K, L, bxi, axi, gxi)
                 self.data['betay_int'][qname] = self._calc_beta_integral(
-                    -K, L, bxi, axi, gxi)
+                    -K, L, byi, ayi, gyi)
         elif self.calc_method == MeasBeta.METHODS.Numeric:
             nux0, nuy0, *_ = pyaccel.optics.get_frac_tunes(self.model)
             dkl = self.params.quad_deltakl
