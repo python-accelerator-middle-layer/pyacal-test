@@ -23,14 +23,17 @@ class IDParams:
         self.meas_type = meas_type
         if self.meas_type == MeasIDIntegral.MEAS_TYPE.Static:
             self.phase_speed = 0.5
-            self.sofb_mode = sofb.data.SOFBMode._fields[1]
+            self.sofb_mode = sofb.data.SOFBMode._fields[
+                sofb.data.SOFBMode.SlowOrb]
             self.sofb_buffer = 20
             self.wait_sofb = 1
             self.wait_to_move = 0
         elif self.meas_type == MeasIDIntegral.MEAS_TYPE.Dynamic:
             self.phase_speed = 0.5
-            self.sofb_mode = sofb.data.SOFBMode._fields[2]
-            self.sofb_rate = sofb.data.TrigAcqChan._fields[0]
+            self.sofb_mode = sofb.data.SOFBMode._fields[
+                sofb.data.SOFBMode.MultiTurn]
+            self.sofb_rate = sofb.data.TrigAcqChan._fields[
+                sofb.data.TrigAcqChan.Monit1]
             self.sofb_buffer = 1
             self.sofb_nr_samples_post = 4000
             self.wait_sofb = 10
