@@ -4,7 +4,7 @@ from collections import namedtuple as _namedtuple
 from copy import deepcopy as _dcopy
 import time as _time
 import numpy as _np
-from siriuspy.devices import SOFB, APU, Tune
+from siriuspy.devices import SOFB, APU, Tune, CurrInfoSI
 from apsuite.optics_analysis.tune_correction import TuneCorr
 from siriuspy.namesys import SiriusPVName as _SiriusPVName
 
@@ -80,7 +80,7 @@ class MeasIDIntegral(BaseClass):
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.devices['study_event'] = PV('AS-RaMO:TI-EVG:StudyExtTrig-Cmd')
-        self.devices['current_info'] = PV('SI-Glob:AP-CurrInfo:Current-Mon')
+        self.devices['current_info'] = CurrInfoSI(CurrInfoSI.DEVICES.SI)
         self.params = IDParams(phases, self.meas_type, self.devices['sofb'])
         self.id_idx = self._get_id_idx()
         self.bpm_idx = _np.array(self.famdata['BPM']['index']).flatten()
@@ -166,7 +166,7 @@ class MeasIDIntegral(BaseClass):
 
     def get_stored_curr(self):
         """."""
-        return self.devices['current_info'].value
+        return self.devices['current_info'].current
 
     def apu_move(self, phase, phase_speed):
         """."""
