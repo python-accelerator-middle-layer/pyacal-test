@@ -27,7 +27,8 @@ class InjSIParams:
         stg += dtmp('nr_pulses', self.nr_pulses, '')
         stg += ftmp('max_delta_tunex', self.max_delta_tunex, '')
         stg += ftmp('max_delta_tuney', self.max_delta_tuney, '')
-        stg += ftmp('wait_tunecorr', self.wait_tunecorr, '')
+        stg += ftmp('wait_tunecorr', self.wait_tunecorr, '[s]')
+        stg += ftmp('pulse_freq', self.pulse_freq, '[Hz]')
         return stg
 
 
@@ -81,7 +82,7 @@ class TuneScanInjSI(SimulAnneal, BaseClass):
         """."""
         self.niter = self.params.nr_iter
         self.position = _np.array([0, 0])
-        self.limits_upper = np.array(
+        self.limits_upper = _np.array(
             [self.params.max_delta_tunex, self.params.max_delta_tuney])
         self.limits_lower = - self.limits_upper
         self.deltas = self.limits_upper.copy()
