@@ -4,6 +4,7 @@ import numpy as _np
 from epics import PV
 from apsuite.optimization import SimulAnneal
 from siriuspy.devices import Tune, TuneCorr, CurrInfoSI
+from .base import BaseClass
 
 
 class InjSIParams:
@@ -30,14 +31,15 @@ class InjSIParams:
         return stg
 
 
-class TuneScanInjSI(SimulAnneal):
+class TuneScanInjSI(SimulAnneal, BaseClass):
     """."""
 
     PV_INJECTION = 'AS-RaMO:TI-EVG:InjectionEvt-Sel'
 
     def __init__(self, save=False):
         """."""
-        super().__init__(save=save)
+        SimulAnneal().__init__(save=save)
+        BaseClass().__init__()
         self.devices = dict()
         self.params = InjSIParams()
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
@@ -45,7 +47,10 @@ class TuneScanInjSI(SimulAnneal):
         self.devices['currinfo'] = CurrInfoSI(CurrInfoSI.DEVICES.SI)
         self.devices['injection'] = PV(TuneScanInjSI.PV_INJECTION)
         self.devices['tunecorr'].cmd_update_reference()
-        self.hist_injeff = []
+        self.data['measure'] = dict()
+        self.data['measure']['tunex'] = []
+        self.data['measure']['tuney'] = []
+        self.data['measure']['injeff'] = []
 
     def _inject(self):
         self.devices[['injection']].value = 1
@@ -60,12 +65,16 @@ class TuneScanInjSI(SimulAnneal):
 
     def calc_obj_fun(self):
         """."""
+        tune = self.devices['tune']
+        self.data['measure']['tunex'].append(tune.tunex)
+        self.data['measure']['tuney'].append(tune.tuney)
         self._apply_variation()
         injeff = []
         for nrp in range(self.params.nr_pulses):
             self._inject()
             injeff.append(self.devices['currinfo'].injeff)
             _time.sleep(1/self.params.pulse_freq)
+        self.data['measure']['injeff'].append(injeff)
         return - _np.mean(injeff)
 
     def initialization(self):
