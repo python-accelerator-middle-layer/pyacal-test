@@ -54,7 +54,7 @@ class TuneScanInjSI(SimulAnneal, BaseClass):
         self.data['measure']['injeff'] = []
 
     def _inject(self):
-        self.devices[['injection']].value = 1
+        self.devices['injection'].value = 1
 
     def _apply_variation(self):
         tunecorr = self.devices['tunecorr']
