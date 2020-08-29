@@ -2,10 +2,10 @@
 import time as _time
 from threading import Thread as _Thread, Event as _Event
 import math
-
 from copy import deepcopy as _dcopy
-import numpy as np
 from collections import namedtuple as _namedtuple
+
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
@@ -55,6 +55,7 @@ class MeasBeta(BaseClass):
     """."""
 
     METHODS = _namedtuple('Methods', ['Analytic', 'Numeric'])(0, 1)
+    _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(
             self, model, famdata=None,
@@ -122,6 +123,18 @@ class MeasBeta(BaseClass):
     def ismeasuring(self):
         """."""
         return self._thread.is_alive()
+
+    def wait(self, timeout=None):
+        """."""
+        timeout = timeout or MeasBeta._DEF_TIMEOUT
+        interval = 1  # [s]
+        ntrials = int(timeout/interval)
+        for _ in range(ntrials):
+            if not self.ismeasuring:
+                break
+            _time.sleep(interval)
+        else:
+            print('WARN: Timed out waiting beta measurement.')
 
     @property
     def measuredquads(self):
