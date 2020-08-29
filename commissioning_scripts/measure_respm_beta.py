@@ -5,7 +5,7 @@ import time
 import numpy as np
 import pickle
 from pymodels import si
-from siriuspy.devices import SOFB, Tune, CurrInfo
+from siriuspy.devices import SOFB, Tune, CurrInfo, RFGen
 from apsuite.commissioning_scripts.measure_beta import MeasBeta
 
 
@@ -22,7 +22,8 @@ def create_devices():
     sofb = SOFB(SOFB.DEVICES.SI)
     tune = Tune(Tune.DEVICES.SI)
     curr = CurrInfo(CurrInfo.DEVICES.SI)
-    return sofb, tune, curr
+    rfgen = RFGen(RFGen.DEVICES.AS)
+    return sofb, tune, curr, rfgen
 
 
 def get_bpm_variation(sofb, period=10):
@@ -52,11 +53,12 @@ def get_bpm_variation(sofb, period=10):
     return orb_var
 
 
-def save_loco_setup(sofb, tune, curr, orbmat_name, fname):
+def save_loco_setup(sofb, tune, curr, rfgen, orbmat_name, fname):
     """."""
     loco_setup = dict()
     bpm_var = get_bpm_variation(sofb, period=10)
     loco_setup['timestamp'] = time.time()
+    loco_setup['rf_frequency'] = rfgen.frequency
     loco_setup['tunex'] = tune.tunex
     loco_setup['tuney'] = tune.tuney
     loco_setup['stored_current'] = curr.si.current
@@ -89,6 +91,7 @@ def save_respmat_servconf(orbmat_name):
 
 def measure_beta(model, famdata):
     """."""
+    #ORBIT CORRECTION??
     measbeta = MeasBeta(model, famdata)
     measbeta.params.nr_measures = 1
     measbeta.params.quad_deltakl = 0.01/2  # [1/m]
@@ -124,12 +127,12 @@ def run_respmat(nmeas):
     """."""
     orbmat_name = 'respmat_variation_n'
     setup_name = 'loco_setup_n'
-    sofb, tune, curr = create_devices()
+    sofb, tune, curr, rfgen = create_devices()
     for nms in range(nmeas):
         print('Respmat Measurement Number {:d}'.format(nms+1))
         orbname = orbmat_name + str(nms+1)
         filname = setup_name + str(nms+1)
-        save_loco_setup(sofb, tune, curr, orbname, filname)
+        save_loco_setup(sofb, tune, curr, rfgen, orbname, filname)
         measure_respm(sofb)
         save_respmat_servconf(orbname)
 
