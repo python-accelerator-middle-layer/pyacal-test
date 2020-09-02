@@ -32,6 +32,7 @@ class RespMatParams:
 
 class MeasureRespMat(BaseClass):
     """."""
+
     _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(self):
