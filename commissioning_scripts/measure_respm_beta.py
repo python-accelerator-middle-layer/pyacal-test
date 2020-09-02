@@ -2,13 +2,9 @@
 """."""
 
 import time as _time
-import pickle
 from threading import Thread as _Thread, Event as _Event
 
-import numpy as np
-
 from pymodels import si
-from siriuspy.devices import SOFB, Tune, CurrInfo, RFGen
 from siriuspy.clientconfigdb import ConfigDBClient
 
 from .base import BaseClass
@@ -36,6 +32,7 @@ class RespMatBetaParams:
 
 class MeasureRespMatBeta(BaseClass):
     """."""
+
     _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(self):
