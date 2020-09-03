@@ -448,7 +448,7 @@ class MeasBeta(BaseClass):
             qnames.append(qname.strip('-'))
         return qnames, quads_idx
 
-    def plot_results(self, quads=None, title=''):
+    def plot_results(self, quads=None, title='', scale=1):
         """."""
         fig = plt.figure(figsize=(9, 7))
         grids = mpl_gs.GridSpec(ncols=1, nrows=2, figure=fig)
@@ -476,12 +476,12 @@ class MeasBeta(BaseClass):
             bx_ave.append(self.analysis[quad]['betax_ave'])
             by_ave.append(self.analysis[quad]['betay_ave'])
 
-        ax1.plot(indcs, bx_ave, '--bx')
+        ax1.plot(indcs, np.array(bx_ave)*scale, '--bx')
         ax1.plot(indcs, nom_bx, '.-b')
-        ax1.plot(indcs, mes_bx, '.b')
-        ax2.plot(indcs, by_ave, '--rx')
+        ax1.plot(indcs, np.array(mes_bx)*scale, '.b')
+        ax2.plot(indcs, np.array(by_ave)*scale, '--rx')
         ax2.plot(indcs, nom_by, '.-r')
-        ax2.plot(indcs, mes_by, '.r')
+        ax2.plot(indcs, np.array(mes_by)*scale, '.r')
 
         ax1.set_ylabel(r'$\beta_x$ [m]')
         ax2.set_ylabel(r'$\beta_y$ [m]')
