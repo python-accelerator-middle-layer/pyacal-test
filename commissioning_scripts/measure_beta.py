@@ -2,10 +2,10 @@
 import time as _time
 from threading import Thread as _Thread, Event as _Event
 import math
-
 from copy import deepcopy as _dcopy
-import numpy as np
 from collections import namedtuple as _namedtuple
+
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
@@ -55,6 +55,7 @@ class MeasBeta(BaseClass):
     """."""
 
     METHODS = _namedtuple('Methods', ['Analytic', 'Numeric'])(0, 1)
+    _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(
             self, model, famdata=None,
@@ -122,6 +123,18 @@ class MeasBeta(BaseClass):
     def ismeasuring(self):
         """."""
         return self._thread.is_alive()
+
+    def wait(self, timeout=None):
+        """."""
+        timeout = timeout or MeasBeta._DEF_TIMEOUT
+        interval = 1  # [s]
+        ntrials = int(timeout/interval)
+        for _ in range(ntrials):
+            if not self.ismeasuring:
+                break
+            _time.sleep(interval)
+        else:
+            print('WARN: Timed out waiting beta measurement.')
 
     @property
     def measuredquads(self):
@@ -435,7 +448,7 @@ class MeasBeta(BaseClass):
             qnames.append(qname.strip('-'))
         return qnames, quads_idx
 
-    def plot_results(self, quads=None, title=''):
+    def plot_results(self, quads=None, title='', scale=1):
         """."""
         fig = plt.figure(figsize=(9, 7))
         grids = mpl_gs.GridSpec(ncols=1, nrows=2, figure=fig)
@@ -463,12 +476,12 @@ class MeasBeta(BaseClass):
             bx_ave.append(self.analysis[quad]['betax_ave'])
             by_ave.append(self.analysis[quad]['betay_ave'])
 
-        ax1.plot(indcs, bx_ave, '--bx')
+        ax1.plot(indcs, np.array(bx_ave)*scale, '--bx')
         ax1.plot(indcs, nom_bx, '.-b')
-        ax1.plot(indcs, mes_bx, '.b')
-        ax2.plot(indcs, by_ave, '--rx')
+        ax1.plot(indcs, np.array(mes_bx)*scale, '.b')
+        ax2.plot(indcs, np.array(by_ave)*scale, '--rx')
         ax2.plot(indcs, nom_by, '.-r')
-        ax2.plot(indcs, mes_by, '.r')
+        ax2.plot(indcs, np.array(mes_by)*scale, '.r')
 
         ax1.set_ylabel(r'$\beta_x$ [m]')
         ax2.set_ylabel(r'$\beta_y$ [m]')
