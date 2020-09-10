@@ -27,11 +27,12 @@ class RespMatParams:
     def __str__(self):
         """."""
         dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
+        ftmp = '{0:26s} = {1:9.2f}  {2:s}\n'.format
         stg = dtmp('nr_points_smooth', self.nr_points_smooth, '')
         stg += dtmp('corr_nr_iters', self.corr_nr_iters, '')
-        stg += dtmp('delta_kickx', self.delta_kickx, '[urad]')
-        stg += dtmp('delta_kicky', self.delta_kicky, '[urad]')
-        stg += dtmp('delta_rf', self.delta_rf, '[Hz]')
+        stg += ftmp('delta_kickx', self.delta_kickx, '[urad]')
+        stg += ftmp('delta_kicky', self.delta_kicky, '[urad]')
+        stg += ftmp('delta_rf', self.delta_rf, '[Hz]')
         stg += f"respmat_name = '{self.respmat_name:s}'\n"
         return stg
 
