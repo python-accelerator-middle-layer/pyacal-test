@@ -19,13 +19,20 @@ class RespMatParams:
         """."""
         self.nr_points_smooth = 50
         self.corr_nr_iters = 10
+        self.delta_kickx = 15  # [urad]
+        self.delta_kicky = 15  # [urad]
+        self.delta_rf = 80     # [Hz]
         self.respmat_name = ''
 
     def __str__(self):
         """."""
         dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
+        ftmp = '{0:26s} = {1:9.2f}  {2:s}\n'.format
         stg = dtmp('nr_points_smooth', self.nr_points_smooth, '')
         stg += dtmp('corr_nr_iters', self.corr_nr_iters, '')
+        stg += ftmp('delta_kickx', self.delta_kickx, '[urad]')
+        stg += ftmp('delta_kicky', self.delta_kicky, '[urad]')
+        stg += ftmp('delta_rf', self.delta_rf, '[Hz]')
         stg += f"respmat_name = '{self.respmat_name:s}'\n"
         return stg
 
@@ -82,7 +89,15 @@ class MeasureRespMat(BaseClass):
         if self._stopevt.is_set():
             return
         sofb = self.devices['sofb']
+        init_nr = sofb.nr_points
+        init_kickx = sofb.measrespmat_kickch
+        init_kicky = sofb.measrespmat_kickcv
+        init_rf = sofb.measrespmat_kickrf
+
         sofb.nr_points = self.params.nr_points_smooth
+        sofb.measrespmat_kickch = self.params.delta_kickx
+        sofb.measrespmat_kickcv = self.params.delta_kicky
+        sofb.measrespmat_kickrf = self.params.delta_rf
 
         sofb.correct_orbit_manually(self.params.corr_nr_iters)
         self.get_loco_setup(self.params.respmat_name)
@@ -92,6 +107,11 @@ class MeasureRespMat(BaseClass):
         respmat = respmat.reshape((-1, self.devices['sofb'].data.nr_corrs))
         self.data['respmat'] = respmat
         self.confdb.insert_config(self.params.respmat_name, respmat)
+
+        sofb.nr_points = init_nr
+        sofb.measrespmat_kickch = init_kickx
+        sofb.measrespmat_kickcv = init_kicky
+        sofb.measrespmat_kickrf = init_rf
 
     def measure_respm(self):
         """."""
