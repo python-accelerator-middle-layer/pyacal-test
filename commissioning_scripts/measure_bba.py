@@ -105,83 +105,83 @@ class BBAParams:
         )
     QUADNAMES = (
         'SI-01M2:PS-QS', 'SI-01C1:PS-Q1',
-        'SI-01C1:PS-QS', 'SI-01C2:PS-Q4',
+        'SI-01C1:PS-QS', 'SI-01C2:PS-QS',
         'SI-01C3:PS-Q4', 'SI-01C3:PS-QS',
         'SI-01C4:PS-Q1', 'SI-02M1:PS-QDB2',
         'SI-02M2:PS-QDB2', 'SI-02C1:PS-Q1',
-        'SI-02C1:PS-QS', 'SI-02C2:PS-Q4',
+        'SI-02C1:PS-QS', 'SI-02C2:PS-QS',
         'SI-02C3:PS-Q4', 'SI-02C3:PS-QS',
         'SI-02C4:PS-Q1', 'SI-03M1:PS-QDP2',
         'SI-03M2:PS-QDP2', 'SI-03C1:PS-Q1',
-        'SI-03C1:PS-QS', 'SI-03C2:PS-Q4',
+        'SI-03C1:PS-QS', 'SI-03C2:PS-QS',
         'SI-03C3:PS-Q4', 'SI-03C3:PS-QS',
         'SI-03C4:PS-Q1', 'SI-04M1:PS-QDB2',
         'SI-04M2:PS-QDB2', 'SI-04C1:PS-Q1',
-        'SI-04C1:PS-QS', 'SI-04C2:PS-Q4',
+        'SI-04C1:PS-QS', 'SI-04C2:PS-QS',
         'SI-04C3:PS-Q4', 'SI-04C3:PS-QS',
         'SI-04C4:PS-Q1', 'SI-05M1:PS-QS',
         'SI-05M2:PS-QS', 'SI-05C1:PS-Q1',
-        'SI-05C1:PS-QS', 'SI-05C2:PS-Q4',
+        'SI-05C1:PS-QS', 'SI-05C2:PS-QS',
         'SI-05C3:PS-Q4', 'SI-05C3:PS-QS',
         'SI-05C4:PS-Q1', 'SI-06M1:PS-QDB2',
         'SI-06M2:PS-QDB2', 'SI-06C1:PS-Q1',
-        'SI-06C1:PS-QS', 'SI-06C2:PS-Q4',
+        'SI-06C1:PS-QS', 'SI-06C2:PS-QS',
         'SI-06C3:PS-Q4', 'SI-06C3:PS-QS',
         'SI-06C4:PS-Q1', 'SI-07M1:PS-QDP2',
         'SI-07M2:PS-QDP2', 'SI-07C1:PS-Q1',
-        'SI-07C1:PS-QS', 'SI-07C2:PS-Q4',
+        'SI-07C1:PS-QS', 'SI-07C2:PS-QS',
         'SI-07C3:PS-Q4', 'SI-07C3:PS-QS',
         'SI-07C4:PS-Q1', 'SI-08M1:PS-QDB2',
         'SI-08M2:PS-QDB2', 'SI-08C1:PS-Q1',
-        'SI-08C1:PS-QS', 'SI-08C2:PS-Q4',
+        'SI-08C1:PS-QS', 'SI-08C2:PS-QS',
         'SI-08C3:PS-Q4', 'SI-08C3:PS-QS',
         'SI-08C4:PS-Q1', 'SI-09M1:PS-QS',
         'SI-09M2:PS-QS', 'SI-09C1:PS-Q1',
-        'SI-09C1:PS-QS', 'SI-09C2:PS-Q4',
+        'SI-09C1:PS-QS', 'SI-09C2:PS-QS',
         'SI-09C3:PS-Q4', 'SI-09C3:PS-QS',
         'SI-09C4:PS-Q1', 'SI-10M1:PS-QDB2',
         'SI-10M2:PS-QDB2', 'SI-10C1:PS-Q1',
-        'SI-10C1:PS-QS', 'SI-10C2:PS-Q4',
+        'SI-10C1:PS-QS', 'SI-10C2:PS-QS',
         'SI-10C3:PS-Q4', 'SI-10C3:PS-QS',
         'SI-10C4:PS-Q1', 'SI-11M1:PS-QDP2',
         'SI-11M2:PS-QDP2', 'SI-11C1:PS-Q1',
-        'SI-11C1:PS-QS', 'SI-11C2:PS-Q4',
+        'SI-11C1:PS-QS', 'SI-11C2:PS-QS',
         'SI-11C3:PS-Q4', 'SI-11C3:PS-QS',
         'SI-11C4:PS-Q1', 'SI-12M1:PS-QDB2',
         'SI-12M2:PS-QDB2', 'SI-12C1:PS-Q1',
-        'SI-12C1:PS-QS', 'SI-12C2:PS-Q4',
+        'SI-12C1:PS-QS', 'SI-12C2:PS-QS',
         'SI-12C3:PS-Q4', 'SI-12C3:PS-QS',
         'SI-12C4:PS-Q1', 'SI-13M1:PS-QS',
         'SI-13M2:PS-QS', 'SI-13C1:PS-Q1',
-        'SI-13C1:PS-QS', 'SI-13C2:PS-Q4',
+        'SI-13C1:PS-QS', 'SI-13C2:PS-QS',
         'SI-13C3:PS-Q4', 'SI-13C3:PS-QS',
         'SI-13C4:PS-Q1', 'SI-14M1:PS-QDB2',
         'SI-14M2:PS-QDB2', 'SI-14C1:PS-Q1',
-        'SI-14C1:PS-QS', 'SI-14C2:PS-Q4',
+        'SI-14C1:PS-QS', 'SI-14C2:PS-QS',
         'SI-14C3:PS-Q4', 'SI-14C3:PS-QS',
         'SI-14C4:PS-Q1', 'SI-15M1:PS-QDP2',
         'SI-15M2:PS-QDP2', 'SI-15C1:PS-Q1',
-        'SI-15C1:PS-QS', 'SI-15C2:PS-Q4',
+        'SI-15C1:PS-QS', 'SI-15C2:PS-QS',
         'SI-15C3:PS-Q4', 'SI-15C3:PS-QS',
         'SI-15C4:PS-Q1', 'SI-16M1:PS-QDB2',
         'SI-16M2:PS-QDB2', 'SI-16C1:PS-Q1',
-        'SI-16C1:PS-QS', 'SI-16C2:PS-Q4',
+        'SI-16C1:PS-QS', 'SI-16C2:PS-QS',
         'SI-16C3:PS-Q4', 'SI-16C3:PS-QS',
         'SI-16C4:PS-Q1', 'SI-17M1:PS-QS',
         'SI-17M2:PS-QS', 'SI-17C1:PS-Q1',
-        'SI-17C1:PS-QS', 'SI-17C2:PS-Q4',
+        'SI-17C1:PS-QS', 'SI-17C2:PS-QS',
         'SI-17C3:PS-Q4', 'SI-17C3:PS-QS',
         'SI-17C4:PS-Q1', 'SI-18M1:PS-QDB2',
         'SI-18M2:PS-QDB2', 'SI-18C1:PS-Q1',
-        'SI-18C1:PS-QS', 'SI-18C2:PS-Q4',
+        'SI-18C1:PS-QS', 'SI-18C2:PS-QS',
         'SI-18C3:PS-Q4', 'SI-18C3:PS-QS',
         'SI-18C4:PS-Q1', 'SI-19M1:PS-QDP2',
         'SI-19M2:PS-QDP2', 'SI-19C1:PS-Q1',
-        'SI-19C1:PS-QS', 'SI-19C2:PS-Q4',
+        'SI-19C1:PS-QS', 'SI-19C2:PS-QS',
         'SI-19C3:PS-Q4', 'SI-19C3:PS-QS',
         'SI-19C4:PS-Q1', 'SI-20M1:PS-QDB2',
         'SI-20M2:PS-QDB2', 'SI-20C1:PS-Q1',
-        'SI-20C1:PS-QS', 'SI-20C2:PS-Q4',
+        'SI-20C1:PS-QS', 'SI-20C2:PS-QS',
         'SI-20C3:PS-Q4', 'SI-20C3:PS-QS',
         'SI-20C4:PS-Q1', 'SI-01M1:PS-QS',
         )
@@ -494,8 +494,7 @@ class DoBBA(_BaseClass):
     def get_default_quads(model, fam_data):
         """."""
         quads_idx = _dcopy(fam_data['QN']['index'])
-        qs_idx = [idx for idx in fam_data['QS']['index']
-                  if not model[idx[0]].fam_name.startswith('FC2')]
+        qs_idx = [idx for idx in fam_data['QS']['index']]
         quads_idx.extend(qs_idx)
         quads_idx = _np.array([idx[len(idx)//2] for idx in quads_idx])
         quads_pos = _np.array(_pyacc.lattice.find_spos(model, quads_idx))
@@ -513,7 +512,7 @@ class DoBBA(_BaseClass):
             idc = fam_data[name]['index'].index([qidx, ])
             sub = fam_data[name]['subsection'][idc]
             inst = fam_data[name]['instance'][idc]
-            name = 'QS' if name.startswith('S') else name
+            name = 'QS' if name.startswith(('S', 'F')) else name
             qname = 'SI-{0:s}:PS-{1:s}-{2:s}'.format(sub, name, inst)
             qnames.append(qname.strip('-'))
 
@@ -1190,7 +1189,7 @@ class DoBBA(_BaseClass):
         dtime = str(tfin - tini)
         dtime = dtime.split('.')[0]
         print('finished! Elapsed time {:s}'.format(dtime))
-        
+
     def _dobba_single_bpm(self, bpmname):
         """."""
         tini = _datetime.datetime.fromtimestamp(_time.time())
