@@ -25,6 +25,8 @@ class IDParams:
             self.phase_speed = 0.5
             self.sofb_mode = sofb.data.SOFBMode._fields[
                 sofb.data.SOFBMode.SlowOrb]
+            self.sofb_rate = sofb.trigchannel
+            self.sofb_nr_samples_post = sofb.trigsample
             self.sofb_buffer = 20
             self.wait_sofb = 1
             self.wait_to_move = 0
