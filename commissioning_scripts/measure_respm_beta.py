@@ -133,6 +133,7 @@ class MeasureRespMatBeta(BaseClass):
     def _get_measbeta_object(self):
         """."""
         model = si.create_accelerator()
+        model.cavity_on = True
         famdata = si.get_family_data(model)
         measbeta = _MeasBeta(model, famdata)
         measbeta.params.nr_measures = 1
