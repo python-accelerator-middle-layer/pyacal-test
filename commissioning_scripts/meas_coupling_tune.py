@@ -162,9 +162,14 @@ class FitTunes(_SimulAnneal):
                 tune1[i], tune2[i] = tune2[i], tune1[i]
         return param, tune1, tune2
 
-    def fitting_plot(self, title=None, xlabel=None, fig=None):
+    def fitting_plot(
+            self, oversampling=1, title=None, xlabel=None, fig=None):
         """."""
         position = self.position
+        param = _np.interp(
+            _np.arange(0, len(self._param), 1/oversampling),
+            _np.arange(0, len(self._param)),
+            self._param)
 
         # NOTE: do error estimate properly!
         coup_error = self.calc_obj_fun()
@@ -179,7 +184,7 @@ class FitTunes(_SimulAnneal):
         colors = prop_cycle.by_key()['color']
         if fig is None:
             fig = _plt.figure()
-        param, fittune1, fittune2 = FitTunes.calc_tunes(self._param, *position)
+        param, fittune1, fittune2 = FitTunes.calc_tunes(param, *position)
 
         # plot meas data
         _plt.plot(

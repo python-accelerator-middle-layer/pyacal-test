@@ -403,9 +403,9 @@ class MeasIDIntegral(BaseClass):
     def calc_field_integrals(self):
         """."""
         meas = self.data['measure']
-        phs = meas['phases']
+        phs = meas['phase']
         npts = len(phs)
-        orbs = meas['orbits']
+        orbs = meas['orbit']
 
         if phs[0] > phs[-1]:
             orbref = orbs[0]
