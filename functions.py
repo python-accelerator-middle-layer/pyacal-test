@@ -1,6 +1,9 @@
 """Useful functions."""
+import os as _os
 from collections import namedtuple as _namedtuple
 from functools import partial as _partial
+import pickle as _pickle
+
 import numpy as _np
 
 
@@ -52,3 +55,37 @@ def get_namedtuple(name, field_names, values=None):
         values = range(len(field_names))
     field_names = [f.replace(' ', '_') for f in field_names]
     return _namedtuple(name, field_names)(*values)
+
+
+def save_pickle(data, fname, overwrite=False):
+    """Save data to file in pickle format.
+
+    Inputs:
+        data - python object to be saved.
+        fname - name of the file to be saved. With or without ".pickle"."
+        overwrite - whether to overwrite existing file (Optional).
+
+    Raises `FileExistsError` in case `overwrite` is `False` and file exists.
+    """
+    if not fname.endswith('.pickle'):
+        fname += '.pickle'
+    if not overwrite and _os.path.isfile(fname):
+        raise FileExistsError(f'file {fname} already exists.')
+    with open(fname, 'wb') as fil:
+        _pickle.dump(data, fil)
+
+
+def load_pickle(fname):
+    """Load ".pickle" file.
+
+    Inputs:
+        fname - filename. May or may not contain the ".pickle" extension.
+
+    Outputs:
+        data - content of file as a python object.
+    """
+    if not fname.endswith('.pickle'):
+        fname += '.pickle'
+    with open(fname, 'rb') as fil:
+        data = _pickle.load(fil)
+    return data
