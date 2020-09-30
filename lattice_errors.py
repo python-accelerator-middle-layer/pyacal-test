@@ -85,10 +85,6 @@ def generate_errors(acc, mags=None, girder=None, fam_data=None,
     for err in ERRORTYPES:
         errors[err] = _np.zeros((nr_mach, len(acc)))
 
-
-    # _lnls.utils.save_pickle(name+'_generate_errors_input',
-    #           config=config,nr_mach=nr_mach,cutoff=cutoff,rndtype=rndtype)
-
     if 'mags' is not None:
         for mtype in mags:
             ERRORS = [err for err in ERRORTYPES if err in mtype]
@@ -147,9 +143,6 @@ def apply_erros(machine, errors, increment=1.0):
             funs[errtype](ring, idx, err[idx])
 
     nr_mach = errors['x'].shape[0]
-
-    # _lnls.utils.save_pickle([name,'_apply_errors_input'],
-    #                 errors=errors, increment=increment)
 
     machs = []
     if not isinstance(machine,(list,tuple)):
@@ -246,9 +239,6 @@ def correct_cod(machine, bpms, hcms, vcms, sext_ramp=[1.0], svs='all',tol=1e-5,
          (gcodx + bba), used in the correction.
       gcody : the same as gcodx, but for the vertical plane.
     """
-    # _lnls.utils.save_pickle(name+'_correct_cod_input.mat', cor_conf=cor_conf,
-    #                         goal_codx=goal_codx, goal_cody=goal_cody)
-
     nr_mach = len(machine)
 
     # making sure they are in order
