@@ -1,5 +1,6 @@
 """Main module."""
 import time as _time
+import datetime as _datetime
 from threading import Thread as _Thread, Event as _Event
 
 from copy import deepcopy as _dcopy
@@ -339,7 +340,7 @@ class DoBBA(_BaseClass):
             if i < self.params.sofb_maxcorriter:
                 sofb.cmd_calccorr()
                 _time.sleep(self.params.wait_sofb)
-                sofb.cmd_applycorr()
+                sofb.cmd_applycorr_all()
                 _time.sleep(self.params.wait_correctors)
         return -1, fmet
 
@@ -1172,7 +1173,7 @@ class DoBBA(_BaseClass):
         if sofb.autocorrsts:
             loop_on = True
             print('SOFB feedback is enable, disabling it...')
-            sofb.cmd_autocorr_turn_off()
+            sofb.cmd_turn_off_autocorr()
 
         for i, bpm in enumerate(self._bpms2dobba):
             if self._stopevt.is_set():
@@ -1183,7 +1184,7 @@ class DoBBA(_BaseClass):
 
         if loop_on:
             print('SOFB feedback was enable, restoring original state...')
-            sofb.cmd_autocorr_turn_on()
+            sofb.cmd_turn_on_autocorr()
 
         tfin = _datetime.datetime.fromtimestamp(_time.time())
         dtime = str(tfin - tini)
@@ -1192,12 +1193,13 @@ class DoBBA(_BaseClass):
 
     def _dobba_single_bpm(self, bpmname):
         """."""
+        idx = self.data['bpmnames'].index(bpmname)
+
         tini = _datetime.datetime.fromtimestamp(_time.time())
         strtini = tini.strftime('%Hh%Mm%Ss')
         print('{:s} --> Doing BBA for BPM {:03d}: {:s}'.format(
             strtini, idx, bpmname))
 
-        idx = self.data['bpmnames'].index(bpmname)
         quadname = self.data['quadnames'][idx]
         x0 = self.data['scancenterx'][idx]
         y0 = self.data['scancentery'][idx]
@@ -1234,9 +1236,9 @@ class DoBBA(_BaseClass):
         dorbsx = self._calc_dorb_scan(self.params.deltaorbx, nrsteps//2)
         dorbsy = self._calc_dorb_scan(self.params.deltaorby, nrsteps//2)
 
-        refx0, refy0 = sofb.refx, sofb.refy
-        enblx0, enbly0 = sofb.bpmxenbl, sofb.bpmyenbl
-        ch0, cv0 = sofb.kickch, sofb.kickcv
+        refx0, refy0 = sofb.refx.copy(), sofb.refy.copy()
+        enblx0, enbly0 = sofb.bpmxenbl.copy(), sofb.bpmyenbl.copy()
+        ch0, cv0 = sofb.kickch.copy(), sofb.kickcv.copy()
 
         enblx, enbly = 0*enblx0, 0*enbly0
         enblx[idx], enbly[idx] = 1, 1
@@ -1292,19 +1294,19 @@ class DoBBA(_BaseClass):
         sofb.bpmxenbl, sofb.bpmyenbl = enblx0, enbly0
 
         # restore correctors gently to do not kill the beam.
-        factch, factcv = sofb.deltafactorch, sofb.deltafactorcv
+        factch, factcv = sofb.mancorrgainch, sofb.mancorrgaincv
         chn, cvn = sofb.kickch, sofb.kickcv
         dch, dcv = ch0 - chn, cv0 - cvn
         sofb.deltakickch, sofb.deltakickcv = dch, dcv
         nrsteps = _np.ceil(max(_np.abs(dch).max(), _np.abs(dcv).max()) / 1.0)
         for i in range(int(nrsteps)):
-            sofb.deltafactorch = (i+1)/nrsteps * 100
-            sofb.deltafactorcv = (i+1)/nrsteps * 100
+            sofb.mancorrgainch = (i+1)/nrsteps * 100
+            sofb.mancorrgaincv = (i+1)/nrsteps * 100
             _time.sleep(self.params.wait_sofb)
-            sofb.cmd_applycorr()
+            sofb.cmd_applycorr_all()
             _time.sleep(self.params.wait_correctors)
         sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
-        sofb.deltafactorch, sofb.deltafactorcv = factch, factcv
+        sofb.mancorrgainch, sofb.mancorrgaincv = factch, factcv
 
         tfin = _datetime.datetime.fromtimestamp(_time.time())
         dtime = str(tfin - tini)
