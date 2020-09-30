@@ -1,8 +1,9 @@
 #!/usr/bin/env python-sirius
 """."""
-
-import pickle as _pickle
 import numpy as np
+
+from mathphys.functions import save_pickle as _save_pickle, \
+    load_pickle as _load_pickle
 from siriuspy.devices import SOFB, RFGen
 
 
@@ -66,7 +67,7 @@ class DispMeas:
         self.calc_disp()
         print('Finished!')
 
-    def save_data(self, fname):
+    def save_data(self, fname, overwrite=True):
         """."""
         data = dict(
             freq0=self.freq0,
@@ -79,16 +80,9 @@ class DispMeas:
             orbm=self.orbm,
             dispersion=self.dispersion,
             )
-        if not fname.endswith('.pickle'):
-            fname += '.pickle'
-        with open(fname, 'wb') as f:
-            _pickle.dump(data, f)
+        _save_pickle(data, fname, overwrite=overwrite)
 
     @staticmethod
     def load_data(fname):
         """."""
-        if not fname.endswith('.pickle'):
-            fname += '.pickle'
-        with open(fname, 'rb') as f:
-            data = _pickle.load(f)
-        return data
+        return _load_pickle(fname)
