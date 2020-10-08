@@ -121,7 +121,7 @@ class PSOInjection(PSO):
     def get_pvs(self):
         """."""
         # self.eyes = self.sofb.sum
-        self.eyes = self.dcct.current
+        self.eyes = self.dcct.current_fast
 
         self.hands = [PV(c) for c in self.corrs.sp]
         self.hands.append(PV(self.kckr.sp))
@@ -229,7 +229,7 @@ class SAInjection(SimulAnneal):
     def get_pvs(self):
         """."""
         # self.eyes = self.sofb.sum
-        self.eyes = self.dcct.current
+        self.eyes = self.dcct.current_fast
 
         self.hands = [PV(c) for c in self.corrs.sp]
         self.hands.append(PV(self.kckr.sp))

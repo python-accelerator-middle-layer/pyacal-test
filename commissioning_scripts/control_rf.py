@@ -160,7 +160,7 @@ class ControlRF(BaseClass):
                 phase_data[k] = self.devices['rf'].dev_rfll.phase
                 voltage_data[k] = self.devices['rf'].dev_rfll.voltage
                 power_data[k] = self.devices['rf'].dev_rfpowmon.power
-                dcct_data[k] = np.mean(self.devices['dcct'].current)
+                dcct_data[k] = np.mean(self.devices['dcct'].current_fast)
                 _time.sleep(1/freq)
                 if self._stopped.is_set():
                     break
