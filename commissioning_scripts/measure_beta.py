@@ -4,6 +4,7 @@ from threading import Thread as _Thread, Event as _Event
 import math
 from copy import deepcopy as _dcopy
 from collections import namedtuple as _namedtuple
+from siriuspy.namesys import SiriusPVName as _PVName
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,6 +19,40 @@ from .base import BaseClass
 
 class BetaParams:
     """."""
+
+    DELTA_CURRENT = {
+        'QDA': 1.37,
+        'QDB1': 1.40,
+        'QDP1': 1.40,
+        'QDB2': 1.48,
+        'QDP2': 1.48,
+
+        'QFA': 0.88,
+        'Q1': 0.86,
+        'Q2': 0.95,
+        'Q3': 0.86,
+        'Q4': 0.93,
+
+        'QFB': 0.59,
+        'QFP': 0.59,
+        }
+
+    RELATIVE_DELTA_KL = {
+        'QDA': 3.07487/100,
+        'QDB1': 2.05806/100,
+        'QDP1': 2.05806/100,
+        'QDB2': 1.49222/100,
+        'QDP2': 1.49222/100,
+
+        'QFA': 0.506614/100,
+        'Q1': 0.69606/100,
+        'Q2': 0.461894/100,
+        'Q3': 0.60985/100,
+        'Q4': 0.53178/100,
+
+        'QFB': 0.326264/100,
+        'QFP': 0.326264/100,
+        }
 
     def __init__(self):
         """."""
@@ -55,6 +90,7 @@ class MeasBeta(BaseClass):
     """."""
 
     METHODS = _namedtuple('Methods', ['Analytic', 'Numeric'])(0, 1)
+    DELTAKL = _namedtuple('Analysis', ['IMA', 'ExcData'])(0, 1)
     _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(
@@ -335,7 +371,12 @@ class MeasBeta(BaseClass):
             return
 
         deltakl = self.params.quad_deltakl
-        korig = quad.strength
+        curr_orig = quad.current
+        kl_orig = quad.strength
+        quadname = _PVName(quadname)
+        dcurr = self.params.DELTA_CURRENTS[quadname.dev]
+        dkl_ima = self.params.RELATIVE_DELTA_KL[quadname.dev] * kl_orig
+
         cycling_curve = MeasBeta.get_cycling_curve()
 
         # measurement always increases the power supply current
@@ -360,9 +401,12 @@ class MeasBeta(BaseClass):
             tunex_wfm_ini.append(tune.tunex_wfm)
             tuney_wfm_ini.append(tune.tuney_wfm)
             for j, fac in enumerate(cycling_curve):
-                quad.strength = korig + deltakl*fac
+                quad.current = curr_orig + dcurr*fac
+                # quad.strength = kl_orig + deltakl*fac
                 _time.sleep(self.params.wait_quadrupole)
                 if not j:
+                    kl_new = quad.strength
+                    dkl_exc = kl_new - kl_orig
                     if 'QD' in quadname:
                         print(' -dk ', end='')
                     else:
@@ -390,6 +434,8 @@ class MeasBeta(BaseClass):
         meas['tunex_wfm_pos'] = np.array(tunex_wfm_pos)
         meas['tuney_wfm_pos'] = np.array(tuney_wfm_pos)
         meas['delta_kl'] = deltakl
+        meas['dkl_ima'] = dkl_ima
+        meas['dkl_exc'] = dkl_exc
 
         if self.params.recover_tune:
             if self._recover_tune(meas, quadname):
@@ -399,13 +445,14 @@ class MeasBeta(BaseClass):
 
         self.data['measure'][quadname] = meas
 
-    def process_data(self, mode='pos', discardpoints=None):
+    def process_data(self, mode='pos', discardpoints=None, use_dkl=None):
         """."""
         for quad in self.data['measure']:
             self.analysis[quad] = self.calc_beta(
-                quad, mode=mode, discardpoints=discardpoints)
+                quad, mode=mode, discardpoints=discardpoints, use_dkl=use_dkl)
 
-    def calc_beta(self, quadname, mode='pos', discardpoints=None):
+    def calc_beta(
+            self, quadname, mode='pos', discardpoints=None, use_dkl=None):
         """."""
         anl = dict()
         datameas = self.data['measure'][quadname]
@@ -425,7 +472,13 @@ class MeasBeta(BaseClass):
             usepts = set(usepts) - set(discardpoints)
         usepts = sorted(usepts)
 
-        dkl = datameas['delta_kl']
+        if use_dkl is None:
+            dkl = datameas['delta_kl']
+        elif use_dkl == self.DELTAKL.Analysis.IMA:
+            dkl = datameas['dkl_ima']
+        elif use_dkl == self.DELTAKL.Analysis.Excdata:
+            dkl = datameas['dkl_excdata']
+
         anl['betasx'] = +4 * np.pi * dnux[usepts] / dkl
         anl['betasy'] = -4 * np.pi * dnuy[usepts] / dkl
         anl['betax_ave'] = np.mean(anl['betasx'])
