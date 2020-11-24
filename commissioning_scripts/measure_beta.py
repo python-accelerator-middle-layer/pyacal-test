@@ -374,7 +374,7 @@ class MeasBeta(BaseClass):
         curr_orig = quad.current
         kl_orig = quad.strength
         quadname = _PVName(quadname)
-        dcurr = self.params.DELTA_CURRENTS[quadname.dev]
+        dcurr = self.params.DELTA_CURRENT[quadname.dev]
         dkl_ima = self.params.RELATIVE_DELTA_KL[quadname.dev] * kl_orig
 
         cycling_curve = MeasBeta.get_cycling_curve()
@@ -436,6 +436,7 @@ class MeasBeta(BaseClass):
         meas['delta_kl'] = deltakl
         meas['dkl_ima'] = dkl_ima
         meas['dkl_exc'] = dkl_exc
+        meas['dcurr'] = dcurr
 
         if self.params.recover_tune:
             if self._recover_tune(meas, quadname):
@@ -474,10 +475,10 @@ class MeasBeta(BaseClass):
 
         if use_dkl is None:
             dkl = datameas['delta_kl']
-        elif use_dkl == self.DELTAKL.Analysis.IMA:
+        elif use_dkl == self.DELTAKL.IMA:
             dkl = datameas['dkl_ima']
-        elif use_dkl == self.DELTAKL.Analysis.Excdata:
-            dkl = datameas['dkl_excdata']
+        elif use_dkl == self.DELTAKL.ExcData:
+            dkl = datameas['dkl_exc']
 
         anl['betasx'] = +4 * np.pi * dnux[usepts] / dkl
         anl['betasy'] = -4 * np.pi * dnuy[usepts] / dkl
