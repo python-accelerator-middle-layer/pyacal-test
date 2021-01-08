@@ -60,7 +60,7 @@ class _FitInjTrajBase(BaseClass):
 
     def calc_chisqr(self, residue):
         """."""
-        return np.sum(residue*residue)/residue.size
+        return np.sqrt(np.sum(residue*residue)/residue.size)
 
     def calc_jacobian(self, vec, size=160):
         """."""
@@ -83,7 +83,7 @@ class _FitInjTrajBase(BaseClass):
         return np.array([x_ini, xl_ini, y_ini, yl_ini, de_ini])
 
     def do_fitting(
-            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6,
+            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-4,
             jacobian=None, update_jacobian=True, full=False):
         """."""
         vec0 = vec0 if vec0 is not None else self.calc_init_vals(trajx, trajy)
@@ -132,6 +132,8 @@ class _FitInjTrajBase(BaseClass):
         trajx = self.devices['sofb'].trajx.copy()
         trajy = self.devices['sofb'].trajy.copy()
         summ = self.devices['sofb'].sum.copy()
+        trajx -= self.devices['sofb'].refx
+        trajy -= self.devices['sofb'].refy
 
         ini = np.mean(summ[:self.params.count_init_ref])
         indcs = summ > ini * self.params.count_rel_thres
