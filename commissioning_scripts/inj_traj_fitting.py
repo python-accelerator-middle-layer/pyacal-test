@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from siriuspy.devices import SOFB
+from siriuspy.devices import SOFB, DCCT, PowerSupplyPU
 import pyaccel
 from pymodels import si, bo
 
@@ -269,6 +269,11 @@ class SIFitInjTraj(_FitInjTrajBase):
         """."""
         super().__init__()
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
+        self.devices['dcct'] = DCCT(DCCT.DEVICES.SI_13C4)
+        self.devices['injdpkckr'] = PowerSupplyPU(
+            PowerSupplyPU.DEVICES.SI_INJ_DPKCKR)
+        self.devices['injnlkckr'] = PowerSupplyPU(
+            PowerSupplyPU.DEVICES.SI_INJ_NLKCKR)
         self.model = ring if ring is not None else si.create_accelerator()
         self.simul_model = sim_mod if sim_mod is not None else self.model[:]
 
@@ -284,6 +289,26 @@ class SIFitInjTraj(_FitInjTrajBase):
 
         self.model.vchamber_on = True
         self.simul_model.vchamber_on = True
+
+    def unreliable_fitting(self):
+        """Return '' in case of reliable fitting."""
+        sofb_state = self.devices['sofb'].opmode
+        stored = self.devices['dcct'].current > 0.05  # mA
+        dpkckr = self.devices['injdpkckr']
+        dpkckr_on = dpkckr.pulse and dpkckr.pwrstate
+        nlkckr = self.devices['injnlkckr']
+        nlkckr_on = nlkckr.pulse and nlkckr.pwrstate
+
+        status = ''
+        if sofb_state not in (2, 3):
+            status = 'SOFB is not in MultiTurn or SinglePass Mode.'
+        elif not dpkckr_on and not nlkckr_on:
+            status = 'Both injection kickers are Off.'
+        elif stored and not dpkckr_on:
+            status = 'There is stored beam but InjDpKckr is off.'
+        elif stored and nlkckr_on and dpkckr.delay > 10000:
+            status = 'There is stored beam but InjDpKckr delay is large.'
+        return status
 
 
 class BOFitInjTraj(_FitInjTrajBase):
