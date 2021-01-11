@@ -17,8 +17,8 @@ class CoupParams():
         """."""
         self.nr_points = 1
         self.time_wait = 5  # s
-        self.neg_percent = 0.1/100
-        self.pos_percent = 0.1/100
+        self.neg_percent = 0.0/100
+        self.pos_percent = 0.0/100
 
     def __str__(self):
         """."""
@@ -88,15 +88,16 @@ class MeasCoupling(BaseClass):
         self.data['current'] = curr_vec
         self.data['tunes'] = tunes_vec
 
-    def process_and_plot_data(self):
+    def process_and_plot_data(self, coup_resolution=None, niter=2000):
         """."""
         _np.random.seed(seed=13101971)
         tune1, tune2 = self.data['tunes'].T
         curr = self.data['current']
 
-        FitTunes.COUPLING_RESOLUTION = 0.2/100
+        if coup_resolution:
+            FitTunes.COUPLING_RESOLUTION = coup_resolution
         fittune = FitTunes(param=curr, tune1=tune1, tune2=tune2)
-        fittune.niter = 2000
+        fittune.niter = niter
         fittune.start(print_flag=False)
         fittune.fitting_plot(oversampling=10, xlabel='QFB Variation [%]')
 
