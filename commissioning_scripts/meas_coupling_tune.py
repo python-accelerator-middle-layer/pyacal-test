@@ -36,12 +36,13 @@ class MeasCoupling(BaseClass):
 
     QUAD_PVNAME = 'SI-FAM:PS-QFB'
 
-    def __init__(self):
+    def __init__(self, is_online=True):
         """."""
         super().__init__()
         self.params = CoupParams()
-        self.devices['quad'] = PowerSupply(MeasCoupling.QUAD_PVNAME)
-        self.devices['tune'] = Tune(Tune.DEVICES.SI)
+        if is_online:
+            self.devices['quad'] = PowerSupply(MeasCoupling.QUAD_PVNAME)
+            self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.data = dict()
         self._stopevt = _Event()
         self._thread = _Thread(target=self._do_meas, daemon=True)
