@@ -1,10 +1,104 @@
 """Coupling Measurement from Minimal Tune Separation."""
 
+import time as _time
+from threading import Thread as _Thread, Event as _Event
 import numpy as _np
 import matplotlib.pyplot as _plt
 
-
+from .base import BaseClass
 from ..optimization import SimulAnneal as _SimulAnneal
+from siriuspy.devices import PowerSupply, Tune
+
+
+class CoupParams():
+    """."""
+
+    def __init__(self):
+        """."""
+        self.nr_points = 1
+        self.time_wait = 5  # s
+        self.neg_percent = 0.1/100
+        self.pos_percent = 0.1/100
+
+    def __str__(self):
+        """."""
+        ftmp = '{0:26s} = {1:9.6f}  {2:s}\n'.format
+        dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
+        stg = dtmp('nr_points', self.nr_points, '')
+        stg += ftmp('time_wait [s]', self.time_wait, '')
+        stg += ftmp('neg_percent', self.neg_percent, '')
+        stg += ftmp('pos_percent', self.pos_percent, '')
+        return stg
+
+
+class MeasCoupling(BaseClass):
+    """."""
+
+    QUAD_PVNAME = 'SI-FAM:PS-QFB'
+
+    def __init__(self):
+        """."""
+        super().__init__()
+        self.params = CoupParams()
+        self.devices['quad'] = PowerSupply(MeasCoupling.QUAD_PVNAME)
+        self.devices['tune'] = Tune(Tune.DEVICES.SI)
+        self.data = dict()
+        self._stopevt = _Event()
+        self._thread = _Thread(target=self._do_meas, daemon=True)
+
+    def start(self):
+        """."""
+        if self.ismeasuring:
+            return
+        self._stopevt.clear()
+        self._thread = _Thread(target=self._do_meas, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        """."""
+        self._stopevt.set()
+
+    @property
+    def ismeasuring(self):
+        """."""
+        return self._thread.is_alive()
+
+    def _do_meas(self):
+        quad = self.devices['quad']
+        tunes = self.devices['tune']
+
+        curr0 = quad.current
+        curr_vec = curr0 * _np.linspace(
+            1-self.params.neg_percent,
+            1+self.params.pos_percent,
+            self.params.nr_points)
+        tunes_vec = _np.zeros((len(curr_vec), 2))
+
+        print('QFB Current:')
+        for idx, curr in enumerate(curr_vec):
+            quad.current = curr
+            _time.sleep(self.params.time_wait)
+            tunes_vec[idx, :] = tunes.tunex, tunes.tuney
+            print('   {:.6f} A ({:+.3f} %), nux = {:.4f}, nuy = {:.4f}'.format(
+                curr, (curr/curr0-1)*100),
+                tunes_vec[idx, 0], tunes_vec[idx, 1])
+        print('Finished!')
+        quad.current = curr0
+        self.data['qname'] = quad.devname
+        self.data['current'] = curr_vec
+        self.data['tunes'] = tunes_vec
+
+    def process_and_plot_data(self):
+        """."""
+        _np.random.seed(seed=13101971)
+        tune1, tune2 = self.data['tunes'].T
+        curr = self.data['current']
+
+        FitTunes.COUPLING_RESOLUTION = 0.2/100
+        fittune = FitTunes(param=curr, tune1=tune1, tune2=tune2)
+        fittune.niter = 2000
+        fittune.start(print_flag=False)
+        fittune.fitting_plot(oversampling=10, xlabel='QFB Variation [%]')
 
 
 class FitTunes(_SimulAnneal):
