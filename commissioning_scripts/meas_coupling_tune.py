@@ -194,7 +194,7 @@ class MeasCoupling(BaseClass):
         thre *= smat[0]
         smat = smat[smat > thre]
         vhmat = vhmat[:smat.size]
-        pcov = _np.dot(vhmat.T / smat*smat, vhmat)
+        pcov = _np.dot(vhmat.T / (smat*smat), vhmat)
 
         # multiply covariance matrix by residue 2-norm
         ysize = len(fit_params['fun'])
