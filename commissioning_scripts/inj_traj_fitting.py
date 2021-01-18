@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from siriuspy.devices import SOFB
+from siriuspy.devices import SOFB, DCCT, PowerSupplyPU
 import pyaccel
 from pymodels import si, bo
 
@@ -60,7 +60,7 @@ class _FitInjTrajBase(BaseClass):
 
     def calc_chisqr(self, residue):
         """."""
-        return np.sum(residue*residue)/residue.size
+        return np.sqrt(np.sum(residue*residue)/residue.size)
 
     def calc_jacobian(self, vec, size=160):
         """."""
@@ -83,7 +83,7 @@ class _FitInjTrajBase(BaseClass):
         return np.array([x_ini, xl_ini, y_ini, yl_ini, de_ini])
 
     def do_fitting(
-            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-6,
+            self, trajx, trajy, vec0=None, max_iter=5, tol=1e-4,
             jacobian=None, update_jacobian=True, full=False):
         """."""
         vec0 = vec0 if vec0 is not None else self.calc_init_vals(trajx, trajy)
@@ -132,6 +132,8 @@ class _FitInjTrajBase(BaseClass):
         trajx = self.devices['sofb'].trajx.copy()
         trajy = self.devices['sofb'].trajy.copy()
         summ = self.devices['sofb'].sum.copy()
+        trajx -= self.devices['sofb'].refx
+        trajy -= self.devices['sofb'].refy
 
         ini = np.mean(summ[:self.params.count_init_ref])
         indcs = summ > ini * self.params.count_rel_thres
@@ -267,6 +269,11 @@ class SIFitInjTraj(_FitInjTrajBase):
         """."""
         super().__init__()
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
+        self.devices['dcct'] = DCCT(DCCT.DEVICES.SI_13C4)
+        self.devices['injdpkckr'] = PowerSupplyPU(
+            PowerSupplyPU.DEVICES.SI_INJ_DPKCKR)
+        self.devices['injnlkckr'] = PowerSupplyPU(
+            PowerSupplyPU.DEVICES.SI_INJ_NLKCKR)
         self.model = ring if ring is not None else si.create_accelerator()
         self.simul_model = sim_mod if sim_mod is not None else self.model[:]
 
@@ -282,6 +289,26 @@ class SIFitInjTraj(_FitInjTrajBase):
 
         self.model.vchamber_on = True
         self.simul_model.vchamber_on = True
+
+    def unreliable_fitting(self):
+        """Return '' in case of reliable fitting."""
+        sofb_state = self.devices['sofb'].opmode
+        stored = self.devices['dcct'].current > 0.05  # mA
+        dpkckr = self.devices['injdpkckr']
+        dpkckr_on = dpkckr.pulse and dpkckr.pwrstate
+        nlkckr = self.devices['injnlkckr']
+        nlkckr_on = nlkckr.pulse and nlkckr.pwrstate
+
+        status = ''
+        if sofb_state not in (2, 3):
+            status = 'SOFB is not in MultiTurn or SinglePass Mode.'
+        elif not dpkckr_on and not nlkckr_on:
+            status = 'Both injection kickers are Off.'
+        elif stored and not dpkckr_on:
+            status = 'There is stored beam but InjDpKckr is off.'
+        elif stored and nlkckr_on and dpkckr.delay > 10000:
+            status = 'There is stored beam but InjDpKckr delay is large.'
+        return status
 
 
 class BOFitInjTraj(_FitInjTrajBase):
