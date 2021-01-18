@@ -215,13 +215,11 @@ class MeasCoupling(BaseClass):
         coeff1, offset1, coeff2, offset2, coupling = params
         fx_ = coeff1 * curr + offset1
         fy_ = coeff2 * curr + offset2
-        tune1, tune2 = _np.zeros(curr.shape), _np.zeros(curr.shape)
-        for idx, _ in enumerate(curr):
-            mat = _np.array([[fx_[idx], coupling/2], [coupling/2, fy_[idx]]])
-            eigvalues, _ = _np.linalg.eig(mat)
-            tune1[idx], tune2[idx] = eigvalues
-            if tune1[idx] <= tune2[idx]:
-                tune1[idx], tune2[idx] = tune2[idx], tune1[idx]
+        coupvec = _np.ones(curr.size) * coupling/2
+        mat = _np.array([[fx_, coupvec], [coupvec, fy_]]).T
+        tune1, tune2 = _np.linalg.eigvalsh(mat).T
+        sel = tune1 <= tune2
+        tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
         return tune1, tune2
 
     @staticmethod
