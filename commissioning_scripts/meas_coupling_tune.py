@@ -82,7 +82,7 @@ class MeasCoupling(BaseClass):
         return self._thread.is_alive()
 
     def _do_meas(self):
-        if self.devices['quad'].devname != self.params.quadfam_name:
+        if self.devices['quad'].devname.dev != self.params.quadfam_name:
             self.devices['quad'] = PowerSupply(
                 'SI-Fam:PS-' + self.params.quadfam_name)
 
@@ -96,7 +96,7 @@ class MeasCoupling(BaseClass):
             self.params.nr_points)
         tunes_vec = _np.zeros((len(curr_vec), 2))
 
-        print('{:s} current:'.format(quad.devname))
+        print('{:s} current:'.format(quad.devname.dev))
         for idx, curr in enumerate(curr_vec):
             quad.current = curr
             _time.sleep(self.params.time_wait)
@@ -111,9 +111,9 @@ class MeasCoupling(BaseClass):
         self.data['current'] = curr_vec
         self.data['tunes'] = tunes_vec
 
-    def process_data(self, coup_resolution=None):
+    def process_data(self):
         """."""
-        qcurr, tune1, tune2 = self._filter_data(coup_resolution)
+        qcurr, tune1, tune2 = self._filter_data()
         ini_param = self._calc_init_parms(qcurr, tune1, tune2)
         # least squares using Levenberg-Marquardt minimization algorithm
         fit_param = least_squares(
@@ -174,7 +174,7 @@ class MeasCoupling(BaseClass):
             fig.savefig(fname, format='png', dpi=300)
         return fig, axi
 
-    def _filter_data(self, coup_resolution=None):
+    def _filter_data(self):
         qcurr = _np.asarray(self.data['current'])
         tune1, tune2 = self.data['tunes'].T
         tune1 = _np.asarray(tune1)
@@ -184,9 +184,6 @@ class MeasCoupling(BaseClass):
         sel = tune1 <= tune2
         if sel.any():
             tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
-
-        if coup_resolution:
-            self.params.coupling_resolution = coup_resolution
 
         # remove nearly degenerate measurement points
         dtunes = _np.abs(tune1 - tune2)
