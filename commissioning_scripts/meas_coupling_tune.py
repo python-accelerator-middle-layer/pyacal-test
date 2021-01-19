@@ -96,7 +96,7 @@ class MeasCoupling(BaseClass):
             self.params.nr_points)
         tunes_vec = _np.zeros((len(curr_vec), 2))
 
-        print('{:s} current:'.format(quad.devname.dev))
+        print('{:s} current:'.format(quad.devname))
         for idx, curr in enumerate(curr_vec):
             quad.current = curr
             _time.sleep(self.params.time_wait)
