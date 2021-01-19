@@ -5,6 +5,7 @@ from threading import Thread as _Thread, Event as _Event
 import numpy as _np
 from scipy.optimize import least_squares
 import matplotlib.pyplot as _plt
+import matplotlib.gridspec as _mpl_gs
 
 from siriuspy.devices import PowerSupply, Tune
 from .base import BaseClass
@@ -15,19 +16,24 @@ class CouplingParams():
 
     def __init__(self):
         """."""
-        self.nr_points = 1
+        self.quadfam_name = 'QFB'
+        self.nr_points = 21
         self.time_wait = 5  # s
-        self.neg_percent = 0.0/100
-        self.pos_percent = 0.0/100
+        self.neg_percent = 0.1/100
+        self.pos_percent = 0.1/100
+        self.coupling_resolution = 0.02/100
 
     def __str__(self):
         """."""
-        ftmp = '{0:26s} = {1:9.6f}  {2:s}\n'.format
-        dtmp = '{0:26s} = {1:9d}  {2:s}\n'.format
-        stg = dtmp('nr_points', self.nr_points, '')
+        stmp = '{0:22s} = {1:4s}  {2:s}\n'.format
+        ftmp = '{0:22s} = {1:9.6f}  {2:s}\n'.format
+        dtmp = '{0:22s} = {1:9d}  {2:s}\n'.format
+        stg = stmp('quadfam_name', self.quadfam_name, '')
+        stg += dtmp('nr_points', self.nr_points, '')
         stg += ftmp('time_wait [s]', self.time_wait, '')
         stg += ftmp('neg_percent', self.neg_percent, '')
         stg += ftmp('pos_percent', self.pos_percent, '')
+        stg += ftmp('coupling_resolution', self.coupling_resolution, '')
         return stg
 
 
@@ -45,15 +51,13 @@ class MeasCoupling(BaseClass):
           dependency for tunes!
     """
 
-    QUAD_PVNAME = 'SI-FAM:PS-QFB'
-    COUPLING_RESOLUTION = 0.02/100
-
     def __init__(self, is_online=True):
         """."""
         super().__init__()
         self.params = CouplingParams()
         if is_online:
-            self.devices['quad'] = PowerSupply(MeasCoupling.QUAD_PVNAME)
+            self.devices['quad'] = PowerSupply(
+                'SI-Fam:PS-' + self.params.quadfam_name)
             self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.analysis = dict()
         self.data = dict()
@@ -78,6 +82,10 @@ class MeasCoupling(BaseClass):
         return self._thread.is_alive()
 
     def _do_meas(self):
+        if self.devices['quad'].devname != self.params.quadfam_name:
+            self.devices['quad'] = PowerSupply(
+                'SI-Fam:PS-' + self.params.quadfam_name)
+
         quad = self.devices['quad']
         tunes = self.devices['tune']
 
@@ -88,16 +96,17 @@ class MeasCoupling(BaseClass):
             self.params.nr_points)
         tunes_vec = _np.zeros((len(curr_vec), 2))
 
-        print('QFB Current:')
+        print('{:s} current:'.format(quad.devname))
         for idx, curr in enumerate(curr_vec):
             quad.current = curr
             _time.sleep(self.params.time_wait)
             tunes_vec[idx, :] = tunes.tunex, tunes.tuney
-            print('   {:.6f} A ({:+.3f} %), nux = {:.4f}, nuy = {:.4f}'.format(
+            print('  {:8.4f} A ({:+6.3f} %), nux={:6.4f}, nuy={:6.4f}'.format(
                 curr, (curr/curr0-1)*100),
                 tunes_vec[idx, 0], tunes_vec[idx, 1])
         print('Finished!')
         quad.current = curr0
+        self.data['timestamp'] = _time.time()
         self.data['qname'] = quad.devname
         self.data['current'] = curr_vec
         self.data['tunes'] = tunes_vec
@@ -120,7 +129,7 @@ class MeasCoupling(BaseClass):
         self.analysis['fitting_error'] = fit_error
 
     def plot_fitting(
-            self, oversampling=1, title=None, xlabel=None, fig=None,
+            self, oversampling=1, title=None, xlabel=None,
             save=False, fname=None):
         """."""
         anl = self.analysis
@@ -134,33 +143,36 @@ class MeasCoupling(BaseClass):
         fittune1, fittune2 = MeasCoupling._get_normal_modes(
             params=fit_vec, curr=qcurr_interp)
 
-        if fig is None:
-            fig = _plt.figure(figsize=(8, 6))
+        fig = _plt.figure(figsize=(8, 6))
+        grid = _mpl_gs.GridSpec(1, 1)
+        grid.update(
+            left=0.12, right=0.95, bottom=0.15, top=0.9,
+            hspace=0.5, wspace=0.35)
+        axi = _plt.subplot(grid[0, 0])
+
         if xlabel is None:
             xlabel = 'Quadrupole Integrated Strength [1/m]'
         if title is None:
             title = 'Transverse Linear Coupling: ({:.2f} ± {:.2f}) %'.format(
                 fit_vec[-1]*100, anl['fitting_error'][-1] * 100)
+        fig.suptitle(title)
 
         # plot meas data
-        _plt.plot(qcurr, tune1, 'o', color='C0', label=r'$\nu_1$')
-        _plt.plot(qcurr, tune2, 'o', color='C1', label=r'$\nu_2$')
+        axi.plot(qcurr, tune1, 'o', color='C0', label=r'$\nu_1$')
+        axi.plot(qcurr, tune2, 'o', color='C1', label=r'$\nu_2$')
 
         # plot fitting
-        _plt.plot(qcurr_interp, fittune1, color='tab:gray', label='fitting')
-        _plt.plot(qcurr_interp, fittune2, color='tab:gray')
-        _plt.legend()
-        _plt.xlabel(xlabel)
-        _plt.ylabel('Transverse Tunes')
-        _plt.title(title)
-        _plt.grid(ls='--', alpha=0.5)
-        _plt.tight_layout(True)
+        axi.plot(qcurr_interp, fittune1, color='tab:gray', label='fitting')
+        axi.plot(qcurr_interp, fittune2, color='tab:gray')
+        axi.legend()
+        axi.set_xlabel(xlabel)
+        axi.set_ylabel('Transverse Tunes')
         if save:
             if fname is None:
                 date_string = _time.strftime("%Y-%m-%d-%H:%M")
                 fname = 'coupling_fitting_{}.png'.format(date_string)
-            _plt.savefig(fname, format='png', dpi=300)
-        _plt.show()
+            fig.savefig(fname, format='png', dpi=300)
+        return fig, axi
 
     def _filter_data(self, coup_resolution=None):
         qcurr = _np.asarray(self.data['current'])
@@ -174,11 +186,11 @@ class MeasCoupling(BaseClass):
             tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
 
         if coup_resolution:
-            MeasCoupling.COUPLING_RESOLUTION = coup_resolution
+            self.params.coupling_resolution = coup_resolution
 
         # remove nearly degenerate measurement points
         dtunes = _np.abs(tune1 - tune2)
-        sel = _np.where(dtunes < MeasCoupling.COUPLING_RESOLUTION)[0]
+        sel = _np.where(dtunes < self.params.coupling_resolution)[0]
         qcurr = _np.delete(qcurr, sel)
         tune1 = _np.delete(tune1, sel)
         tune2 = _np.delete(tune2, sel)
@@ -216,7 +228,8 @@ class MeasCoupling(BaseClass):
         fx_ = coeff1 * curr + offset1
         fy_ = coeff2 * curr + offset2
         coupvec = _np.ones(curr.size) * coupling/2
-        mat = _np.array([[fx_, coupvec], [coupvec, fy_]]).T
+        mat = _np.array([[fx_, coupvec], [coupvec, fy_]])
+        mat = mat.transpose((2, 0, 1))
         tune1, tune2 = _np.linalg.eigvalsh(mat).T
         sel = tune1 <= tune2
         tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
