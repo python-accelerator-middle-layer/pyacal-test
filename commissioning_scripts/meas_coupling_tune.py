@@ -131,7 +131,7 @@ class MeasCoupling(BaseClass):
         self.analysis['fitting_error'] = fit_error
 
     def plot_fitting(
-            self, oversampling=1, title=None, xlabel=None,
+            self, oversampling=10, title=None, xlabel=None,
             save=False, fname=None):
         """."""
         anl = self.analysis
