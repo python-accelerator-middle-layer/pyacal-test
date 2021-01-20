@@ -188,7 +188,7 @@ class MeasBeta(BaseClass):
 
     def start(self):
         """."""
-        if self._thread.is_alive():
+        if not self.is_online or self._thread.is_alive():
             return
         self._stopevt.clear()
         self._thread = _Thread(target=self._meas_beta, daemon=True)
