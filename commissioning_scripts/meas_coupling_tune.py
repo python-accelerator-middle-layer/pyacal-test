@@ -138,12 +138,8 @@ class MeasCoupling(BaseClass):
         fit_vec = anl['fitted_param']['x']
         qcurr, tune1, tune2 = anl['qcurr'], anl['tune1'], anl['tune2']
 
-        qcurr_interp = _np.interp(
-            _np.arange(0, len(qcurr), 1/oversampling),
-            _np.arange(0, len(qcurr)), qcurr)
-
-        fittune1, fittune2 = MeasCoupling._get_normal_modes(
-            params=fit_vec, curr=qcurr_interp)
+        fittune1, fittune2, qcurr_interp = self.get_normal_modes(
+            params=fit_vec, curr=qcurr, oversampling=oversampling)
 
         fig = _plt.figure(figsize=(8, 6))
         grid = _mpl_gs.GridSpec(1, 1)
@@ -176,6 +172,23 @@ class MeasCoupling(BaseClass):
             fig.savefig(fname, format='png', dpi=300)
         return fig, axi
 
+    @staticmethod
+    def get_normal_modes(params, curr, oversampling=1):
+        """Calculate the tune normal modes."""
+        curr = MeasCoupling._oversample_vector(curr, oversampling)
+
+        coeff1, offset1, coeff2, offset2, coupling = params
+        fx_ = coeff1 * curr + offset1
+        fy_ = coeff2 * curr + offset2
+        coupvec = _np.ones(curr.size) * coupling/2
+        mat = _np.array([[fx_, coupvec], [coupvec, fy_]])
+        mat = mat.transpose((2, 0, 1))
+        tune1, tune2 = _np.linalg.eigvalsh(mat).T
+        sel = tune1 <= tune2
+        tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
+        return tune1, tune2, curr
+
+    # ------ Auxiliary methods --------
     def _filter_data(self):
         qcurr = _np.asarray(self.data['current'])
         tune1, tune2 = self.data['tunes'].T
@@ -220,23 +233,9 @@ class MeasCoupling(BaseClass):
             print('# of fitting parameters larger than # of data points!')
         return _np.sqrt(_np.diag(pcov))
 
-    # static methods
-    @staticmethod
-    def _get_normal_modes(params, curr):
-        coeff1, offset1, coeff2, offset2, coupling = params
-        fx_ = coeff1 * curr + offset1
-        fy_ = coeff2 * curr + offset2
-        coupvec = _np.ones(curr.size) * coupling/2
-        mat = _np.array([[fx_, coupvec], [coupvec, fy_]])
-        mat = mat.transpose((2, 0, 1))
-        tune1, tune2 = _np.linalg.eigvalsh(mat).T
-        sel = tune1 <= tune2
-        tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
-        return tune1, tune2
-
     @staticmethod
     def _err_func(params, qcurr, tune1, tune2):
-        tune1f, tune2f = MeasCoupling._get_normal_modes(params, qcurr)
+        tune1f, tune2f, _ = MeasCoupling.get_normal_modes(params, qcurr)
         return _np.sqrt((tune1f - tune1)**2 + (tune2f - tune2)**2)
 
     @staticmethod
@@ -253,3 +252,13 @@ class MeasCoupling(BaseClass):
         offset2 = min(nu_beg) - coeff2 * curr[0]
         coupling = min(_np.abs(tune1 - tune2))
         return [coeff1, offset1, coeff2, offset2, coupling]
+
+    @staticmethod
+    def _oversample_vector(vec, oversampling):
+        oversampling = int(oversampling)
+        if oversampling <= 1:
+            return vec
+        siz = len(vec)
+        x_over = _np.linspace(0, siz-1, (siz-1)*oversampling+1)
+        x_data = _np.arange(siz)
+        return _np.interp(x_over, x_data, vec)
