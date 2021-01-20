@@ -119,7 +119,7 @@ class MeasCoupling(BaseClass):
         ini_param = self._calc_init_parms(qcurr, tune1, tune2)
         # least squares using Levenberg-Marquardt minimization algorithm
         fit_param = least_squares(
-            fun=MeasCoupling._err_func, x0=ini_param,
+            fun=self._err_func, x0=ini_param,
             args=(qcurr, tune1, tune2), method='lm')
 
         self.analysis['qcurr'] = qcurr
