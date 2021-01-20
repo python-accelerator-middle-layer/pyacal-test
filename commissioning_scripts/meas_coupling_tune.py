@@ -88,6 +88,8 @@ class MeasCoupling(BaseClass):
 
         quad = self.devices['quad']
         tunes = self.devices['tune']
+        quad.wait_for_connection()
+        tunes.wait_for_connection()
 
         curr0 = quad.current
         curr_vec = curr0 * _np.linspace(
