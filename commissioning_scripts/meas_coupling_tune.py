@@ -104,8 +104,8 @@ class MeasCoupling(BaseClass):
             _time.sleep(self.params.time_wait)
             tunes_vec[idx, :] = tunes.tunex, tunes.tuney
             print('  {:8.4f} A ({:+6.3f} %), nux={:6.4f}, nuy={:6.4f}'.format(
-                curr, (curr/curr0-1)*100),
-                tunes_vec[idx, 0], tunes_vec[idx, 1])
+                curr, (curr/curr0-1)*100,
+                tunes_vec[idx, 0], tunes_vec[idx, 1]))
         print('Finished!')
         quad.current = curr0
         self.data['timestamp'] = _time.time()
