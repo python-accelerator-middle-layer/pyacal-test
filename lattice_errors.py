@@ -410,8 +410,8 @@ def cod_sg(acc,bpms,hcms,vcms,respm=None, nr_iters=20,svs='all',tolerance=1e-5,
     cod  = _np.zeros(2*len(bpms))
     cod[:len(bpms)], cod[len(bpms):] = _calc_cod(acc, indices=bpms)
 
-    corrs = _lnls.utils.flatten(hcms)
-    corrs.extend(_lnls.utils.flatten(vcms))
+    corrs = _lnls.utils.ravel(hcms)
+    corrs.extend(_lnls.utils.ravel(vcms))
     corrs = _np.unique(_np.array(corrs))
     best_fm = (cod - gcod).std(ddof=1)
     best_acc = acc[corrs]
@@ -647,7 +647,7 @@ def coup_sg(acc, bpms, hcms, vcms, scms, respm=None, svs='all', nr_iter=20,
     iS = _np.diag(invs)
     CM = - _np.dot(V.T,_np.dot(iS,U.T))
 
-    skews = _lnls.utils.flatten(scms)
+    skews = _lnls.utils.ravel(scms)
     skews = _np.unique(_np.array(skews))
 
     best_coupvec = calc_residue_for_optimization(acc)
@@ -689,7 +689,7 @@ def coup_sg(acc, bpms, hcms, vcms, scms, respm=None, svs='all', nr_iter=20,
 def _calc_residue_coupling(Mxy, Myx, Dispy, bpms, hcms, vcms):
     disp_weight = (len(hcms) + len(vcms))*10
     v = _np.hstack((Myx, Mxy, disp_weight * Dispy.T)) # para ficar ordenado por bpm
-    return v.flatten()
+    return v.ravel()
 
 def _prepare_data_for_symm(the_ring, optics, M, Disp): return None
     # # assumes uniform dipolar field for orbit correctors

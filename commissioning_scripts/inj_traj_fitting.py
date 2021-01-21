@@ -283,7 +283,7 @@ class SIFitInjTraj(_FitInjTrajBase):
         self.simul_model = pyaccel.lattice.shift(self.simul_model, injp[0]+1)
 
         self.famdata = si.get_family_data(self.model)
-        self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
+        self.bpm_idx = np.array(self.famdata['BPM']['index']).ravel()
         self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
         self.etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
 
@@ -348,7 +348,7 @@ class BOFitInjTraj(_FitInjTrajBase):
         self.simul_model = pyaccel.lattice.shift(self.simul_model, injp[0]+1)
 
         self.famdata = bo.get_family_data(self.model)
-        self.bpm_idx = np.array(self.famdata['BPM']['index']).flatten()
+        self.bpm_idx = np.array(self.famdata['BPM']['index']).ravel()
         self.twiss, *_ = pyaccel.optics.calc_twiss(self.model)
         self.etax_ave = np.mean(self.twiss.etax[self.bpm_idx])
 

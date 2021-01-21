@@ -42,7 +42,7 @@ class OrbRespmat():
             orbn = pyaccel.tracking.find_orbit6(self.model, indices='open')
             self.model[idx].frequency = rffreq
             rfline = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/dfreq
-            rfline = rfline[:, self.bpm_idx].flatten()
+            rfline = rfline[:, self.bpm_idx].ravel()
         else:
             denergy = OrbRespmat._ENERGY_DELTA
             orbp = pyaccel.tracking.find_orbit4(
@@ -50,7 +50,7 @@ class OrbRespmat():
             orbn = pyaccel.tracking.find_orbit4(
                 self.model, energy_offset=-denergy, indices='open')
             dispbpm = (orbp[[0, 2], :] - orbn[[0, 2], :])/2/denergy
-            dispbpm = dispbpm[:, self.bpm_idx].flatten()
+            dispbpm = dispbpm[:, self.bpm_idx].ravel()
 
             rin = np.zeros((6, 2))
             rin[4, :] = [denergy, -denergy]

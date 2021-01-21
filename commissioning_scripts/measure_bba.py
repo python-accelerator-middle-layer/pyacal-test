@@ -528,7 +528,7 @@ class DoBBA(_BaseClass):
     def _calc_dorb_scan(deltaorb, nrpts):
         dorbspos = _np.linspace(deltaorb, 0, nrpts+1)[:-1]
         dorbsneg = _np.linspace(-deltaorb, 0, nrpts+1)[:-1]
-        dorbs = _np.array([dorbsneg, dorbspos]).T.flatten()
+        dorbs = _np.array([dorbsneg, dorbspos]).T.ravel()
         dorbs = _np.hstack([0, dorbs])
         return dorbs
 

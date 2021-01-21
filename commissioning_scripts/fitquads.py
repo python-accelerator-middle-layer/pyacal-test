@@ -17,7 +17,7 @@ class FitQuads():
     def __init__(self, model):
         self.model = model
         self.respm = CalcRespm(model=model)
-        self.vector = self.respm.respm.flatten()
+        self.vector = self.respm.respm.ravel()
         self.qfidx = self.respm.fam_data['QF']['index']
         self.qdidx = self.respm.fam_data['QD']['index']
         self.kmatrix = self._calc_kmatrix()
@@ -42,7 +42,7 @@ class FitQuads():
                     self.respm.model, 'K', idx_seg, self.kqfs[i][ii] + deltak)
             new_respm = self.respm.get_respm(model=self.respm.model)
             dmdk = (new_respm - self.respm.respm)/deltak
-            kmatrix[:, i] = dmdk.flatten()
+            kmatrix[:, i] = dmdk.ravel()
             for ii, idx_seg in enumerate(idx):
                 pyaccel.lattice.set_attribute(
                     self.respm.model, 'K', idx_seg, self.kqfs[i][ii])
@@ -53,7 +53,7 @@ class FitQuads():
                     self.respm.model, 'K', idx_seg, self.kqds[i][ii] + deltak)
             new_respm = self.respm.get_respm(model=self.respm.model)
             dmdk = (new_respm - self.respm.respm)/deltak
-            kmatrix[:, i+len(self.qfidx)] = dmdk.flatten()
+            kmatrix[:, i+len(self.qfidx)] = dmdk.ravel()
             for ii, idx_seg in enumerate(idx):
                 pyaccel.lattice.set_attribute(
                     self.respm.model, 'K', idx_seg, self.kqds[i][ii])
@@ -87,7 +87,7 @@ class FitQuads():
         tol = 1e-16
 
         for n in range(niter):
-            grad_delta += np.dot(inv_kmatrix, diffmat.flatten())
+            grad_delta += np.dot(inv_kmatrix, diffmat.ravel())
 
             for i, idx in enumerate(qfidx):
                 for ii, idx_seg in enumerate(idx):
@@ -108,7 +108,7 @@ class FitQuads():
 
             if (chi2_old - chi2_new) < tol:
                 print('Limit Reached!')
-                grad_delta -= np.dot(inv_kmatrix, diffmat.flatten())
+                grad_delta -= np.dot(inv_kmatrix, diffmat.ravel())
 
                 for i, idx in enumerate(qfidx):
                     for ii, idx_seg in enumerate(idx):
@@ -226,7 +226,7 @@ class FindSeptQuad(SimulAnneal):
         delta = 1e-3
         deltak = np.eye(4) * delta
         grad_sept = self.get_k_septum(tbmod)
-        kmatrix = np.zeros((len(self.modelmat.flatten()), 4))
+        kmatrix = np.zeros((len(self.modelmat.ravel()), 4))
 
         for k in range(4):
             kxl, kyl, ksxl, ksyl = deltak[k, :]
@@ -238,7 +238,7 @@ class FindSeptQuad(SimulAnneal):
                 meth='middle', ishor=True)
             disp_delta = self.calc_disp(tbmod, self.bo_model)
             respmat_delta = self.merge_disp_respm(respmat_delta, disp_delta)
-            diffmat = (respmat_delta - self.modelmat).flatten()
+            diffmat = (respmat_delta - self.modelmat).ravel()
             kmatrix[:, k] = diffmat/delta
         return kmatrix
 
@@ -259,7 +259,7 @@ class FindSeptQuad(SimulAnneal):
         tol = 1e-16
 
         for n in range(niter):
-            grad_delta += np.dot(inv_kmatrix, diffmat.flatten())
+            grad_delta += np.dot(inv_kmatrix, diffmat.ravel())
             new_grad_sept = grad_sept + grad_delta
             kxl = new_grad_sept[0]
             kyl = new_grad_sept[1]
@@ -278,7 +278,7 @@ class FindSeptQuad(SimulAnneal):
             print('Matrix Deviation: {:.6f}'.format(chi2_new))
             if chi2_old - chi2_new < tol:
                 print('Limit Reached!')
-                grad_delta -= np.dot(inv_kmatrix, diffmat.flatten())
+                grad_delta -= np.dot(inv_kmatrix, diffmat.ravel())
                 new_grad_sept = grad_sept + grad_delta
                 kxl = new_grad_sept[0]
                 kyl = new_grad_sept[1]
