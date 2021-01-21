@@ -264,7 +264,7 @@ class MeasDispChrom(BaseClass):
         simod = si.create_accelerator()
         fam = si.get_family_data(simod)
         spos = pyaccel.lattice.find_spos(simod, indices='open')
-        bpmidx = np.array(fam['BPM']['index']).flatten()
+        bpmidx = np.array(fam['BPM']['index']).ravel()
         sposbpm = spos[bpmidx]
 
         fitorder_anlys = analysis['dispx'].shape[0] - 1
