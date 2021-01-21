@@ -20,6 +20,14 @@ class BaseClass:
         conn &= all([pv.connected for pv in self.pvs.values()])
         return conn
 
+    def wait_for_connection(self, timeout=None):
+        """."""
+        obs = list(self.devices.values()) + list(self.pvs.values())
+        for dev in obs:
+            if not dev.wait_for_connection(timeout=timeout):
+                return False
+        return True
+
     def save_data(self, fname, overwrite=False):
         """."""
         data = dict(params=self.params, data=self.data)
