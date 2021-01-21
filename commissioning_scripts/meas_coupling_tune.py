@@ -1,7 +1,9 @@
 """Coupling Measurement from Minimal Tune Separation."""
 
+import sys as _sys
 import time as _time
 from threading import Thread as _Thread, Event as _Event
+import logging as _log
 import numpy as _np
 from scipy.optimize import least_squares
 import matplotlib.pyplot as _plt
@@ -9,6 +11,16 @@ import matplotlib.gridspec as _mpl_gs
 
 from siriuspy.devices import PowerSupply, Tune
 from .base import BaseClass
+
+# _log.basicConfig(format=)
+root = _log.getLogger()
+root.setLevel(_log.INFO)
+
+handler = _log.StreamHandler(_sys.stdout)
+handler.setLevel(_log.INFO)
+formatter = _log.Formatter('%(levelname)7s ::: %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
 
 
 class CouplingParams():
@@ -119,15 +131,16 @@ class MeasCoupling(BaseClass):
             self.params.nr_points)
         tunes_vec = _np.zeros((len(curr_vec), 2))
 
-        print('{:s} current:'.format(quad.devname))
+        _log.info(f'{quad.devname:s} current:')
         for idx, curr in enumerate(curr_vec):
             quad.current = curr
             _time.sleep(self.params.time_wait)
             tunes_vec[idx, :] = tunes.tunex, tunes.tuney
-            print('  {:8.4f} A ({:+6.3f} %), nux={:6.4f}, nuy={:6.4f}'.format(
-                curr, (curr/curr0-1)*100,
-                tunes_vec[idx, 0], tunes_vec[idx, 1]))
-        print('Finished!')
+            _log.info(
+                '  {:8.4f} A ({:+6.3f} %), nux={:6.4f}, nuy={:6.4f}'.format(
+                    curr, (curr/curr0-1)*100,
+                    tunes_vec[idx, 0], tunes_vec[idx, 1]))
+        _log.info('Finished!')
         quad.current = curr0
         self.data['timestamp'] = _time.time()
         self.data['qname'] = quad.devname
@@ -246,7 +259,8 @@ class MeasCoupling(BaseClass):
             pcov = pcov * s_sq
         else:
             pcov.fill(_np.nan)
-            print('# of fitting parameters larger than # of data points!')
+            _log.warning(
+                '# of fitting parameters larger than # of data points!')
         return _np.sqrt(_np.diag(pcov))
 
     @staticmethod
