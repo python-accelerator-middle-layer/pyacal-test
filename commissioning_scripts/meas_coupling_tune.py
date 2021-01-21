@@ -14,14 +14,30 @@ from .base import BaseClass
 class CouplingParams():
     """."""
 
+    QUADS = (
+        'QFB', 'QFA', 'QDB1', 'QDB2', 'QFP',
+        'QDB1', 'QDB2', 'QDP1', 'QDP2', 'QDA',
+        'Q1', 'Q2', 'Q3', 'Q4')
+
     def __init__(self):
         """."""
-        self.quadfam_name = 'QFB'
+        self._quadfam_name = 'QFB'
         self.nr_points = 21
         self.time_wait = 5  # s
         self.neg_percent = 0.1/100
         self.pos_percent = 0.1/100
         self.coupling_resolution = 0.02/100
+
+    @property
+    def quadfam_name(self):
+        """."""
+        return self._quadfam_name
+
+    @quadfam_name.setter
+    def quadfam_name(self, val):
+        """."""
+        if isinstance(val, str) and val.upper() in self.QUADS:
+            self._quadfam_name = val.upper()
 
     def __str__(self):
         """."""
