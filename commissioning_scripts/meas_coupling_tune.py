@@ -139,6 +139,8 @@ class MeasCoupling(BaseClass):
 
         _log.info(f'{quad.devname:s} current:')
         for idx, curr in enumerate(curr_vec):
+            if self._stopevt.is_set():
+                break
             quad.current = curr
             _time.sleep(self.params.time_wait)
             tunes_vec[idx, :] = tunes.tunex, tunes.tuney
