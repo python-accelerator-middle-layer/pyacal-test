@@ -71,7 +71,8 @@ class MeasCoupling(BaseClass):
         """."""
         super().__init__()
         self.params = CouplingParams()
-        if is_online:
+        self.isonline = bool(is_online)
+        if self.isonline:
             self.devices['quad'] = PowerSupply(
                 'SI-Fam:PS-' + self.params.quadfam_name)
             self.devices['tune'] = Tune(Tune.DEVICES.SI)
@@ -98,6 +99,10 @@ class MeasCoupling(BaseClass):
         return self._thread.is_alive()
 
     def _do_meas(self):
+        if not self.isonline:
+            _log.error(
+                'Cannot measure. Object is configured for offline studies.')
+            return
         if self.devices['quad'].devname.dev != self.params.quadfam_name:
             self.devices['quad'] = PowerSupply(
                 'SI-Fam:PS-' + self.params.quadfam_name)
