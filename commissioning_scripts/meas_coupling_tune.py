@@ -152,8 +152,7 @@ class MeasCoupling(BaseClass):
         self.analysis['fitting_error'] = fit_error
 
     def plot_fitting(
-            self, oversampling=10, title=None, xlabel=None,
-            save=False, fname=None):
+            self, oversampling=10, save=False, fname=None):
         """."""
         anl = self.analysis
         fit_vec = anl['fitted_param']['x']
@@ -169,12 +168,10 @@ class MeasCoupling(BaseClass):
             hspace=0.5, wspace=0.35)
         axi = _plt.subplot(grid[0, 0])
 
-        if xlabel is None:
-            xlabel = 'Quadrupole Integrated Strength [1/m]'
-        if title is None:
-            title = 'Transverse Linear Coupling: ({:.2f} ± {:.2f}) %'.format(
-                fit_vec[-1]*100, anl['fitting_error'][-1] * 100)
-        fig.suptitle(title)
+        axi.set_xlabel(f'{anl["qname"]} Current [A]')
+        axi.set_ylabel('Transverse Tunes')
+        fig.suptitle('Transverse Linear Coupling: ({:.2f} ± {:.2f}) %'.format(
+            fit_vec[-1]*100, anl['fitting_error'][-1] * 100))
 
         # plot meas data
         axi.plot(qcurr, tune1, 'o', color='C0', label=r'$\nu_1$')
@@ -183,9 +180,7 @@ class MeasCoupling(BaseClass):
         # plot fitting
         axi.plot(qcurr_interp, fittune1, color='tab:gray', label='fitting')
         axi.plot(qcurr_interp, fittune2, color='tab:gray')
-        axi.legend()
-        axi.set_xlabel(xlabel)
-        axi.set_ylabel('Transverse Tunes')
+        axi.legend(loc='best')
         if save:
             if fname is None:
                 date_string = _time.strftime("%Y-%m-%d-%H:%M")
