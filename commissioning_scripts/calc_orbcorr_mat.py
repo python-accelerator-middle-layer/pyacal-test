@@ -150,10 +150,11 @@ class OrbRespmat():
 class TrajRespmat():
     """."""
 
-    def __init__(self, model, acc):
+    def __init__(self, model, acc, nturns=1):
         """."""
         self.model = model
         self.acc = acc
+        self.nturns = nturns
         if acc == 'TB':
             self.fam_data = tb.get_family_data(model)
         elif acc == 'BO':
@@ -163,9 +164,7 @@ class TrajRespmat():
         elif acc == 'SI':
             self.fam_data = si.get_family_data(model)
 
-        self.bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
         self.ch_idx = self.fam_data['CH']['index']
-
         if acc == 'TS':
             ejesept = pyaccel.lattice.find_indices(
                 model, 'fam_name', 'EjeSeptG')
@@ -175,6 +174,13 @@ class TrajRespmat():
 
         self.ch_idx = self._get_idx(self.ch_idx)
         self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
+
+        if self.nturns > 1 and acc in ('BO', 'SI'):
+            self.model = self.nturns*model
+            self.bpm_idx = pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'BPM')
+        else:
+            self.bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
 
     @staticmethod
     def _get_idx(indcs):
