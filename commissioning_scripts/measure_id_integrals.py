@@ -85,7 +85,7 @@ class MeasIDIntegral(BaseClass):
         self.devices['current_info'] = CurrInfoSI(CurrInfoSI.DEVICES.SI)
         self.params = IDParams(phases, self.meas_type, self.devices['sofb'])
         self.id_idx = self._get_id_idx()
-        self.bpm_idx = _np.array(self.famdata['BPM']['index']).flatten()
+        self.bpm_idx = _np.array(self.famdata['BPM']['index']).ravel()
         self.sofb_init_config = dict()
         self.ph_dyn_tstamp = []
         self.ph_dyn_mon = []
@@ -139,7 +139,7 @@ class MeasIDIntegral(BaseClass):
         id_sub = self.famdata[self.id_name.dev]['subsection']
         id_num = id_sub.index(self.id_name.sub)
         id_idx = self.famdata[self.id_name.dev]['index'][id_num]
-        return _np.array(id_idx).flatten()
+        return _np.array(id_idx).ravel()
 
     def get_orbit(self):
         """."""
