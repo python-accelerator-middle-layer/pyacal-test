@@ -1,9 +1,11 @@
 """Coupling Measurement from Minimal Tune Separation."""
 
 import sys as _sys
+import os as _os
 import time as _time
 from threading import Thread as _Thread, Event as _Event
 import logging as _log
+
 import numpy as _np
 from scipy.optimize import least_squares
 import matplotlib.pyplot as _plt
