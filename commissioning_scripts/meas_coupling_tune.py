@@ -97,6 +97,7 @@ class MeasCoupling(BaseClass):
     def start(self):
         """."""
         if self.ismeasuring:
+            _log.error('There is another measurement happening.')
             return
         self._stopevt.clear()
         self._finished.clear()
