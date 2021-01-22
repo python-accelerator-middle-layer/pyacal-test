@@ -167,17 +167,19 @@ class MeasCoupling(BaseClass):
 
     def process_data(self):
         """."""
+        self.analysis = dict()
         qcurr, tune1, tune2 = self._filter_data()
+        self.analysis['qcurr'] = qcurr
+        self.analysis['tune1'] = tune1
+        self.analysis['tune2'] = tune2
+
         ini_param = self._calc_init_parms(qcurr, tune1, tune2)
+        self.analysis['initial_param'] = ini_param
+
         # least squares using Levenberg-Marquardt minimization algorithm
         fit_param = least_squares(
             fun=self._err_func, x0=ini_param,
             args=(qcurr, tune1, tune2), method='lm')
-
-        self.analysis['qcurr'] = qcurr
-        self.analysis['tune1'] = tune1
-        self.analysis['tune2'] = tune2
-        self.analysis['initial_param'] = ini_param
         self.analysis['fitted_param'] = fit_param
         fit_error = self._calc_fitting_error()
         self.analysis['fitting_error'] = fit_error
