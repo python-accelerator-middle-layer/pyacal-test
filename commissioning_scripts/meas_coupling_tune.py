@@ -199,7 +199,7 @@ class MeasCoupling(BaseClass):
             hspace=0.5, wspace=0.35)
         axi = _plt.subplot(grid[0, 0])
 
-        axi.set_xlabel(f'{anl["qname"]} Current [A]')
+        axi.set_xlabel(f'{self.data["qname"]} Current [A]')
         axi.set_ylabel('Transverse Tunes')
         fig.suptitle('Transverse Linear Coupling: ({:.2f} ± {:.2f}) %'.format(
             fit_vec[-1]*100, anl['fitting_error'][-1] * 100))
