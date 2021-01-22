@@ -116,6 +116,15 @@ class MeasCoupling(BaseClass):
         """Wait for measurement to finish."""
         self._finished.wait(timeout=timeout)
 
+    def load_and_apply_old_data(self, fname):
+        """."""
+        data = self.load_data(fname)
+        if 'data' in data:
+            self.load_and_apply(fname)
+            return
+        data['timestamp'] = _os.path.getmtime(fname)
+        self.data = data
+
     def _do_meas(self):
         if not self.isonline:
             _log.error(
