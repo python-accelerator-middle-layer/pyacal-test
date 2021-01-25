@@ -95,18 +95,18 @@ class MeasBeta(BaseClass):
     _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(
-            self, model, famdata=None, is_online=True,
+            self, model, famdata=None, isonline=True,
             meas_method=None, calc_method=None, anly_method=None):
         """."""
         super().__init__()
-        self.is_online = is_online
+        self.isonline = isonline
         self.quads_betax = []
         self.quads_betay = []
         self.params = BetaParams()
         self._calc_method = MeasBeta.METHODS.Numeric
         self._meas_method = MeasBeta.MEASUREMENT.Current
         self._anly_method = MeasBeta.ANALYSIS.Excdata
-        if self.is_online:
+        if self.isonline:
             self.devices['tune'] = Tune(Tune.DEVICES.SI)
             self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.data['quadnames'] = list()
@@ -126,7 +126,7 @@ class MeasBeta(BaseClass):
         self.anly_method = anly_method
         self.famdata = famdata or si.get_family_data(model)
         self._initialize_data()
-        if self.is_online:
+        if self.isonline:
             self._connect_to_objects()
 
     @property
@@ -188,7 +188,7 @@ class MeasBeta(BaseClass):
 
     def start(self):
         """."""
-        if self._thread.is_alive():
+        if not self.isonline or self._thread.is_alive():
             return
         self._stopevt.clear()
         self._thread = _Thread(target=self._meas_beta, daemon=True)
