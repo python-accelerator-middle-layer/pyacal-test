@@ -103,6 +103,7 @@ class BbBLData(_BaseClass):
         data = self.load_data(fname)
         if not isinstance(data['data'], _np.ndarray):
             self.load_and_apply(fname)
+            return
 
         data.pop('rf_freq')
         data.pop('harmonic_number')

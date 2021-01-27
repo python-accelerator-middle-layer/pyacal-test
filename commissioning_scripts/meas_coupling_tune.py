@@ -1,14 +1,74 @@
 """Coupling Measurement from Minimal Tune Separation."""
 
+import sys as _sys
+import os as _os
+import time as _time
+from threading import Thread as _Thread, Event as _Event
+import logging as _log
+
 import numpy as _np
+from scipy.optimize import least_squares
 import matplotlib.pyplot as _plt
+import matplotlib.gridspec as _mpl_gs
+
+from siriuspy.devices import PowerSupply, Tune
+from .base import BaseClass
+
+# _log.basicConfig(format=)
+root = _log.getLogger()
+root.setLevel(_log.INFO)
+
+handler = _log.StreamHandler(_sys.stdout)
+handler.setLevel(_log.INFO)
+formatter = _log.Formatter('%(levelname)7s ::: %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
 
 
-from ..optimization import SimulAnneal as _SimulAnneal
+class CouplingParams():
+    """."""
+
+    QUADS = (
+        'QFB', 'QFA', 'QDB1', 'QDB2', 'QFP',
+        'QDB1', 'QDB2', 'QDP1', 'QDP2', 'QDA',
+        'Q1', 'Q2', 'Q3', 'Q4')
+
+    def __init__(self):
+        """."""
+        self._quadfam_name = 'QFB'
+        self.nr_points = 21
+        self.time_wait = 5  # s
+        self.neg_percent = 0.1/100
+        self.pos_percent = 0.1/100
+        self.coupling_resolution = 0.02/100
+
+    @property
+    def quadfam_name(self):
+        """."""
+        return self._quadfam_name
+
+    @quadfam_name.setter
+    def quadfam_name(self, val):
+        """."""
+        if isinstance(val, str) and val.upper() in self.QUADS:
+            self._quadfam_name = val.upper()
+
+    def __str__(self):
+        """."""
+        stmp = '{0:22s} = {1:4s}  {2:s}\n'.format
+        ftmp = '{0:22s} = {1:9.6f}  {2:s}\n'.format
+        dtmp = '{0:22s} = {1:9d}  {2:s}\n'.format
+        stg = stmp('quadfam_name', self.quadfam_name, '')
+        stg += dtmp('nr_points', self.nr_points, '')
+        stg += ftmp('time_wait [s]', self.time_wait, '')
+        stg += ftmp('neg_percent', self.neg_percent, '')
+        stg += ftmp('pos_percent', self.pos_percent, '')
+        stg += ftmp('coupling_resolution', self.coupling_resolution, '')
+        return stg
 
 
-class FitTunes(_SimulAnneal):
-    """Tune Fit.
+class MeasCoupling(BaseClass):
+    """Coupling measurement and fitting.
 
     tunex = coeff1 * quad_parameter + offset1
     tuney = coeff2 * quad_parameter + offset2
@@ -17,201 +77,241 @@ class FitTunes(_SimulAnneal):
 
     fit parameters: coeff1, offset1, coeff2, offset2, coupling
 
-    Ex.:
-            fittune = FitTunes(
-                param=quad_strengths, tune1=meas_tune1, tune2=meas_tune2)
-            fittune.fitting_plot()
-            fittune.niter = 1000
-            fittune.start()
-            fittune.fitting_plot()
-
     NOTE: It maybe necessary to add a quadratic quadrupole strength
           dependency for tunes!
     """
 
-    COUPLING_RESOLUTION = 0.02/100
-
-    def __init__(self, param, tune1, tune2):
+    def __init__(self, is_online=True):
         """."""
-        self._param = _np.asarray(param)
-        self._tune1 = _np.asarray(tune1)
-        self._tune2 = _np.asarray(tune2)
+        super().__init__()
+        self.params = CouplingParams()
+        self.isonline = bool(is_online)
+        if self.isonline:
+            self.devices['quad'] = PowerSupply(
+                'SI-Fam:PS-' + self.params.quadfam_name)
+            self.devices['tune'] = Tune(Tune.DEVICES.SI)
+        self.analysis = dict()
+        self.data = dict()
+        self._stopevt = _Event()
+        self._finished = _Event()
+        self._thread = _Thread(target=self._do_meas, daemon=True)
 
-        # sort tune1 > tune2 at each point
-        sel = self._tune1 <= self._tune2
-        if sel.any():
-            self._param = _np.array(param)
-            self._tune1 = _np.array(tune1)
-            self._tune2 = _np.array(tune2)
-            self._tune1[sel], self._tune2[sel] = \
-                self._tune2[sel], self._tune1[sel]
+    def start(self):
+        """."""
+        if self.ismeasuring:
+            _log.error('There is another measurement happening.')
+            return
+        self._stopevt.clear()
+        self._finished.clear()
+        self._thread = _Thread(target=self._do_meas, daemon=True)
+        self._thread.start()
 
-        # remove nearly degenerate measurement points
-        dtunes = _np.abs(self._tune1 - self._tune2)
-        sel = _np.where(dtunes < FitTunes.COUPLING_RESOLUTION)[0]
-        self._param = _np.delete(self._param, sel)
-        self._tune1 = _np.delete(self._tune1, sel)
-        self._tune2 = _np.delete(self._tune2, sel)
-
-        super().__init__(use_thread=False)
-
-    # --- fitting parameters ---
+    def stop(self):
+        """."""
+        self._stopevt.set()
 
     @property
-    def param(self):
+    def ismeasuring(self):
         """."""
-        return self._param
+        return self._thread.is_alive()
 
-    @property
-    def tune1(self):
+    def wait_measurement(self, timeout=None):
+        """Wait for measurement to finish."""
+        self._finished.wait(timeout=timeout)
+
+    def load_and_apply_old_data(self, fname):
         """."""
-        return self._tune1
+        data = self.load_data(fname)
+        if 'data' in data:
+            self.load_and_apply(fname)
+            return
+        data['timestamp'] = _os.path.getmtime(fname)
+        self.data = data
 
-    @property
-    def tune2(self):
+    def _do_meas(self):
+        if not self.isonline:
+            _log.error(
+                'Cannot measure. Object is configured for offline studies.')
+            return
+        if self.devices['quad'].devname.dev != self.params.quadfam_name:
+            self.devices['quad'] = PowerSupply(
+                'SI-Fam:PS-' + self.params.quadfam_name)
+
+        quad = self.devices['quad']
+        tunes = self.devices['tune']
+        quad.wait_for_connection()
+        tunes.wait_for_connection()
+
+        curr0 = quad.current
+        curr_vec = curr0 * _np.linspace(
+            1-self.params.neg_percent,
+            1+self.params.pos_percent,
+            self.params.nr_points)
+        tunes_vec = _np.zeros((len(curr_vec), 2))
+
+        _log.info(f'{quad.devname:s} current:')
+        for idx, curr in enumerate(curr_vec):
+            if self._stopevt.is_set():
+                break
+            quad.current = curr
+            _time.sleep(self.params.time_wait)
+            tunes_vec[idx, :] = tunes.tunex, tunes.tuney
+            _log.info(
+                '  {:8.4f} A ({:+6.3f} %), nux={:6.4f}, nuy={:6.4f}'.format(
+                    curr, (curr/curr0-1)*100,
+                    tunes_vec[idx, 0], tunes_vec[idx, 1]))
+        _log.info('Finished!')
+        quad.current = curr0
+        self.data['timestamp'] = _time.time()
+        self.data['qname'] = quad.devname
+        self.data['current'] = curr_vec
+        self.data['tunes'] = tunes_vec
+        self._finished.set()
+
+    def process_data(self):
         """."""
-        return self._tune2
+        self.analysis = dict()
+        qcurr, tune1, tune2 = self._filter_data()
+        self.analysis['qcurr'] = qcurr
+        self.analysis['tune1'] = tune1
+        self.analysis['tune2'] = tune2
 
-    @property
-    def coeff1(self):
+        ini_param = self._calc_init_parms(qcurr, tune1, tune2)
+        self.analysis['initial_param'] = ini_param
+
+        # least squares using Levenberg-Marquardt minimization algorithm
+        fit_param = least_squares(
+            fun=self._err_func, x0=ini_param,
+            args=(qcurr, tune1, tune2), method='lm')
+        self.analysis['fitted_param'] = fit_param
+        fit_error = self._calc_fitting_error()
+        self.analysis['fitting_error'] = fit_error
+
+    def plot_fitting(
+            self, oversampling=10, save=False, fname=None):
         """."""
-        return self.position[0]
+        anl = self.analysis
+        fit_vec = anl['fitted_param']['x']
+        qcurr, tune1, tune2 = anl['qcurr'], anl['tune1'], anl['tune2']
 
-    @coeff1.setter
-    def coeff1(self, value):
-        """."""
-        self.position[0] = value
+        fittune1, fittune2, qcurr_interp = self.get_normal_modes(
+            params=fit_vec, curr=qcurr, oversampling=oversampling)
 
-    @property
-    def offset1(self):
-        """."""
-        return self.position[1]
+        fig = _plt.figure(figsize=(8, 6))
+        grid = _mpl_gs.GridSpec(1, 1)
+        grid.update(
+            left=0.12, right=0.95, bottom=0.15, top=0.9,
+            hspace=0.5, wspace=0.35)
+        axi = _plt.subplot(grid[0, 0])
 
-    @offset1.setter
-    def offset1(self, value):
-        """."""
-        self.position[1] = value
-
-    @property
-    def coeff2(self):
-        """."""
-        return self.position[2]
-
-    @coeff2.setter
-    def coeff2(self, value):
-        """."""
-        self.position[2] = value
-
-    @property
-    def offset2(self):
-        """."""
-        return self.position[3]
-
-    @offset2.setter
-    def offset2(self, value):
-        """."""
-        self.position[3] = value
-
-    @property
-    def coupling(self):
-        """."""
-        return self.position[4]
-
-    @coupling.setter
-    def coupling(self, value):
-        """."""
-        self.position[4] = value
-
-    def calc_obj_fun(self):
-        """."""
-        # print(self.position)
-        coeff1, offset1, coeff2, offset2, coupling = self.position
-        _, tune1, tune2 = \
-            FitTunes.calc_tunes(
-                self._param, coeff1, offset1, coeff2, offset2, coupling)
-        diff = ((tune1 - self._tune1)**2 + (tune2 - self._tune2)**2)**0.5
-        residue = _np.mean(diff)
-        # print(self.position, residue)
-        return residue
-
-    def initialization(self):
-        """."""
-        self._calc_init_parms()
-        coeff1, offset1, coeff2, offset2, _ = self.position
-        self.deltas = _np.array([
-            0.01 * 0.002 * (coeff1 - coeff2),
-            0.01 * 0.002 * (offset1 - offset2),
-            0.01 * 0.002 * (coeff1 - coeff2),
-            0.01 * 0.002 * (offset1 - offset2),
-            0.5 * 0.1/100])
-
-    @staticmethod
-    def calc_tunes(
-            param=None,
-            coeff1=None, offset1=None,
-            coeff2=None, offset2=None, coupling=None):
-        """."""
-        fx_ = coeff1 * param + offset1
-        fy_ = coeff2 * param + offset2
-        tune1, tune2 = _np.zeros(param.shape), _np.zeros(param.shape)
-        for i in range(len(param)):
-            mat = _np.array([[fx_[i], coupling/2], [coupling/2, fy_[i]]])
-            eigvalues, _ = _np.linalg.eig(mat)
-            tune1[i], tune2[i] = eigvalues
-            if tune1[i] <= tune2[i]:
-                tune1[i], tune2[i] = tune2[i], tune1[i]
-        return param, tune1, tune2
-
-    def fitting_plot(
-            self, oversampling=1, title=None, xlabel=None, fig=None):
-        """."""
-        position = self.position
-        param = _np.interp(
-            _np.arange(0, len(self._param), 1/oversampling),
-            _np.arange(0, len(self._param)),
-            self._param)
-
-        # NOTE: do error estimate properly!
-        coup_error = self.calc_obj_fun()
-
-        if xlabel is None:
-            xlabel = 'Quadrupole Integrated Strength [1/m]'
-        if title is None:
-            title = 'Transverse Linear Coupling: {:.2f} ± {:.2f}%'.format(
-                position[-1] * 100, coup_error * 100)
-
-        prop_cycle = _plt.rcParams['axes.prop_cycle']
-        colors = prop_cycle.by_key()['color']
-        if fig is None:
-            fig = _plt.figure()
-        param, fittune1, fittune2 = FitTunes.calc_tunes(param, *position)
+        axi.set_xlabel(f'{self.data["qname"]} Current [A]')
+        axi.set_ylabel('Transverse Tunes')
+        fig.suptitle('Transverse Linear Coupling: ({:.2f} ± {:.2f}) %'.format(
+            fit_vec[-1]*100, anl['fitting_error'][-1] * 100))
 
         # plot meas data
-        _plt.plot(
-            self._param, self._tune1, 'o', color=colors[0],
-            label='measurement')
-        _plt.plot(self._param, self._tune2, 'o', color=colors[0])
+        axi.plot(qcurr, tune1, 'o', color='C0', label=r'$\nu_1$')
+        axi.plot(qcurr, tune2, 'o', color='C1', label=r'$\nu_2$')
 
         # plot fitting
-        _plt.plot(param, fittune1, color=colors[1], label='fitting')
-        _plt.plot(param, fittune2, color=colors[1])
-        _plt.legend()
-        _plt.xlabel(xlabel)
-        _plt.ylabel('Transverse Tunes')
-        _plt.title(title)
-        _plt.grid()
-        _plt.show()
+        axi.plot(qcurr_interp, fittune1, color='tab:gray', label='fitting')
+        axi.plot(qcurr_interp, fittune2, color='tab:gray')
+        axi.legend(loc='best')
+        if save:
+            if fname is None:
+                date_string = _time.strftime("%Y-%m-%d-%H:%M")
+                fname = 'coupling_fitting_{}.png'.format(date_string)
+            fig.savefig(fname, format='png', dpi=300)
+        return fig, axi
 
-    def _calc_init_parms(self):
-        """."""
-        parm = self._param
-        vyb = self._tune1[0], self._tune2[0]
-        vye = self._tune1[-1], self._tune2[-1]
-        dparm = parm[-1] - parm[0]
-        coeff1 = (min(vye) - max(vyb)) / dparm
-        offset1 = max(vyb) - coeff1 * parm[0]
-        coeff2 = (max(vye) - min(vyb)) / dparm
-        offset2 = min(vyb) - coeff2 * parm[0]
-        coupling = min(_np.abs(self._tune1 - self._tune2))
-        position = [coeff1, offset1, coeff2, offset2, coupling]
-        self.position = position
+    @staticmethod
+    def get_normal_modes(params, curr, oversampling=1):
+        """Calculate the tune normal modes."""
+        curr = MeasCoupling._oversample_vector(curr, oversampling)
+
+        coeff1, offset1, coeff2, offset2, coupling = params
+        fx_ = coeff1 * curr + offset1
+        fy_ = coeff2 * curr + offset2
+        coupvec = _np.ones(curr.size) * coupling/2
+        mat = _np.array([[fx_, coupvec], [coupvec, fy_]])
+        mat = mat.transpose((2, 0, 1))
+        tune1, tune2 = _np.linalg.eigvalsh(mat).T
+        sel = tune1 <= tune2
+        tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
+        return tune1, tune2, curr
+
+    # ------ Auxiliary methods --------
+    def _filter_data(self):
+        qcurr = _np.asarray(self.data['current'])
+        tune1, tune2 = self.data['tunes'].T
+        tune1 = _np.asarray(tune1)
+        tune2 = _np.asarray(tune2)
+
+        # sort tune1 > tune2 at each point
+        sel = tune1 <= tune2
+        if sel.any():
+            tune1[sel], tune2[sel] = tune2[sel], tune1[sel]
+
+        # remove nearly degenerate measurement points
+        dtunes = _np.abs(tune1 - tune2)
+        sel = _np.where(dtunes < self.params.coupling_resolution)[0]
+        qcurr = _np.delete(qcurr, sel)
+        tune1 = _np.delete(tune1, sel)
+        tune2 = _np.delete(tune2, sel)
+        return qcurr, tune1, tune2
+
+    def _calc_fitting_error(self):
+        # based on fitting error calculation of scipy.optimization.curve_fit
+        # do Moore-Penrose inverse discarding zero singular values.
+        fit_params = self.analysis['fitted_param']
+        _, smat, vhmat = _np.linalg.svd(
+            fit_params['jac'], full_matrices=False)
+        thre = _np.finfo(float).eps * max(fit_params['jac'].shape)
+        thre *= smat[0]
+        smat = smat[smat > thre]
+        vhmat = vhmat[:smat.size]
+        pcov = _np.dot(vhmat.T / (smat*smat), vhmat)
+
+        # multiply covariance matrix by residue 2-norm
+        ysize = len(fit_params['fun'])
+        cost = 2 * fit_params['cost']  # res.cost is half sum of squares!
+        popt = fit_params['x']
+        if ysize > popt.size:
+            # normalized by degrees of freedom
+            s_sq = cost / (ysize - popt.size)
+            pcov = pcov * s_sq
+        else:
+            pcov.fill(_np.nan)
+            _log.warning(
+                '# of fitting parameters larger than # of data points!')
+        return _np.sqrt(_np.diag(pcov))
+
+    @staticmethod
+    def _err_func(params, qcurr, tune1, tune2):
+        tune1f, tune2f, _ = MeasCoupling.get_normal_modes(params, qcurr)
+        return _np.sqrt((tune1f - tune1)**2 + (tune2f - tune2)**2)
+
+    @staticmethod
+    def _calc_init_parms(curr, tune1, tune2):
+        nu_beg = tune1[0], tune2[0]
+        nu_end = tune1[-1], tune2[-1]
+        dcurr = curr[-1] - curr[0]
+        # estimative based on
+        # nux = coeff1 * curr + offset1
+        # nuy = coeff2 * curr + offset2
+        coeff1 = (min(nu_end) - max(nu_beg)) / dcurr
+        offset1 = max(nu_beg) - coeff1 * curr[0]
+        coeff2 = (max(nu_end) - min(nu_beg)) / dcurr
+        offset2 = min(nu_beg) - coeff2 * curr[0]
+        coupling = min(_np.abs(tune1 - tune2))
+        return [coeff1, offset1, coeff2, offset2, coupling]
+
+    @staticmethod
+    def _oversample_vector(vec, oversampling):
+        oversampling = int(oversampling)
+        if oversampling <= 1:
+            return vec
+        siz = len(vec)
+        x_over = _np.linspace(0, siz-1, (siz-1)*oversampling+1)
+        x_data = _np.arange(siz)
+        return _np.interp(x_over, x_data, vec)
