@@ -89,8 +89,9 @@ class OrbRespmat():
             else:
                 respmat.append(respy)
 
-        rfline = self._calc_rfline()
-        respmat.append(rfline)
+        if self.acc == 'SI':
+            rfline = self._calc_rfline()
+            respmat.append(rfline)
         respmat = np.array(respmat).T
 
         self.model.cavity_on = cav
