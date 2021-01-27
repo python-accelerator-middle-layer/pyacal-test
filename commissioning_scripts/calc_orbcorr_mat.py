@@ -174,6 +174,7 @@ class TrajRespmat():
             self.ch_idx = sorted(self.ch_idx)
 
         self.ch_idx = self._get_idx(self.ch_idx)
+
         if acc == 'TS':
             self.cv_idx = pyaccel.lattice.find_indices(
                 self.model, 'fam_name', 'CV')
@@ -182,10 +183,13 @@ class TrajRespmat():
 
         if self.nturns > 1 and acc in ('BO', 'SI'):
             self.model = self.nturns*model
-            self.bpm_idx = pyaccel.lattice.find_indices(
+            bpm_idx = pyaccel.lattice.find_indices(
                 self.model, 'fam_name', 'BPM')
         else:
-            self.bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
+            bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
+
+        # Remove BPM from Linac
+        self.bpm_idx = bpm_idx[1:] if acc == 'TB' else bpm_idx
 
     @staticmethod
     def _get_idx(indcs):
