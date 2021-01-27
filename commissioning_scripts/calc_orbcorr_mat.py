@@ -207,7 +207,9 @@ class TrajRespmat():
             else:
                 respmat.append(respy)
 
-        respmat.append(np.zeros(2*len(self.bpm_idx)))
+        if self.acc == 'SI':
+            # RF column set as zero for trajectory correction in SI
+            respmat.append(np.zeros(2*len(self.bpm_idx)))
         respmat = np.array(respmat).T
         return respmat
 
