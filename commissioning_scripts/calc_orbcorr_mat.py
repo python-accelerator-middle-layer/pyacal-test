@@ -174,7 +174,11 @@ class TrajRespmat():
             self.ch_idx = sorted(self.ch_idx)
 
         self.ch_idx = self._get_idx(self.ch_idx)
-        self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
+        if acc == 'TS':
+            self.cv_idx = pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'CV')
+        else:
+            self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
 
         if self.nturns > 1 and acc in ('BO', 'SI'):
             self.model = self.nturns*model
