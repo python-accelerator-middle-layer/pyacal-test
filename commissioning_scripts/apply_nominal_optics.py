@@ -8,6 +8,30 @@ import pymodels as _pymod
 class SetOptics:
     """."""
 
+    TB_QUADS = [
+        'TB-01:PS-QD1',
+        'TB-01:PS-QF1',
+        'TB-02:PS-QD2A',
+        'TB-02:PS-QD2B',
+        'TB-02:PS-QF2A',
+        'TB-02:PS-QF2B',
+        'TB-03:PS-QD3',
+        'TB-03:PS-QF3',
+        'TB-04:PS-QD4',
+        'TB-04:PS-QF4',
+        ]
+
+    TS_QUADS = [
+        'TS-01:PS-QF1A',
+        'TS-01:PS-QF1B',
+        'TS-02:PS-QD2',
+        'TS-02:PS-QF2',
+        'TS-03:PS-QF3',
+        'TS-04:PS-QD4A',
+        'TS-04:PS-QD4B',
+        'TS-04:PS-QF4',
+        ]
+
     def __init__(self, acc, optics_mode=None, optics_data=None):
         """."""
         self.acc = acc
@@ -51,9 +75,16 @@ class SetOptics:
             self.pymodpack = _pymod.si
 
     def _select_magnets(self):
-        qlist = self.pymodpack.families.families_quadrupoles()
-        slist = self.pymodpack.families.families_sextupoles()
-        pvstr = 'SI-Fam:PS-'
+        slist = []
+        if self.acc == 'TB':
+            qlist = SetOptics.TB_QUADS
+        elif self.acc == 'TS':
+            qlist = SetOptics.TS_QUADS
+        else:
+            pvstr = self.acc + '-Fam:PS-'
+            qlist = self.pymodpack.families.families_quadrupoles()
+            slist = self.pymodpack.families.families_sextupoles()
+
         self.quad_list = [_PVName(pvstr+mag) for mag in qlist]
         self.sext_list = [_PVName(pvstr+mag) for mag in slist]
 
@@ -94,6 +125,8 @@ class SetOptics:
                 else:
                     mags[key] = self.devices[key]
         elif magtype == 'sextupole':
+            if 'T' in self.acc:
+                raise ValueError('transport lines do not have sextupoles')
             mags = dict()
             for key in self.devices:
                 if 'S' not in key:
