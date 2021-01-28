@@ -102,20 +102,20 @@ class SetOptics:
     def compare_applied_model_optics(self):
         """."""
         for mag in self.devices:
-            diff = self.applied_optics[mag] - self.optics_data[mag]
+            diff = self.applied_optics[mag] - self.optics_data[mag.devname.dev]
             diff /= self.optics_data[mag]
             if 'Q' in mag:
                 print(
                     '{0:30s}: KL_applied={1:9.4f}1/m, KL_model={2:9.4f}1/m, \
                         diff={3:9.4f}%'.format(
                         mag, self.applied_optics[mag],
-                        self.optics_data[mag], diff*100))
+                        self.optics_data[mag.devname.dev], diff*100))
             if 'S' in mag:
                 print(
                     '{0:30s}: SL_applied={1:9.4f}1/m², SL_model={2:9.4f}1/m², \
                         diff={3:9.4f}%'.format(
                         mag, self.applied_optics[mag],
-                        self.optics_data[mag], diff*100))
+                        self.optics_data[mag.devname.dev], diff*100))
 
     def _check_magtype(self, magtype):
         if magtype == 'quadrupole':
@@ -146,7 +146,7 @@ class SetOptics:
         goal = []
         for mag in mags:
             init0.append(mags[mag].strength)
-            goal.append(self.optics_data[mag.devname])
+            goal.append(self.optics_data[mag.devname.dev])
         init0 = _np.asarray(init0)
         goal = _np.asarray(goal)
 
