@@ -76,6 +76,7 @@ class SetOptics:
 
     def _select_magnets(self):
         slist = []
+        pvstr = ''
         if self.acc == 'TB':
             qlist = SetOptics.TB_QUADS
         elif self.acc == 'TS':
