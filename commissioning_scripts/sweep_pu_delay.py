@@ -50,6 +50,9 @@ class Params:
 class DelaysPMBeamBasedSearch(BaseClass):
     """."""
 
+    PULSED_MAGNETS = PowerSupplyPU.DEVICES
+    SCREENS = Screen.DEVICES
+
     def __init__(self, pulsed_mag, screen, sofb_acc='BO'):
         """."""
         super().__init__(params=Params())
