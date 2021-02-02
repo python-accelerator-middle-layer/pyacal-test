@@ -3,6 +3,7 @@ from collections import OrderedDict as _OrderedDict
 import numpy as _np
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import PowerSupply as _PowerSupply
+from siriuspy.search import PSSearch as _PSSearch
 import pymodels as _pymod
 from .base import BaseClass as _BaseClass
 
@@ -61,7 +62,6 @@ class SetOpticsFamilies(_BaseClass):
         self.devices = _OrderedDict()
         self.applied_optics = _OrderedDict()
         self._select_model()
-        self.devices['sofb'] = _SOFB(self._sofbdev)
         self._select_magnets()
         self._create_devices()
         self.model = self._pymodpack.create_accelerator()
@@ -128,16 +128,12 @@ class SetOpticsFamilies(_BaseClass):
     def _select_model(self):
         if self.acc == 'TB':
             self._pymodpack = _pymod.tb
-            self._sofbdev = _SOFB.DEVICES.TB
         elif self.acc == 'BO':
             self._pymodpack = _pymod.bo
-            self._sofbdev = _SOFB.DEVICES.BO
         elif self.acc == 'TS':
             self._pymodpack = _pymod.ts
-            self._sofbdev = _SOFB.DEVICES.TS
         elif self.acc == 'SI':
             self._pymodpack = _pymod.si
-            self._sofbdev = _SOFB.DEVICES.SI
 
     def _select_magnets(self):
         slist = []
@@ -152,9 +148,6 @@ class SetOpticsFamilies(_BaseClass):
             slist = self._pymodpack.families.families_sextupoles()
         self.quad_list = [_PVName(pvstr+mag) for mag in qlist]
         self.sext_list = [_PVName(pvstr+mag) for mag in slist]
-        sofb = self.devices['sofb']
-        self.ch_list = [_PVName(mag) for mag in sofb.data.ch_names]
-        self.cv_list = [_PVName(mag) for mag in sofb.data.cv_names]
 
     def _create_devices(self):
         for mag in self.quad_list + self.sext_list:
@@ -192,52 +185,6 @@ class SetOpticsFamilies(_BaseClass):
             raise ValueError('magtype must be quadrupole or sextupole')
         return mags
 
-    def get_applied_strength(self, magnets=None):
-        """."""
-        magnets = magnets or self.devices
-        for mag in magnets:
-            magdev = mag.dev
-            if self.acc == 'TB' and 'LI' in mag:
-                magdev += 'L'
-            self.applied_optics[mag.dev] = magnets[mag].strength
-
-    def apply_strengths(
-            self, magtype, init=None, average=None, factor=0, apply=False):
-        """."""
-        mags = self._check_magtype(magtype)
-        initv = []
-        goalv = []
-        for mag in mags:
-            initv.append(mags[mag].strength)
-            magdev = mag.dev
-            if self.acc == 'TB' and 'LI' in mag:
-                magdev += 'L'
-            goalv.append(self.optics_data[magdev])
-        initv = _np.asarray(initv)
-        goalv = _np.asarray(goalv)
-        init = initv if init is None else init
-
-        dperc = SetOptics.print_current_status(
-            magnets=mags, goal_strength=goalv)
-        average = _np.mean(dperc) if average is None else average
-        print('average desired: {:+.4f} %'.format(average))
-        print('average obtained: {:+.4f} %'.format(_np.mean(dperc)))
-        print()
-
-        ddif = _np.asarray(dperc) - average
-        dimp_perc = factor/100 * (-ddif)
-        implem = (1 + dimp_perc/100) * init
-
-        SetOptics.print_strengths_implemented(
-            factor=factor, magnets=mags,
-            init_strength=init, implem_strength=implem)
-
-        if apply:
-            for mag, imp in zip(mags, implem):
-                mags[mag].strength = imp
-            print('\n applied!')
-        return init
-
     @staticmethod
     def print_current_status(magnets, goal_strength):
         """."""
@@ -263,3 +210,105 @@ class SetOpticsFamilies(_BaseClass):
             print(
                 '{:17s}:  {:9.4f} -> {:9.4f}  [{:7.4}%]'.format(
                     magnets[mag].devname, ini, imp, perc))
+
+
+class ChangeCorretors(_BaseClass):
+    """."""
+
+    def __init__(self, acc):
+        """."""
+        super().__init__()
+        self.acc = acc.upper()
+        self._get_corr_names()
+        self.devices = _OrderedDict()
+        self._create_devices()
+        self.applied_strength = _OrderedDict()
+
+    def get_applied_strength(self, magnets=None):
+        """."""
+        magnets = magnets or self.ch_list + self.cv_list
+        for mag in magnets:
+            self.applied_strength[mag] = self.devices[mag].strength
+
+    def apply_factor(
+            self, magtype=None, factor=1, apply=False):
+        """."""
+        mags, init = self._get_initial_state(magtype)
+        implem = factor * _np.asarray(init)
+        print(
+            'Factor {:9.3f} will be applied in kicks of {:10s} magnets'.format(
+                magtype, factor))
+        if apply:
+            for mag, imp in zip(mags, implem):
+                mags[mag].strength = imp
+            print('\n applied!')
+        return init
+
+    def change_average_kicks(
+            self, magtype=None, average=None, percentage=5, apply=False):
+        """."""
+        mags, init = self._get_initial_state(magtype)
+        curr_ave = _np.mean(init)
+        goal_ave = curr_ave if average is None else average
+        diff = (curr_ave - goal_ave) * percentage/100
+        implem = _np.asarray(init) - diff
+        print('actual average : {:+.4f} urad'.format(curr_ave))
+        print('goal average: {:+.4f} urad'.format(goal_ave))
+        print('percentage of application: {:5.1f}%'.format(percentage))
+        if apply:
+            for mag, imp in zip(mags, implem):
+                mags[mag].strength = imp
+            print('\n applied!')
+        return init
+
+    def apply_delta_kicks(
+            self, delta_kicks, magtype=None, percentage=5, apply=False):
+        """."""
+        mags, init = self._get_initial_state(magtype)
+        dkicks = _np.asarray(delta_kicks)
+        if len(dkicks) != len(mags):
+            raise ValueError(
+                'delta kick vector length is incompatible with \
+                number of magnets')
+        implem = init + dkicks * (percentage/100)
+        if apply:
+            for mag, imp in zip(mags, implem):
+                mags[mag].strength = imp
+            print('\n applied!')
+        return init
+
+    def apply_kicks(self, kicks, magtype=None, percentage=5, apply=False):
+        """."""
+        _, init = self._get_initial_state(magtype)
+        dkicks = init - kicks
+        self.apply_delta_kicks(
+            delta_kicks=-dkicks, magtype=magtype,
+            percentage=percentage, apply=apply)
+
+    def _get_corr_names(self):
+        ch_names = _PSSearch.get_psnames(
+            {'sec': self.acc, 'dis': 'PS', 'dev': 'CH'})
+        cv_names = _PSSearch.get_psnames(
+            {'sec': self.acc, 'dis': 'PS', 'dev': 'CV'})
+        self.ch_list = [_PVName(mag) for mag in ch_names]
+        self.cv_list = [_PVName(mag) for mag in cv_names]
+
+    def _create_devices(self):
+        for mag in self.ch_list + self.cv_list:
+            if mag not in self.devices:
+                self.devices[mag] = _PowerSupply(mag)
+
+    def _check_magtype(self, magtype):
+        if magtype in ('CH', 'CV'):
+            mags = {
+                key: val for key, val in self.devices.items()
+                if magtype in key}
+            mags = _OrderedDict(mags)
+        else:
+            raise ValueError('magtype must be CH or CV.')
+        return magtype
+
+    def _get_initial_state(self, magtype):
+        mags = self._check_magtype(magtype)
+        init = [mags[mag].strength for mag in mags]
+        return mags, init
