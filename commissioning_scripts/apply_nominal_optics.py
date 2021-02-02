@@ -2,12 +2,12 @@
 from collections import OrderedDict as _OrderedDict
 import numpy as _np
 from siriuspy.namesys import SiriusPVName as _PVName
-from siriuspy.devices import PowerSupply as _PowerSupply, SOFB as _SOFB
+from siriuspy.devices import PowerSupply as _PowerSupply
 import pymodels as _pymod
 from .base import BaseClass as _BaseClass
 
 
-class SetOptics(_BaseClass):
+class SetOpticsFamilies(_BaseClass):
     """."""
 
     TB_QUADS = [
@@ -38,10 +38,22 @@ class SetOptics(_BaseClass):
         ]
 
     def __init__(self, acc, optics_mode=None, optics_data=None):
-        """."""
+        """Apply strengths of families to the machine for a given optics.
+
+        Arguments:
+        - acc: TB, BO, TS or SI.
+        - optics_mode: available modes in pymodels. If None, default
+        optics_mode for the accelerator will be used (optional).
+        - optics_data: dictionary with quadrupoles and sextupoles, if applies
+        for the accelerator, strengths not integrated (optional).
+        """
         super().__init__()
-        self.acc = acc
+        self.acc = acc.upper()
         self.optics_mode = optics_mode
+        if optics_data is not None:
+            if optics_data not in (dict, _OrderedDict):
+                raise ValueError(
+                    'optics_data must be a dictionary or OrderedDict')
         self.optics_data = optics_data
         self.model = None
         self.quad_list = []
@@ -61,6 +73,58 @@ class SetOptics(_BaseClass):
                 idx = self.famdata[key]['index'][0][0]
                 self.optics_data[key] *= self.model[idx].length
 
+    def get_applied_strength(self, magnets=None):
+        """."""
+        magnets = magnets or self.devices
+        for mag in magnets:
+            magdev = mag.dev
+            if self.acc == 'TB' and 'LI' in mag:
+                magdev += 'L'
+            self.applied_optics[mag.dev] = magnets[mag].strength
+
+    def apply_strengths(
+            self, magtype, init=None, average=None, factor=0, apply=False):
+        """."""
+        mags = self._check_magtype(magtype)
+        initv = []
+        goalv = []
+        for mag in mags:
+            initv.append(mags[mag].strength)
+            magdev = mag.dev
+            if self.acc == 'TB' and 'LI' in mag:
+                magdev += 'L'
+            goalv.append(self.optics_data[magdev])
+        initv = _np.asarray(initv)
+        goalv = _np.asarray(goalv)
+        if init is not None:
+            if len(init) != len(mags):
+                raise ValueError(
+                    'initial strength vector length is incompatible with \
+                    number of magnets')
+        init = initv if init is None else init
+
+        dperc = SetOpticsFamilies.print_current_status(
+            magnets=mags, goal_strength=goalv)
+        average = _np.mean(dperc) if average is None else average
+        print('average desired: {:+.4f} %'.format(average))
+        print('average obtained: {:+.4f} %'.format(_np.mean(dperc)))
+        print()
+
+        ddif = _np.asarray(dperc) - average
+        dimp_perc = factor/100 * (-ddif)
+        implem = (1 + dimp_perc/100) * init
+
+        SetOpticsFamilies.print_strengths_implemented(
+            factor=factor, magnets=mags,
+            init_strength=init, implem_strength=implem)
+
+        if apply:
+            for mag, imp in zip(mags, implem):
+                mags[mag].strength = imp
+            print('\n applied!')
+        return init
+
+    # private methods
     def _select_model(self):
         if self.acc == 'TB':
             self._pymodpack = _pymod.tb
@@ -79,9 +143,9 @@ class SetOptics(_BaseClass):
         slist = []
         pvstr = ''
         if self.acc == 'TB':
-            qlist = SetOptics.TB_QUADS
+            qlist = SetOpticsFamilies.TB_QUADS
         elif self.acc == 'TS':
-            qlist = SetOptics.TS_QUADS
+            qlist = SetOpticsFamilies.TS_QUADS
         else:
             pvstr = self.acc + '-Fam:PS-'
             qlist = self._pymodpack.families.families_quadrupoles()
@@ -93,11 +157,7 @@ class SetOptics(_BaseClass):
         self.cv_list = [_PVName(mag) for mag in sofb.data.cv_names]
 
     def _create_devices(self):
-        all_mags = self.quad_list
-        all_mags += self.sext_list
-        all_mags += self.ch_list
-        all_mags += self.cv_list
-        for mag in all_mags:
+        for mag in self.quad_list + self.sext_list:
             if mag not in self.devices:
                 self.devices[mag] = _PowerSupply(mag)
 
