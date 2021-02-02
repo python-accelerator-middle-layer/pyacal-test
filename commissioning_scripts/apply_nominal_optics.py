@@ -1,4 +1,5 @@
 """."""
+from collections import OrderedDict as _OrderedDict
 import numpy as _np
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import PowerSupply as _PowerSupply, SOFB as _SOFB
@@ -45,10 +46,8 @@ class SetOptics(_BaseClass):
         self.model = None
         self.quad_list = []
         self.sext_list = []
-        self.ch_list = []
-        self.cv_list = []
-        self.devices = dict()
-        self.applied_optics = dict()
+        self.devices = _OrderedDict()
+        self.applied_optics = _OrderedDict()
         self._select_model()
         self.devices['sofb'] = _SOFB(self._sofbdev)
         self._select_magnets()
@@ -110,11 +109,11 @@ class SetOptics(_BaseClass):
             if 'T' in self.acc:
                 self.optics_data = self.optics_data[0]
                 self.model = self.model[0]
-        self.optics_data = dict(
-            (key.upper(), val) for key, val in self.optics_data.items())
+        self.optics_data = _OrderedDict(
+            [(key.upper(), val) for key, val in self.optics_data.items()])
 
     def _check_magtype(self, magtype):
-        mags = dict()
+        mags = _OrderedDict()
         if magtype == 'quadrupole':
             for key in self.devices:
                 if 'Q' not in key:
