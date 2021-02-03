@@ -312,4 +312,99 @@ class ChangeCorretors(_BaseClass):
         mags = self._check_magtype(magtype)
         init = _np.asarray([mags[mag].strength for mag in mags])
         return mags, init
+
+
+class SetOpticsIndividual(_BaseClass):
+    """."""
+
+    def __init__(self, model=None):
+        """."""
+        super().__init__()
+        self.model = _pymod.si.create_accelerator() or model
+        self.fam_data = _pymod.si.get_family_data(self.model)
+        self.devices = _OrderedDict()
+        self.quad_names = list()
+        self.skewquad_names = list()
+        self._get_quad_names()
+        self._get_skewquad_names()
+        self._create_devices()
+
+    def apply_strengths(self, magtype, strengths, percentage=5, apply=False):
+        """."""
+        mags, init = self._get_initial_state(magtype)
+        stren = _np.asarray(strengths)
+        if len(stren) != len(mags):
+            raise ValueError(
+                'strength vector length is incompatible with \
+                number of magnets')
+        dstren = stren - init
+        _ = self.apply_delta_strenghts(
+            magtype=magtype, delta_strengths=dstren,
+            percentage=percentage, apply=apply)
+        return init
+
+    def apply_delta_strenghts(
+            self, magtype, delta_strengths, percentage=5, apply=False):
+        """."""
+        mags, init = self._get_initial_state(magtype)
+        dstren = _np.asarray(delta_strengths)
+        if len(dstren) != len(mags):
+            raise ValueError(
+                'delta strength vector length is incompatible with \
+                number of magnets')
+        implem = init + dstren * (percentage/100)
+        if apply:
+            for mag, imp in zip(mags, implem):
+                mags[mag].strength = imp
+            print('\n applied!')
+        return init
+
+    def _get_quad_names(self):
+        """."""
+        self.quads_idx = self.fam_data['QN']['index']
+        self.quads_idx = _np.asarray(
+            [idx[len(idx)//2] for idx in self.quads_idx])
+
+        for qidx in self.quads_idx:
+            name = self.model[qidx].fam_name
+            idc = self.fam_data[name]['index'].index([qidx, ])
+            sub = self.fam_data[name]['subsection'][idc]
+            inst = self.fam_data[name]['instance'][idc]
+            qname = f'SI-{sub}:PS-{name}-{inst}'
+            self.quad_names.append(qname.strip('-'))
+
+    def _get_skewquad_names(self):
+        """."""
+        self.skewquads_idx = self.fam_data['QS']['index']
+        self.skewquads_idx = _np.asarray(
+            [idx[len(idx)//2] for idx in self.skewquads_idx])
+
+        for qidx in self.skewquads_idx:
+            name = self.model[qidx].fam_name
+            idc = self.fam_data[name]['index'].index([qidx, ])
+            sub = self.fam_data[name]['subsection'][idc]
+            inst = self.fam_data[name]['instance'][idc]
+            qname = f'SI-{sub}:PS-QS-{inst}'
+            self.skewquad_names.append(qname.strip('-'))
+
+    def _create_devices(self):
+        for mag in self.quad_names + self.skewquad_names:
+            if mag not in self.devices:
+                self.devices[mag] = _PowerSupply(mag)
+
+    def _get_initial_state(self, magtype):
+        mags = self._check_magtype(magtype)
+        init = _np.asarray([mags[mag].strength for mag in mags])
         return mags, init
+
+    def _check_magtype(self, magtype):
+        if magtype == 'quadrupole':
+            maglist = self.quad_names
+        elif magtype == 'skew_quadrupole':
+            maglist = self.skewquad_names
+        else:
+            raise ValueError('magtype must be quadrupole or skew_quadrupole')
+        mags = _OrderedDict([
+            {key: val for key, val in self.devices.items() if key in maglist}
+            ])
+        return mags
