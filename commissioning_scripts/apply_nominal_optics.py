@@ -110,8 +110,8 @@ class SetOpticsFamilies(_BaseClass):
         print('average obtained: {:+.4f} %'.format(_np.mean(dperc)))
         print()
 
-        ddif = _np.asarray(dperc) - average
-        dimp_perc = factor/100 * (-ddif)
+        ddif = average - _np.asarray(dperc)
+        dimp_perc = ddif * (factor/100)
         implem = (1 + dimp_perc/100) * init
 
         SetOpticsFamilies.print_strengths_implemented(
