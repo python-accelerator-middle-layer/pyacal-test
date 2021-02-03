@@ -234,7 +234,7 @@ class ChangeCorretors(_BaseClass):
             self, magtype=None, factor=1, apply=False):
         """."""
         mags, init = self._get_initial_state(magtype)
-        implem = factor * _np.asarray(init)
+        implem = factor * init
         print(
             'Factor {:9.3f} will be applied in kicks of {:10s} magnets'.format(
                 magtype, factor))
@@ -251,7 +251,7 @@ class ChangeCorretors(_BaseClass):
         curr_ave = _np.mean(init)
         goal_ave = curr_ave if average is None else average
         diff = (curr_ave - goal_ave) * percentage/100
-        implem = _np.asarray(init) - diff
+        implem = init - diff
         print('actual average : {:+.4f} urad'.format(curr_ave))
         print('goal average: {:+.4f} urad'.format(goal_ave))
         print('percentage of application: {:5.1f}%'.format(percentage))
@@ -280,9 +280,9 @@ class ChangeCorretors(_BaseClass):
     def apply_kicks(self, kicks, magtype=None, percentage=5, apply=False):
         """."""
         _, init = self._get_initial_state(magtype)
-        dkicks = init - kicks
+        dkicks = kicks - init
         self.apply_delta_kicks(
-            delta_kicks=-dkicks, magtype=magtype,
+            delta_kicks=dkicks, magtype=magtype,
             percentage=percentage, apply=apply)
 
     def _get_corr_names(self):
@@ -310,5 +310,6 @@ class ChangeCorretors(_BaseClass):
 
     def _get_initial_state(self, magtype):
         mags = self._check_magtype(magtype)
-        init = [mags[mag].strength for mag in mags]
+        init = _np.asarray([mags[mag].strength for mag in mags])
+        return mags, init
         return mags, init
