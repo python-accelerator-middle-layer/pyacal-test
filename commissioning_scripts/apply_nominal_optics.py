@@ -336,7 +336,9 @@ class SetOpticsIndividual(_BaseClass):
             devices=self.devices,
             devices_names=self.quad_names+self.skewquad_names)
 
-    def apply_strengths(self, magtype, strengths, percentage=5, apply=False):
+    def apply_strengths(
+            self, magtype, strengths, percentage=5,
+            apply=False, print_change=False):
         """."""
         mags, init = self._get_initial_state(magtype)
         stren = _np.asarray(strengths)
@@ -347,11 +349,12 @@ class SetOpticsIndividual(_BaseClass):
         dstren = stren - init
         _ = self.apply_delta_strengths(
             magtype=magtype, delta_strengths=dstren,
-            percentage=percentage, apply=apply)
+            percentage=percentage, apply=apply, print_change=print_change)
         return init
 
     def apply_delta_strengths(
-            self, magtype, delta_strengths, percentage=5, apply=False):
+            self, magtype, delta_strengths, percentage=5,
+            apply=False, print_change=False):
         """."""
         mags, init = self._get_initial_state(magtype)
         dstren = _np.asarray(delta_strengths)
@@ -360,6 +363,15 @@ class SetOpticsIndividual(_BaseClass):
                 'delta strength vector length is incompatible with \
                 number of magnets')
         implem = init + dstren * (percentage/100)
+        if print_change:
+            Utils.print_current_status(
+                magnets=mags, goal_strength=init + dstren)
+            print()
+            print('percentage of application: {:5.1f} %'.format(percentage))
+            print()
+            Utils.print_strengths_implemented(
+                factor=percentage, magnets=mags,
+                init_strength=init, implem_strength=implem)
         if apply:
             Utils.implement_changes(magnets=mags, strengths=implem)
         return init
@@ -398,6 +410,8 @@ class SetOpticsIndividual(_BaseClass):
         if print_change:
             Utils.print_current_status(
                 magnets=mags, goal_strength=stren_goal)
+            print()
+            print('percentage of application: {:5.1f} %'.format(percentage))
             print()
             Utils.print_strengths_implemented(
                 factor=percentage, magnets=mags,
@@ -447,7 +461,6 @@ class SetOpticsIndividual(_BaseClass):
             maglist = self.skewquad_names
         else:
             raise ValueError('magtype must be quadrupole or skew_quadrupole')
-        mags = _OrderedDict([
-            {key: val for key, val in self.devices.items() if key in maglist}
-            ])
+        mags = _OrderedDict(
+            {key: val for key, val in self.devices.items() if key in maglist})
         return mags
