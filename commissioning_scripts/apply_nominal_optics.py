@@ -8,6 +8,50 @@ import pymodels as _pymod
 from .base import BaseClass as _BaseClass
 
 
+class Utils:
+    """."""
+
+    @staticmethod
+    def print_current_status(magnets, goal_strength):
+        """."""
+        diff = []
+        print(
+            '{:17s}  {:9s}  {:9s}  {:9s}%'.format(
+                '', ' applied', ' goal', ' diff'))
+        for mag, stren in zip(magnets, goal_strength):
+            diff.append((magnets[mag].strength-stren)/stren*100)
+            print('{:17s}: {:9.6f}  {:9.6f}  {:9.6f}%'.format(
+                magnets[mag].devname, magnets[mag].strength, stren, diff[-1]))
+        print()
+        return diff
+
+    @staticmethod
+    def print_strengths_implemented(
+            factor, magnets, init_strength, implem_strength):
+        """."""
+        print('-- to be implemented --')
+        print('factor: {:5.1f}%'.format(factor))
+        for mag, ini, imp in zip(magnets, init_strength, implem_strength):
+            perc = (imp - ini) / ini * 100
+            print(
+                '{:17s}:  {:9.4f} -> {:9.4f}  [{:7.4}%]'.format(
+                    magnets[mag].devname, ini, imp, perc))
+
+    @staticmethod
+    def implement_changes(magnets, strengths):
+        """."""
+        for mag, stren in zip(magnets, strengths):
+            magnets[mag].strength = stren
+            print('\n applied!')
+
+    @staticmethod
+    def create_devices(devices, devices_names):
+        """."""
+        for mag in devices_names:
+            if mag not in devices:
+                devices[mag] = _PowerSupply(mag)
+
+
 class SetOpticsFamilies(_BaseClass):
     """."""
 
@@ -63,7 +107,9 @@ class SetOpticsFamilies(_BaseClass):
         self.applied_optics = _OrderedDict()
         self._select_model()
         self._select_magnets()
-        self._create_devices()
+        Utils.create_devices(
+            devices=self.devices,
+            devices_names=self.quad_list + self.sext_list)
         self.model = self._pymodpack.create_accelerator()
         self._create_optics_data()
         self.famdata = self._pymodpack.get_family_data(self.model)
@@ -103,7 +149,7 @@ class SetOpticsFamilies(_BaseClass):
                     number of magnets')
         init = initv if init is None else init
 
-        dperc = SetOpticsFamilies.print_current_status(
+        dperc = Utils.print_current_status(
             magnets=mags, goal_strength=goalv)
         average = _np.mean(dperc) if average is None else average
         print('average desired: {:+.4f} %'.format(average))
@@ -114,14 +160,12 @@ class SetOpticsFamilies(_BaseClass):
         dimp_perc = ddif * (factor/100)
         implem = (1 + dimp_perc/100) * init
 
-        SetOpticsFamilies.print_strengths_implemented(
+        Utils.print_strengths_implemented(
             factor=factor, magnets=mags,
             init_strength=init, implem_strength=implem)
 
         if apply:
-            for mag, imp in zip(mags, implem):
-                mags[mag].strength = imp
-            print('\n applied!')
+            Utils.implement_changes(magnets=mags, strengths=implem)
         return init
 
     # private methods
@@ -221,7 +265,9 @@ class ChangeCorretors(_BaseClass):
         self.acc = acc.upper()
         self._get_corr_names()
         self.devices = _OrderedDict()
-        self._create_devices()
+        Utils.create_devices(
+            devices=self.devices,
+            devices_names=self.ch_list+self.cv_list)
         self.applied_strength = _OrderedDict()
 
     def get_applied_strength(self, magnets=None):
@@ -239,9 +285,7 @@ class ChangeCorretors(_BaseClass):
             'Factor {:9.3f} will be applied in kicks of {:10s} magnets'.format(
                 magtype, factor))
         if apply:
-            for mag, imp in zip(mags, implem):
-                mags[mag].strength = imp
-            print('\n applied!')
+            Utils.implement_changes(magnets=mags, strengths=implem)
         return init
 
     def change_average_kicks(
@@ -256,9 +300,7 @@ class ChangeCorretors(_BaseClass):
         print('goal average: {:+.4f} urad'.format(goal_ave))
         print('percentage of application: {:5.1f}%'.format(percentage))
         if apply:
-            for mag, imp in zip(mags, implem):
-                mags[mag].strength = imp
-            print('\n applied!')
+            Utils.implement_changes(magnets=mags, strengths=implem)
         return init
 
     def apply_delta_kicks(
@@ -272,9 +314,7 @@ class ChangeCorretors(_BaseClass):
                 number of magnets')
         implem = init + dkicks * (percentage/100)
         if apply:
-            for mag, imp in zip(mags, implem):
-                mags[mag].strength = imp
-            print('\n applied!')
+            Utils.implement_changes(magnets=mags, strengths=implem)
         return init
 
     def apply_kicks(self, kicks, magtype=None, percentage=5, apply=False):
@@ -327,7 +367,9 @@ class SetOpticsIndividual(_BaseClass):
         self.skewquad_names = list()
         self._get_quad_names()
         self._get_skewquad_names()
-        self._create_devices()
+        Utils.create_devices(
+            devices=self.devices,
+            devices_names=self.quad_names+self.skewquad_names)
 
     def apply_strengths(self, magtype, strengths, percentage=5, apply=False):
         """."""
@@ -354,9 +396,7 @@ class SetOpticsIndividual(_BaseClass):
                 number of magnets')
         implem = init + dstren * (percentage/100)
         if apply:
-            for mag, imp in zip(mags, implem):
-                mags[mag].strength = imp
-            print('\n applied!')
+            Utils.implement_changes(magnets=mags, strengths=implem)
         return init
 
     def _get_quad_names(self):
