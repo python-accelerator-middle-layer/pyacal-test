@@ -163,7 +163,6 @@ class SetOpticsFamilies(_BaseClass):
         Utils.print_strengths_implemented(
             factor=factor, magnets=mags,
             init_strength=init, implem_strength=implem)
-
         if apply:
             Utils.implement_changes(magnets=mags, strengths=implem)
         return init
@@ -192,11 +191,6 @@ class SetOpticsFamilies(_BaseClass):
             slist = self._pymodpack.families.families_sextupoles()
         self.quad_list = [_PVName(pvstr+mag) for mag in qlist]
         self.sext_list = [_PVName(pvstr+mag) for mag in slist]
-
-    def _create_devices(self):
-        for mag in self.quad_list + self.sext_list:
-            if mag not in self.devices:
-                self.devices[mag] = _PowerSupply(mag)
 
     def _create_optics_data(self):
         if self.optics_data is None:
@@ -228,32 +222,6 @@ class SetOpticsFamilies(_BaseClass):
         else:
             raise ValueError('magtype must be quadrupole or sextupole')
         return mags
-
-    @staticmethod
-    def print_current_status(magnets, goal_strength):
-        """."""
-        diff = []
-        print(
-            '{:17s}  {:9s}  {:9s}  {:9s}%'.format(
-                '', ' applied', ' goal', ' diff'))
-        for mag, stren in zip(magnets, goal_strength):
-            diff.append((magnets[mag].strength-stren)/stren*100)
-            print('{:17s}: {:9.6f}  {:9.6f}  {:9.6f}%'.format(
-                magnets[mag].devname, magnets[mag].strength, stren, diff[-1]))
-        print()
-        return diff
-
-    @staticmethod
-    def print_strengths_implemented(
-            factor, magnets, init_strength, implem_strength):
-        """."""
-        print('-- to be implemented --')
-        print('factor: {:5.1f}%'.format(factor))
-        for mag, ini, imp in zip(magnets, init_strength, implem_strength):
-            perc = (imp - ini) / ini * 100
-            print(
-                '{:17s}:  {:9.4f} -> {:9.4f}  [{:7.4}%]'.format(
-                    magnets[mag].devname, ini, imp, perc))
 
 
 class ChangeCorretors(_BaseClass):
@@ -335,11 +303,6 @@ class ChangeCorretors(_BaseClass):
         self.ch_list = [_PVName(mag) for mag in ch_names]
         self.cv_list = [_PVName(mag) for mag in cv_names]
 
-    def _create_devices(self):
-        for mag in self.ch_list + self.cv_list:
-            if mag not in self.devices:
-                self.devices[mag] = _PowerSupply(mag)
-
     def _check_magtype(self, magtype):
         if magtype in ('CH', 'CV'):
             mags = {
@@ -401,6 +364,48 @@ class SetOpticsIndividual(_BaseClass):
             Utils.implement_changes(magnets=mags, strengths=implem)
         return init
 
+    def apply_model_strengths(
+            self, magtype, goal_model, ref_model=None,
+            percentage=5, apply=False, print_change=True):
+        """."""
+        mags, init = self._get_initial_state(magtype)
+        refmod = ref_model or self.model
+        cond = len(goal_model) != len(refmod)
+        cond |= goal_model.length != refmod.length
+        if cond:
+            raise ValueError(
+                'Reference and goal models are incompatible.')
+        if magtype == 'quadrupole':
+            if ref_model is None:
+                magidx = self.quads_idx
+            else:
+                fam = _pymod.si.get_family_data(refmod)
+                magidx = fam['QN']['index']
+                magidx = _np.asarray([idx[len(idx)//2] for idx in magidx])
+            stren_ref = _np.asarray([refmod[idx].KL for idx in magidx])
+            stren_goal = _np.asarray([goal_model[idx].KL for idx in magidx])
+        elif magtype == 'skew_quadrupole':
+            if ref_model is None:
+                magidx = self.skewquads_idx
+            else:
+                fam = _pymod.si.get_family_data(refmod)
+                magidx = fam['QS']['index']
+                magidx = _np.asarray([idx[len(idx)//2] for idx in magidx])
+            stren_ref = _np.asarray([refmod[idx].KsL for idx in magidx])
+            stren_goal = _np.asarray([goal_model[idx].KsL for idx in magidx])
+        diff = (stren_goal - stren_ref) * (percentage/100)
+        implem = init + diff
+        if print_change:
+            Utils.print_current_status(
+                magnets=mags, goal_strength=stren_goal)
+            print()
+            Utils.print_strengths_implemented(
+                factor=percentage, magnets=mags,
+                init_strength=init, implem_strength=implem)
+        if apply:
+            Utils.implement_changes(magnets=mags, strengths=implem)
+        return init
+
     # private methods
     def _get_quad_names(self):
         """."""
@@ -429,11 +434,6 @@ class SetOpticsIndividual(_BaseClass):
             inst = self.fam_data[name]['instance'][idc]
             qname = f'SI-{sub}:PS-QS-{inst}'
             self.skewquad_names.append(qname.strip('-'))
-
-    def _create_devices(self):
-        for mag in self.quad_names + self.skewquad_names:
-            if mag not in self.devices:
-                self.devices[mag] = _PowerSupply(mag)
 
     def _get_initial_state(self, magtype):
         mags = self._check_magtype(magtype)
