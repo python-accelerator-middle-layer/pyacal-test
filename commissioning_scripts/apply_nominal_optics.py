@@ -293,6 +293,7 @@ class ChangeCorretors(_BaseClass):
         """."""
         mags, init = self._get_initial_state(magtype)
         curr_ave = _np.mean(init)
+        # If average is None, the applied average kicks will be unchanged
         goal_ave = curr_ave if average is None else average
         diff = (curr_ave - goal_ave) * percentage/100
         implem = init - diff
@@ -325,6 +326,7 @@ class ChangeCorretors(_BaseClass):
             delta_kicks=dkicks, magtype=magtype,
             percentage=percentage, apply=apply)
 
+    # private methods
     def _get_corr_names(self):
         ch_names = _PSSearch.get_psnames(
             {'sec': self.acc, 'dis': 'PS', 'dev': 'CH'})
@@ -399,6 +401,7 @@ class SetOpticsIndividual(_BaseClass):
             Utils.implement_changes(magnets=mags, strengths=implem)
         return init
 
+    # private methods
     def _get_quad_names(self):
         """."""
         self.quads_idx = self.fam_data['QN']['index']
