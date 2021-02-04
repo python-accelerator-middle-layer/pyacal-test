@@ -311,7 +311,7 @@ class ChangeCorretors(_BaseClass):
             mags = _OrderedDict(mags)
         else:
             raise ValueError('magtype must be CH or CV.')
-        return magtype
+        return mags
 
     def _get_initial_state(self, magtype):
         mags = self._check_magtype(magtype)
