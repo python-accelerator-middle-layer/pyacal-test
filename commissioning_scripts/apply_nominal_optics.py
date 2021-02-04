@@ -380,12 +380,12 @@ class SetOpticsIndividual(_BaseClass):
                 'strength vector length is incompatible with \
                 number of magnets')
         dstren = stren - init
-        _ = self.apply_delta_strenghts(
+        _ = self.apply_delta_strengths(
             magtype=magtype, delta_strengths=dstren,
             percentage=percentage, apply=apply)
         return init
 
-    def apply_delta_strenghts(
+    def apply_delta_strengths(
             self, magtype, delta_strengths, percentage=5, apply=False):
         """."""
         mags, init = self._get_initial_state(magtype)
