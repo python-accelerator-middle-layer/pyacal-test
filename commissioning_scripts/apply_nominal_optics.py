@@ -152,7 +152,7 @@ class SetOpticsFamilies(_BaseClass):
         dperc = Utils.print_current_status(
             magnets=mags, goal_strength=goalv)
         average = _np.mean(dperc) if average is None else average
-        print('average desired: {:+.4f} %'.format(average))
+        print(' average desired: {:+.4f} %'.format(average))
         print('average obtained: {:+.4f} %'.format(_np.mean(dperc)))
         print()
 
@@ -265,9 +265,9 @@ class ChangeCorretors(_BaseClass):
         goal_ave = curr_ave if average is None else average
         diff = (curr_ave - goal_ave) * percentage/100
         implem = init - diff
-        print('actual average : {:+.4f} urad'.format(curr_ave))
-        print('goal average: {:+.4f} urad'.format(goal_ave))
-        print('percentage of application: {:5.1f}%'.format(percentage))
+        print('           actual average: {:+.4f} urad'.format(curr_ave))
+        print('             goal average: {:+.4f} urad'.format(goal_ave))
+        print('percentage of application: {:5.1f} %'.format(percentage))
         if apply:
             Utils.implement_changes(magnets=mags, strengths=implem)
         return init
