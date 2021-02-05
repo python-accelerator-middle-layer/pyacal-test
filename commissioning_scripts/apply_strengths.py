@@ -12,6 +12,40 @@ from .base import BaseClass as _BaseClass
 class _Utils(_BaseClass):
     """."""
 
+    def apply_delta_strengths(
+            self, delta_strengths, magtype=None,
+            percentage=0, apply=False, print_change=False):
+        """."""
+        mags, init = self._get_strengths(magtype)
+        dstren = _np.asarray(delta_strengths)
+        if len(dstren) != len(mags):
+            raise ValueError(
+                'delta strength vector length is incompatible with \
+                number of magnets')
+        implem = init + dstren * (percentage/100)
+        if print_change:
+            self._print_current_status(
+                magnets=mags, goal_strength=init + dstren)
+            print()
+            print('percentage of application: {:5.1f} %'.format(percentage))
+            print()
+            self._print_strengths_to_be_implemented(
+                percentage=percentage, magnets=mags,
+                init_strength=init, implem_strength=implem)
+        if apply:
+            self._implement_changes(magnets=mags, strengths=implem)
+        return init
+
+    def apply_strengths(
+            self, strengths, magtype=None,
+            percentage=0, apply=False, print_change=False):
+        """."""
+        _, init = self._get_strengths(magtype)
+        dstren = _np.asarray(strengths) - init
+        self.apply_delta_strengths(
+            delta_strengths=dstren, magtype=magtype,
+            percentage=percentage, apply=apply, print_change=print_change)
+
     def _print_current_status(self, magnets, goal_strength):
         """."""
         diff = []
@@ -19,18 +53,17 @@ class _Utils(_BaseClass):
             '{:17s}  {:9s}  {:9s}  {:9s}%'.format(
                 '', ' applied', ' goal', ' diff'))
         for mag, stren in zip(magnets, goal_strength):
-            diff.append((self.devices[mag].strength-stren)/stren*100)
+            diff.append((self.devices[mag].strength-stren)/stren)
             print('{:17s}: {:9.6f}  {:9.6f}  {:9.6f}%'.format(
                 self.devices[mag].devname, self.devices[mag].strength,
-                stren, diff[-1]))
+                stren, diff[-1]*100))
         print()
-        return diff
 
     def _print_strengths_to_be_implemented(
-            self, factor, magnets, init_strength, implem_strength):
+            self, percentage, magnets, init_strength, implem_strength):
         """."""
         print('-- to be implemented --')
-        print('factor: {:5.1f}%'.format(factor))
+        print('percentage: {:5.1f}%'.format(percentage))
         for mag, ini, imp in zip(magnets, init_strength, implem_strength):
             perc = (imp - ini) / ini * 100
             print(
@@ -106,10 +139,10 @@ class SetOpticsMode(_Utils):
         self.quad_list = []
         self.sext_list = []
         self.devices = _OrderedDict()
-        self.applied_optics = _OrderedDict()
         self._select_model()
         self._select_magnets()
-        self._create_devices(self.quad_list + self.sext_list)
+        self._create_devices(
+            devices_names=self.quad_list + self.sext_list)
         self.model = self._pymodpack.create_accelerator()
         self._create_optics_data()
         self.famdata = self._pymodpack.get_family_data(self.model)
@@ -120,49 +153,6 @@ class SetOpticsMode(_Utils):
                 # segment
                 idx = self.famdata[key]['index'][0][0]
                 self.data['optics_data'][key] *= self.model[idx].length
-
-    def get_applied_strength(self, magnets=None):
-        """."""
-        magnets = magnets or self.devices
-        for mag in magnets:
-            magdev = mag.dev
-            if self.acc == 'TB' and 'LI' in mag:
-                magdev += 'L'
-            self.applied_optics[mag.dev] = magnets[mag].strength
-
-    def apply_strengths(
-            self, magtype, goal_strength,
-            init_strength=None, average=None, factor=0, apply=False):
-        """."""
-        mags, initv = self._get_strengths(magtype)
-        initv = _np.asarray(initv)
-        goalv = _np.asarray(goal_strength)
-        if init_strength is not None:
-            if len(init_strength) != len(mags):
-                raise ValueError(
-                    'initial strength vector length is incompatible with \
-                    number of magnets')
-        init = initv if init_strength is None else _np.asarray(init_strength)
-        if len(goal_strength) != len(mags):
-            raise ValueError(
-                'goal strength vector length is incompatible with \
-                number of magnets')
-        dperc = self._print_current_status(magnets=mags, goal_strength=goalv)
-        average = _np.mean(dperc) if average is None else average
-        print(' average desired: {:+.4f} %'.format(average))
-        print('average obtained: {:+.4f} %'.format(_np.mean(dperc)))
-        print()
-
-        ddif = average - _np.asarray(dperc)
-        dimp_perc = ddif * (factor/100)
-        implem = (1 + dimp_perc/100) * init
-
-        self._print_strengths_to_be_implemented(
-            factor=factor, magnets=mags,
-            init_strength=init, implem_strength=implem)
-        if apply:
-            self._implement_changes(magnets=mags, strengths=implem)
-        return init
 
     # private methods
     def _select_model(self):
@@ -225,42 +215,20 @@ class SetCorretorsStrengths(_Utils):
         return init
 
     def change_average_kicks(
-            self, magtype=None, average=None, percentage=5, apply=False):
+            self, magtype=None, average=None, percentage=0, apply=False):
         """."""
         mags, init = self._get_strengths(magtype)
         curr_ave = _np.mean(init)
         # If average is None, the applied average kicks will be unchanged
         goal_ave = curr_ave if average is None else average
-        diff = (curr_ave - goal_ave) * percentage/100
-        implem = init - diff
+        diff = (goal_ave - curr_ave) * percentage/100
+        implem = init + diff
         print('           actual average: {:+.4f} urad'.format(curr_ave))
         print('             goal average: {:+.4f} urad'.format(goal_ave))
         print('percentage of application: {:5.1f} %'.format(percentage))
         if apply:
             self._implement_changes(magnets=mags, strengths=implem)
         return init
-
-    def apply_delta_kicks(
-            self, delta_kicks, magtype=None, percentage=5, apply=False):
-        """."""
-        mags, init = self._get_strengths(magtype)
-        dkicks = _np.asarray(delta_kicks)
-        if len(dkicks) != len(mags):
-            raise ValueError(
-                'delta kick vector length is incompatible with \
-                number of magnets')
-        implem = init + dkicks * (percentage/100)
-        if apply:
-            self._implement_changes(magnets=mags, strengths=implem)
-        return init
-
-    def apply_kicks(self, kicks, magtype=None, percentage=5, apply=False):
-        """."""
-        _, init = self._get_strengths(magtype)
-        dkicks = kicks - init
-        self.apply_delta_kicks(
-            delta_kicks=dkicks, magtype=magtype,
-            percentage=percentage, apply=apply)
 
     # private methods
     def _get_corr_names(self):
@@ -288,49 +256,9 @@ class SISetTrimStrengths(_Utils):
         self._create_devices(
             devices_names=self.quad_names+self.skewquad_names)
 
-    def apply_strengths(
-            self, magtype, strengths, percentage=5,
-            apply=False, print_change=False):
-        """."""
-        mags, init = self._get_strengths(magtype)
-        stren = _np.asarray(strengths)
-        if len(stren) != len(mags):
-            raise ValueError(
-                'strength vector length is incompatible with \
-                number of magnets')
-        dstren = stren - init
-        _ = self.apply_delta_strengths(
-            magtype=magtype, delta_strengths=dstren,
-            percentage=percentage, apply=apply, print_change=print_change)
-        return init
-
-    def apply_delta_strengths(
-            self, magtype, delta_strengths, percentage=5,
-            apply=False, print_change=False):
-        """."""
-        mags, init = self._get_strengths(magtype)
-        dstren = _np.asarray(delta_strengths)
-        if len(dstren) != len(mags):
-            raise ValueError(
-                'delta strength vector length is incompatible with \
-                number of magnets')
-        implem = init + dstren * (percentage/100)
-        if print_change:
-            self._print_current_status(
-                magnets=mags, goal_strength=init + dstren)
-            print()
-            print('percentage of application: {:5.1f} %'.format(percentage))
-            print()
-            self._print_strengths_to_be_implemented(
-                factor=percentage, magnets=mags,
-                init_strength=init, implem_strength=implem)
-        if apply:
-            self._implement_changes(magnets=mags, strengths=implem)
-        return init
-
     def apply_model_strengths(
             self, magtype, goal_model, ref_model=None,
-            percentage=5, apply=False, print_change=True):
+            percentage=0, apply=False, print_change=True):
         """."""
         mags, init = self._get_strengths(magtype)
         refmod = ref_model or self.model
@@ -369,7 +297,7 @@ class SISetTrimStrengths(_Utils):
             print('percentage of application: {:5.1f} %'.format(percentage))
             print()
             self._print_strengths_to_be_implemented(
-                factor=percentage, magnets=mags,
+                percentage=percentage, magnets=mags,
                 init_strength=init, implem_strength=implem)
         if apply:
             self._implement_changes(magnets=mags, strengths=implem)
@@ -413,8 +341,3 @@ class SISetTrimStrengths(_Utils):
             regex = _re.compile(magtype)
             maglist = [mag for mag in self.devices if regex.match(mag)]
         return maglist
-
-    def _get_strengths(self, magtype):
-        mags = self._get_magnet_names(magtype)
-        stren = _np.asarray([self.devices[mag].strength for mag in mags])
-        return mags, stren
