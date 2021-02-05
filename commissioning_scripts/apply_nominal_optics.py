@@ -1,4 +1,5 @@
 """."""
+import re as _re
 from collections import OrderedDict as _OrderedDict
 import numpy as _np
 from siriuspy.namesys import SiriusPVName as _PVName
@@ -8,26 +9,25 @@ import pymodels as _pymod
 from .base import BaseClass as _BaseClass
 
 
-class Utils:
+class _Utils(_BaseClass):
     """."""
 
-    @staticmethod
-    def print_current_status(magnets, goal_strength):
+    def _print_current_status(self, magnets, goal_strength):
         """."""
         diff = []
         print(
             '{:17s}  {:9s}  {:9s}  {:9s}%'.format(
                 '', ' applied', ' goal', ' diff'))
         for mag, stren in zip(magnets, goal_strength):
-            diff.append((magnets[mag].strength-stren)/stren*100)
+            diff.append((self.devices[mag].strength-stren)/stren*100)
             print('{:17s}: {:9.6f}  {:9.6f}  {:9.6f}%'.format(
-                magnets[mag].devname, magnets[mag].strength, stren, diff[-1]))
+                self.devices[mag].devname, self.devices[mag].strength,
+                stren, diff[-1]))
         print()
         return diff
 
-    @staticmethod
-    def print_strengths_implemented(
-            factor, magnets, init_strength, implem_strength):
+    def _print_strengths_implemented(
+            self, factor, magnets, init_strength, implem_strength):
         """."""
         print('-- to be implemented --')
         print('factor: {:5.1f}%'.format(factor))
@@ -35,24 +35,22 @@ class Utils:
             perc = (imp - ini) / ini * 100
             print(
                 '{:17s}:  {:9.4f} -> {:9.4f}  [{:7.4}%]'.format(
-                    magnets[mag].devname, ini, imp, perc))
+                    self.devices[mag].devname, ini, imp, perc))
 
-    @staticmethod
-    def implement_changes(magnets, strengths):
+    def _implement_changes(self, magnets, strengths):
         """."""
         for mag, stren in zip(magnets, strengths):
-            magnets[mag].strength = stren
+            self.devices[mag].strength = stren
             print('\n applied!')
 
-    @staticmethod
-    def create_devices(devices, devices_names):
+    def _create_devices(self, devices_names):
         """."""
         for mag in devices_names:
-            if mag not in devices:
-                devices[mag] = _PowerSupply(mag)
+            if mag not in self.devices:
+                self.devices[mag] = _PowerSupply(mag)
 
 
-class SetOpticsFamilies(_BaseClass):
+class SetOpticsFamilies(_Utils):
     """."""
 
     TB_QUADS = [
@@ -96,7 +94,7 @@ class SetOpticsFamilies(_BaseClass):
         self.acc = acc.upper()
         self.optics_mode = optics_mode
         if optics_data is not None:
-            if optics_data not in (dict, _OrderedDict):
+            if not isinstance(optics_data, (dict, _OrderedDict)):
                 raise ValueError(
                     'optics_data must be a dictionary or OrderedDict')
         self.optics_data = optics_data
@@ -107,9 +105,7 @@ class SetOpticsFamilies(_BaseClass):
         self.applied_optics = _OrderedDict()
         self._select_model()
         self._select_magnets()
-        Utils.create_devices(
-            devices=self.devices,
-            devices_names=self.quad_list + self.sext_list)
+        self._create_devices(self.quad_list + self.sext_list)
         self.model = self._pymodpack.create_accelerator()
         self._create_optics_data()
         self.famdata = self._pymodpack.get_family_data(self.model)
@@ -149,8 +145,7 @@ class SetOpticsFamilies(_BaseClass):
                     number of magnets')
         init = initv if init is None else init
 
-        dperc = Utils.print_current_status(
-            magnets=mags, goal_strength=goalv)
+        dperc = self._print_current_status(magnets=mags, goal_strength=goalv)
         average = _np.mean(dperc) if average is None else average
         print(' average desired: {:+.4f} %'.format(average))
         print('average obtained: {:+.4f} %'.format(_np.mean(dperc)))
@@ -160,11 +155,11 @@ class SetOpticsFamilies(_BaseClass):
         dimp_perc = ddif * (factor/100)
         implem = (1 + dimp_perc/100) * init
 
-        Utils.print_strengths_implemented(
+        self._print_strengths_implemented(
             factor=factor, magnets=mags,
             init_strength=init, implem_strength=implem)
         if apply:
-            Utils.implement_changes(magnets=mags, strengths=implem)
+            self._implement_changes(magnets=mags, strengths=implem)
         return init
 
     # private methods
@@ -203,28 +198,13 @@ class SetOpticsFamilies(_BaseClass):
         self.optics_data = _OrderedDict(
             [(key.upper(), val) for key, val in self.optics_data.items()])
 
-    def _check_magtype(self, magtype):
-        mags = _OrderedDict()
-        if magtype == 'quadrupole':
-            for key in self.devices:
-                if 'Q' not in key:
-                    continue
-                else:
-                    mags[key] = self.devices[key]
-        elif magtype == 'sextupole':
-            if 'T' in self.acc:
-                raise ValueError('transport lines do not have sextupoles')
-            for key in self.devices:
-                if 'S' not in key:
-                    continue
-                else:
-                    mags[key] = self.devices[key]
-        else:
-            raise ValueError('magtype must be quadrupole or sextupole')
+    def _check_magtype(self, magtype='Q'):
+        regex = _re.REG(magtype)
+        mags = [mag for mag in self.devices if regex.match(mag)]
         return mags
 
 
-class ChangeCorretors(_BaseClass):
+class ChangeCorretors(_Utils):
     """."""
 
     def __init__(self, acc):
@@ -233,9 +213,7 @@ class ChangeCorretors(_BaseClass):
         self.acc = acc.upper()
         self._get_corr_names()
         self.devices = _OrderedDict()
-        Utils.create_devices(
-            devices=self.devices,
-            devices_names=self.ch_list+self.cv_list)
+        self._create_devices(self.ch_list+self.cv_list)
         self.applied_strength = _OrderedDict()
 
     def get_applied_strength(self, magnets=None):
@@ -253,7 +231,7 @@ class ChangeCorretors(_BaseClass):
             'Factor {:9.3f} will be applied in kicks of {:10s} magnets'.format(
                 magtype, factor))
         if apply:
-            Utils.implement_changes(magnets=mags, strengths=implem)
+            self._implement_changes(magnets=mags, strengths=implem)
         return init
 
     def change_average_kicks(
@@ -269,7 +247,7 @@ class ChangeCorretors(_BaseClass):
         print('             goal average: {:+.4f} urad'.format(goal_ave))
         print('percentage of application: {:5.1f} %'.format(percentage))
         if apply:
-            Utils.implement_changes(magnets=mags, strengths=implem)
+            self._implement_changes(magnets=mags, strengths=implem)
         return init
 
     def apply_delta_kicks(
@@ -283,7 +261,7 @@ class ChangeCorretors(_BaseClass):
                 number of magnets')
         implem = init + dkicks * (percentage/100)
         if apply:
-            Utils.implement_changes(magnets=mags, strengths=implem)
+            self._implement_changes(magnets=mags, strengths=implem)
         return init
 
     def apply_kicks(self, kicks, magtype=None, percentage=5, apply=False):
@@ -319,7 +297,7 @@ class ChangeCorretors(_BaseClass):
         return mags, init
 
 
-class SetOpticsIndividual(_BaseClass):
+class SetOpticsIndividual(_Utils):
     """."""
 
     def __init__(self, model=None):
@@ -332,9 +310,7 @@ class SetOpticsIndividual(_BaseClass):
         self.skewquad_names = list()
         self._get_quad_names()
         self._get_skewquad_names()
-        Utils.create_devices(
-            devices=self.devices,
-            devices_names=self.quad_names+self.skewquad_names)
+        self._create_devices(self.quad_names+self.skewquad_names)
 
     def apply_strengths(
             self, magtype, strengths, percentage=5,
@@ -364,16 +340,16 @@ class SetOpticsIndividual(_BaseClass):
                 number of magnets')
         implem = init + dstren * (percentage/100)
         if print_change:
-            Utils.print_current_status(
+            self._print_current_status(
                 magnets=mags, goal_strength=init + dstren)
             print()
             print('percentage of application: {:5.1f} %'.format(percentage))
             print()
-            Utils.print_strengths_implemented(
+            self._print_strengths_implemented(
                 factor=percentage, magnets=mags,
                 init_strength=init, implem_strength=implem)
         if apply:
-            Utils.implement_changes(magnets=mags, strengths=implem)
+            self._implement_changes(magnets=mags, strengths=implem)
         return init
 
     def apply_model_strengths(
@@ -408,24 +384,23 @@ class SetOpticsIndividual(_BaseClass):
         diff = (stren_goal - stren_ref) * (percentage/100)
         implem = init + diff
         if print_change:
-            Utils.print_current_status(
-                magnets=mags, goal_strength=stren_goal)
+            self._print_current_status(magnets=mags, goal_strength=stren_goal)
             print()
             print('percentage of application: {:5.1f} %'.format(percentage))
             print()
-            Utils.print_strengths_implemented(
+            self._print_strengths_implemented(
                 factor=percentage, magnets=mags,
                 init_strength=init, implem_strength=implem)
         if apply:
-            Utils.implement_changes(magnets=mags, strengths=implem)
+            self._implement_changes(magnets=mags, strengths=implem)
         return init
 
     # private methods
     def _get_quad_names(self):
         """."""
-        self.quads_idx = self.fam_data['QN']['index']
-        self.quads_idx = _np.asarray(
-            [idx[len(idx)//2] for idx in self.quads_idx])
+        idcs = self.fam_data['QN']['index']
+        # NOTE: This is incorrect for magnets with more than one segment
+        self.quads_idx = _np.asarray([idx[0] for idx in idcs])
 
         for qidx in self.quads_idx:
             name = self.model[qidx].fam_name
@@ -437,9 +412,9 @@ class SetOpticsIndividual(_BaseClass):
 
     def _get_skewquad_names(self):
         """."""
-        self.skewquads_idx = self.fam_data['QS']['index']
-        self.skewquads_idx = _np.asarray(
-            [idx[len(idx)//2] for idx in self.skewquads_idx])
+        idcs = self.fam_data['QS']['index']
+        # NOTE: This is incorrect for magnets with more than one segment
+        self.skewquads_idx = _np.asarray([idx[0] for idx in idcs])
 
         for qidx in self.skewquads_idx:
             name = self.model[qidx].fam_name
@@ -455,12 +430,11 @@ class SetOpticsIndividual(_BaseClass):
         return mags, init
 
     def _check_magtype(self, magtype):
-        if magtype == 'quadrupole':
+        if magtype.startswith('quad'):
             maglist = self.quad_names
-        elif magtype == 'skew_quadrupole':
+        elif magtype.startswith('skew'):
             maglist = self.skewquad_names
         else:
-            raise ValueError('magtype must be quadrupole or skew_quadrupole')
-        mags = _OrderedDict(
-            {key: val for key, val in self.devices.items() if key in maglist})
-        return mags
+            maglist = [mag for mag in self.devices]
+
+        return maglist
