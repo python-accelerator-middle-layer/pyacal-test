@@ -50,7 +50,7 @@ class _Utils(_BaseClass):
                 self.devices[mag] = _PowerSupply(mag)
 
 
-class SetOpticsFamilies(_Utils):
+class SetOpticsMode(_Utils):
     """."""
 
     TB_QUADS = [
@@ -204,7 +204,7 @@ class SetOpticsFamilies(_Utils):
         return mags
 
 
-class ChangeCorretors(_Utils):
+class SetCorretorsStrengths(_Utils):
     """."""
 
     def __init__(self, acc):
@@ -297,7 +297,7 @@ class ChangeCorretors(_Utils):
         return mags, init
 
 
-class SetOpticsIndividual(_Utils):
+class SISetTrimStrengths(_Utils):
     """."""
 
     def __init__(self, model=None):
@@ -369,7 +369,9 @@ class SetOpticsIndividual(_Utils):
             else:
                 fam = _pymod.si.get_family_data(refmod)
                 magidx = fam['QN']['index']
-                magidx = _np.asarray([idx[len(idx)//2] for idx in magidx])
+                # NOTE: This is incorrect for magnets with more than one
+                # segment
+                magidx = _np.asarray([idx[0] for idx in magidx])
             stren_ref = _np.asarray([refmod[idx].KL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KL for idx in magidx])
         elif magtype == 'skew_quadrupole':
@@ -378,7 +380,9 @@ class SetOpticsIndividual(_Utils):
             else:
                 fam = _pymod.si.get_family_data(refmod)
                 magidx = fam['QS']['index']
-                magidx = _np.asarray([idx[len(idx)//2] for idx in magidx])
+                # NOTE: This is incorrect for magnets with more than one
+                # segment
+                magidx = _np.asarray([idx[0] for idx in magidx])
             stren_ref = _np.asarray([refmod[idx].KsL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KsL for idx in magidx])
         diff = (stren_goal - stren_ref) * (percentage/100)
