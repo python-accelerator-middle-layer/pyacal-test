@@ -121,6 +121,7 @@ class ControlRF(BaseClass):
             'orbx': [],
             'orby': [],
             'dcct': [],
+            'time': None,
             }
         self._thread = Thread(target=self._do_scan)
         self._stopped = Event()
@@ -181,8 +182,8 @@ class ControlRF(BaseClass):
             bpm_orbx = _np.mean(bpm_orbx.reshape(-1, navg), axis=1)
             ind = bpm_sum > cut_sum
             axx.plot(
-                nturns[ind], bpm_orbx[ind]/self._disp_avg*100, '-', color=cmap[i],
-                label='{0:.1f}'.format(var_span[i]))
+                nturns[ind], bpm_orbx[ind]/self._disp_avg*100, '-',
+                color=cmap[i], label='{0:.1f}'.format(var_span[i]))
             axx.plot([0, 100], [0, -0.5/3e3*100*100], color='k', label='No RF')
         axx.grid(True)
         ncol = (var_span.size // 20) + 1
@@ -317,6 +318,7 @@ class ControlRF(BaseClass):
             self.data['orbx'].append(self.devices['sofb'].mt_trajx)
             self.data['orby'].append(self.devices['sofb'].mt_trajy)
             self.data['dcct'].append(dcct_data)
+            self.data['time'] = _time.time()
             if isphase:
                 print('Phase [°]: {0:8.3f}'.format(
                     self.devices['rf'].dev_llrf.phase))
