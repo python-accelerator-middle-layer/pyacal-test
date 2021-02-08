@@ -119,8 +119,11 @@ class _Utils(_BaseClass):
                 self.devices[mag] = _PowerSupply(mag)
 
     def _get_magnet_names(self, magname_filter='.*Q'):
-        regex = _re.compile(magname_filter)
-        mags = [mag for mag in self.devices if regex.match(mag)]
+        if magname_filter is None:
+            mags = self.devices.keys()
+        else:
+            regex = _re.compile(magname_filter)
+            mags = [mag for mag in self.devices if regex.match(mag)]
         return mags
 
 
