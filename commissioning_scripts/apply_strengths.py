@@ -12,17 +12,17 @@ from .base import BaseClass as _BaseClass
 class _Utils(_BaseClass):
     """."""
 
-    def get_strengths(self, magtype):
+    def get_strengths(self, magname_filter):
         """."""
-        mags = self._get_magnet_names(magtype)
+        mags = self._get_magnet_names(magname_filter)
         stren = _np.asarray([self.devices[mag].strength for mag in mags])
         return mags, stren
 
     def apply_delta_strengths(
-            self, delta_strengths, magtype=None,
+            self, delta_strengths, magname_filter=None,
             percentage=0, apply=False, print_change=False):
         """."""
-        mags, init = self.get_strengths(magtype)
+        mags, init = self.get_strengths(magname_filter)
         dstren = _np.asarray(delta_strengths)
         if len(dstren) != len(mags):
             raise ValueError(
@@ -43,32 +43,33 @@ class _Utils(_BaseClass):
         return init
 
     def apply_strengths(
-            self, strengths, magtype=None,
+            self, strengths, magname_filter=None,
             percentage=0, apply=False, print_change=False):
         """."""
-        _, init = self.get_strengths(magtype)
+        _, init = self.get_strengths(magname_filter)
         dstren = _np.asarray(strengths) - init
         self.apply_delta_strengths(
-            delta_strengths=dstren, magtype=magtype,
+            delta_strengths=dstren, magname_filter=magname_filter,
             percentage=percentage, apply=apply, print_change=print_change)
         return init
 
     def apply_factor(
-            self, magtype=None, factor=1, apply=False):
+            self, magname_filter=None, factor=1, apply=False):
         """."""
-        mags, init = self.get_strengths(magtype)
+        mags, init = self.get_strengths(magname_filter)
         implem = factor * init
         print(
             'Factor {:9.3f} will be applied in {:10s} magnets'.format(
-                magtype, factor))
+                magname_filter, factor))
         if apply:
             self._implement_changes(magnets=mags, strengths=implem)
         return init
 
     def change_average_stengths(
-            self, magtype=None, average=None, percentage=0, apply=False):
+            self, magname_filter=None,
+            average=None, percentage=0, apply=False):
         """."""
-        mags, init = self.get_strengths(magtype)
+        mags, init = self.get_strengths(magname_filter)
         curr_ave = _np.mean(init)
         # If average is None, the applied average kicks will be unchanged
         goal_ave = curr_ave if average is None else average
@@ -117,8 +118,8 @@ class _Utils(_BaseClass):
             if mag not in self.devices:
                 self.devices[mag] = _PowerSupply(mag)
 
-    def _get_magnet_names(self, magtype='.*Q'):
-        regex = _re.compile(magtype)
+    def _get_magnet_names(self, magname_filter='.*Q'):
+        regex = _re.compile(magname_filter)
         mags = [mag for mag in self.devices if regex.match(mag)]
         return mags
 
@@ -257,17 +258,17 @@ class SISetTrimStrengths(_Utils):
             devices_names=self.quad_names+self.skewquad_names)
 
     def apply_model_strengths(
-            self, magtype, goal_model, ref_model=None,
+            self, magname_filter, goal_model, ref_model=None,
             percentage=0, apply=False, print_change=True):
         """."""
-        mags, init = self.get_strengths(magtype)
+        mags, init = self.get_strengths(magname_filter)
         refmod = ref_model or self.model
         cond = len(goal_model) != len(refmod)
         cond |= goal_model.length != refmod.length
         if cond:
             raise ValueError(
                 'Reference and goal models are incompatible.')
-        if magtype == 'quadrupole':
+        if magname_filter == 'quadrupole':
             if ref_model is None:
                 magidx = self.quads_idx
             else:
@@ -278,7 +279,7 @@ class SISetTrimStrengths(_Utils):
                 magidx = _np.asarray([idx[0] for idx in magidx])
             stren_ref = _np.asarray([refmod[idx].KL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KL for idx in magidx])
-        elif magtype == 'skew_quadrupole':
+        elif magname_filter == 'skew_quadrupole':
             if ref_model is None:
                 magidx = self.skewquads_idx
             else:
@@ -332,12 +333,12 @@ class SISetTrimStrengths(_Utils):
             qname = f'SI-{sub}:PS-QS-{inst}'
             self.skewquad_names.append(qname.strip('-'))
 
-    def _get_magnet_names(self, magtype):
-        if magtype.startswith('quad'):
+    def _get_magnet_names(self, magname_filter):
+        if magname_filter.startswith('quad'):
             maglist = self.quad_names
-        elif magtype.startswith('skew'):
+        elif magname_filter.startswith('skew'):
             maglist = self.skewquad_names
         else:
-            regex = _re.compile(magtype)
+            regex = _re.compile(magname_filter)
             maglist = [mag for mag in self.devices if regex.match(mag)]
         return maglist
