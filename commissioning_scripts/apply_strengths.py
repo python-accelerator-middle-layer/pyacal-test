@@ -51,6 +51,7 @@ class _Utils(_BaseClass):
         self.apply_delta_strengths(
             delta_strengths=dstren, magtype=magtype,
             percentage=percentage, apply=apply, print_change=print_change)
+        return init
 
     def apply_factor(
             self, magtype=None, factor=1, apply=False):
