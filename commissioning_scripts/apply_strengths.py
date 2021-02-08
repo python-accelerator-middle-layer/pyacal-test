@@ -12,11 +12,17 @@ from .base import BaseClass as _BaseClass
 class _Utils(_BaseClass):
     """."""
 
+    def get_strengths(self, magtype):
+        """."""
+        mags = self._get_magnet_names(magtype)
+        stren = _np.asarray([self.devices[mag].strength for mag in mags])
+        return mags, stren
+
     def apply_delta_strengths(
             self, delta_strengths, magtype=None,
             percentage=0, apply=False, print_change=False):
         """."""
-        mags, init = self._get_strengths(magtype)
+        mags, init = self.get_strengths(magtype)
         dstren = _np.asarray(delta_strengths)
         if len(dstren) != len(mags):
             raise ValueError(
@@ -40,11 +46,39 @@ class _Utils(_BaseClass):
             self, strengths, magtype=None,
             percentage=0, apply=False, print_change=False):
         """."""
-        _, init = self._get_strengths(magtype)
+        _, init = self.get_strengths(magtype)
         dstren = _np.asarray(strengths) - init
         self.apply_delta_strengths(
             delta_strengths=dstren, magtype=magtype,
             percentage=percentage, apply=apply, print_change=print_change)
+
+    def apply_factor(
+            self, magtype=None, factor=1, apply=False):
+        """."""
+        mags, init = self.get_strengths(magtype)
+        implem = factor * init
+        print(
+            'Factor {:9.3f} will be applied in {:10s} magnets'.format(
+                magtype, factor))
+        if apply:
+            self._implement_changes(magnets=mags, strengths=implem)
+        return init
+
+    def change_average_stengths(
+            self, magtype=None, average=None, percentage=0, apply=False):
+        """."""
+        mags, init = self.get_strengths(magtype)
+        curr_ave = _np.mean(init)
+        # If average is None, the applied average kicks will be unchanged
+        goal_ave = curr_ave if average is None else average
+        diff = (goal_ave - curr_ave) * percentage/100
+        implem = init + diff
+        print('           actual average: {:+.4f}'.format(curr_ave))
+        print('             goal average: {:+.4f}'.format(goal_ave))
+        print('percentage of application: {:5.1f} %'.format(percentage))
+        if apply:
+            self._implement_changes(magnets=mags, strengths=implem)
+        return init
 
     def _print_current_status(self, magnets, goal_strength):
         """."""
@@ -86,11 +120,6 @@ class _Utils(_BaseClass):
         regex = _re.compile(magtype)
         mags = [mag for mag in self.devices if regex.match(mag)]
         return mags
-
-    def _get_strengths(self, magtype):
-        mags = self._get_magnet_names(magtype)
-        stren = _np.asarray([self.devices[mag].strength for mag in mags])
-        return mags, stren
 
 
 class SetOpticsMode(_Utils):
@@ -154,7 +183,6 @@ class SetOpticsMode(_Utils):
                 idx = self.famdata[key]['index'][0][0]
                 self.data['optics_data'][key] *= self.model[idx].length
 
-    # private methods
     def _select_model(self):
         if self.acc == 'TB':
             self._pymodpack = _pymod.tb
@@ -202,35 +230,6 @@ class SetCorretorsStrengths(_Utils):
         self._create_devices(
             devices_names=self.ch_list+self.cv_list)
 
-    def apply_factor(
-            self, magtype=None, factor=1, apply=False):
-        """."""
-        mags, init = self._get_strengths(magtype)
-        implem = factor * init
-        print(
-            'Factor {:9.3f} will be applied in kicks of {:10s} magnets'.format(
-                magtype, factor))
-        if apply:
-            self._implement_changes(magnets=mags, strengths=implem)
-        return init
-
-    def change_average_kicks(
-            self, magtype=None, average=None, percentage=0, apply=False):
-        """."""
-        mags, init = self._get_strengths(magtype)
-        curr_ave = _np.mean(init)
-        # If average is None, the applied average kicks will be unchanged
-        goal_ave = curr_ave if average is None else average
-        diff = (goal_ave - curr_ave) * percentage/100
-        implem = init + diff
-        print('           actual average: {:+.4f} urad'.format(curr_ave))
-        print('             goal average: {:+.4f} urad'.format(goal_ave))
-        print('percentage of application: {:5.1f} %'.format(percentage))
-        if apply:
-            self._implement_changes(magnets=mags, strengths=implem)
-        return init
-
-    # private methods
     def _get_corr_names(self):
         ch_names = _PSSearch.get_psnames(
             {'sec': self.acc, 'dis': 'PS', 'dev': 'CH'})
@@ -260,7 +259,7 @@ class SISetTrimStrengths(_Utils):
             self, magtype, goal_model, ref_model=None,
             percentage=0, apply=False, print_change=True):
         """."""
-        mags, init = self._get_strengths(magtype)
+        mags, init = self.get_strengths(magtype)
         refmod = ref_model or self.model
         cond = len(goal_model) != len(refmod)
         cond |= goal_model.length != refmod.length
