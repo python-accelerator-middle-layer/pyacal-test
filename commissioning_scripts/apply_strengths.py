@@ -65,7 +65,7 @@ class _Utils(_BaseClass):
             self._implement_changes(magnets=mags, strengths=implem)
         return init
 
-    def change_average_stengths(
+    def change_average_strengths(
             self, magname_filter=None,
             average=None, percentage=0, apply=False):
         """."""
