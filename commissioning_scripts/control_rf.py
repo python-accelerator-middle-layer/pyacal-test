@@ -3,10 +3,15 @@
 import time as _time
 from threading import Thread, Event
 
-import numpy as np
+import numpy as _np
+import matplotlib.pyplot as _mplt
+import matplotlib.gridspec as _mgs
+import matplotlib.cm as _mcm
 
 from siriuspy.devices import RFCav, SOFB, DCCT, EVG
 from apsuite.commissioning_scripts.base import BaseClass
+import pyaccel as _pyaccel
+from pymodels import si as _si, bo as _bo
 
 
 class Params:
@@ -14,6 +19,7 @@ class Params:
 
     def __init__(self):
         """."""
+        self._sweep_type = 'phase'
         self.phase_ini = -177.5
         self.phase_fin = 177.5
         self.phase_delta = 5
@@ -27,20 +33,40 @@ class Params:
         self.tim_timeout = 10
         self.wait_rf = 2
 
+    @property
+    def sweep_type(self):
+        """."""
+        return self._sweep_type
+
+    @sweep_type.setter
+    def sweep_type(self, val):
+        if val.lower().startswith('pha'):
+            self._sweep_type = 'phase'
+        else:
+            self._sweep_type = 'voltage'
+
+    @property
+    def isphasesweep(self):
+        """."""
+        return self._sweep_type.startswith('pha')
+
     def __str__(self):
         """."""
-        strep = '{0:30s}= {1:9.3f}\n'.format(
-            'initial phase [°]', self.phase_ini)
-        strep += '{0:30s}= {1:9.3f}\n'.format(
-            'final phase [°]', self.phase_fin)
-        strep += '{0:30s}= {1:9.3f}\n'.format(
-            'delta phase [°]', self.phase_delta)
-        strep += '{0:30s}= {1:9.3f}\n'.format(
-            'initial voltage [mV]', self.voltage_ini)
-        strep += '{0:30s}= {1:9.3f}\n'.format(
-            'final voltage [mV]', self.voltage_fin)
-        strep += '{0:30s}= {1:9.3f}\n'.format(
-            'delta voltage [mV]', self.voltage_delta)
+        strep = '{0:30s}= {1:s}\n'.format('sweep_type', self.sweep_type)
+        if self.sweep_type.lower().startswith('pha'):
+            strep += '{0:30s}= {1:9.3f}\n'.format(
+                'initial phase [°]', self.phase_ini)
+            strep += '{0:30s}= {1:9.3f}\n'.format(
+                'final phase [°]', self.phase_fin)
+            strep += '{0:30s}= {1:9.3f}\n'.format(
+                'delta phase [°]', self.phase_delta)
+        else:
+            strep += '{0:30s}= {1:9.3f}\n'.format(
+                'initial voltage [mV]', self.voltage_ini)
+            strep += '{0:30s}= {1:9.3f}\n'.format(
+                'final voltage [mV]', self.voltage_fin)
+            strep += '{0:30s}= {1:9.3f}\n'.format(
+                'delta voltage [mV]', self.voltage_delta)
         strep += '{0:30s}= {1:9d}\n'.format('number of pulses', self.nrpulses)
         strep += '{0:30s}= {1:9.3f}\n'.format(
             'pulses freq [Hz]', self.freq_pulses)
@@ -56,20 +82,34 @@ class Params:
 class ControlRF(BaseClass):
     """."""
 
-    def __init__(self, acc=None, is_cw=True):
+    def __init__(self, acc=None):
         """."""
         super().__init__(Params())
-        if acc is not None:
+        if acc in ('BO', 'SI'):
             self.acc = acc
         else:
-            raise Exception('Set BO or SI')
+            raise Exception('Set acc to BO or SI')
+
+        if self.acc == 'BO':
+            self._disp_avg = 220e3  # in um
+            self.model = _bo.create_accelerator()
+            self._mod_cavidx = _pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'P5Cav')[0]
+        else:
+            self._disp_avg = 25e3  # in um
+            self.model = _si.create_accelerator()
+            self._mod_cavidx = _pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'SRFCav')[0]
+        self._mod_freq0 = self.model[self._mod_cavidx].frequency
+        self.model.cavity_on = True
+        self.model.radiation_on = True
 
         devname_rf, devname_sofb = ControlRF._get_devnames(acc)
         devname_dcct = ControlRF._get_devnames_dcct(acc)
 
         self.devices = {
             'tim': EVG(),
-            'rf': RFCav(devname_rf, is_cw=is_cw),
+            'rf': RFCav(devname_rf),
             'sofb': SOFB(devname_sofb),
             'dcct': DCCT(devname_dcct)
             }
@@ -81,44 +121,29 @@ class ControlRF(BaseClass):
             'orbx': [],
             'orby': [],
             'dcct': [],
+            'time': None,
             }
         self._thread = Thread(target=self._do_scan)
         self._stopped = Event()
 
-    @property
-    def phase_span(self):
+    def get_scan_param_span(self):
         """."""
-        ini = self.params.phase_ini
-        fin = self.params.phase_fin
-        dlt = self.params.phase_delta
-        return self._calc_span(ini, fin, dlt)
+        if self.params.isphasesweep:
+            ini = self.params.phase_ini
+            fin = self.params.phase_fin
+            dlt = self.params.phase_delta
+        else:
+            ini = self.params.voltage_ini
+            fin = self.params.voltage_fin
+            dlt = self.params.voltage_delta
 
-    @property
-    def voltage_span(self):
-        """."""
-        ini = self.params.voltage_ini
-        fin = self.params.voltage_fin
-        dlt = self.params.voltage_delta
-        return self._calc_span(ini, fin, dlt)
-
-    @staticmethod
-    def _calc_span(ini, fin, dlt):
         npts = abs(int((fin - ini)/dlt)) + 1
-        return np.linspace(ini, fin, npts)
+        return _np.linspace(ini, fin, npts)
 
-    def do_phase_scan(self):
+    def start(self):
         """."""
         if not self._thread.is_alive():
-            self._thread = Thread(
-                target=self._do_scan, kwargs={'isphase': True}, daemon=True)
-            self._stopped.clear()
-            self._thread.start()
-
-    def do_voltage_scan(self):
-        """."""
-        if not self._thread.is_alive():
-            self._thread = Thread(
-                target=self._do_scan, kwargs={'isphase': False}, daemon=True)
+            self._thread = Thread(target=self._do_scan, daemon=True)
             self._stopped.clear()
             self._thread.start()
 
@@ -126,13 +151,135 @@ class ControlRF(BaseClass):
         """."""
         self._stopped.set()
 
-    def _do_scan(self, isphase=True):
+    def plot_energy_vs_turns(self, npts=None, navg=1, cut_sum=1.8):
+        """."""
+        nbpms = self.devices['sofb'].data.nr_bpms
+        if npts:
+            npts = npts - (npts % navg)
+        slc = slice(npts)
+
+        data = self.data
+        if self.params.isphasesweep:
+            var_span = _np.mean(data['phase'], axis=1)
+        else:
+            var_span = _np.mean(data['voltage'], axis=1)
+
+        fig = _mplt.figure(figsize=(7, 4))
+        gs = _mgs.GridSpec(1, 1)
+        gs.update(
+            left=0.1, right=0.78, bottom=0.15, top=0.9, hspace=0.5,
+            wspace=0.35)
+        axx = fig.add_subplot(gs[0, 0])
+
+        indcs = _np.linspace(0, 1, var_span.size)
+        cmap = _mcm.brg(indcs)
+        for i, (orb, sum_) in enumerate(zip(data['orbx'], data['sum'])):
+            bpm_sum = _np.mean(sum_.reshape(-1, nbpms)[slc, :], axis=1)*1e6
+            bpm_orbx = _np.mean(orb.reshape(-1, nbpms)[slc, :], axis=1)
+
+            nturns = _np.arange(0, bpm_sum.size, navg)
+            bpm_sum = _np.mean(bpm_sum.reshape(-1, navg), axis=1)
+            bpm_orbx = _np.mean(bpm_orbx.reshape(-1, navg), axis=1)
+            ind = bpm_sum > cut_sum
+            axx.plot(
+                nturns[ind], bpm_orbx[ind]/self._disp_avg*100, '-',
+                color=cmap[i], label='{0:.1f}'.format(var_span[i]))
+            axx.plot([0, 100], [0, -0.5/3e3*100*100], color='k', label='No RF')
+        axx.grid(True)
+        ncol = (var_span.size // 20) + 1
+        axx.legend(
+            loc='center left', bbox_to_anchor=(1., 0.5), fontsize='xx-small',
+            ncol=ncol, )
+        axx.set_title('Energy Variation vs Time')
+        axx.set_ylabel(r'$\delta$ [%]')
+        axx.set_xlabel('Number of Turns')
+        return fig
+
+    def plot_scan_param_vs_beam_intensity(self, isbpm=False):
+        """."""
+        fig = _mplt.figure(figsize=(7, 4))
+        gs = _mgs.GridSpec(1, 1)
+        gs.update(left=0.10, right=0.98, hspace=0, wspace=0.25)
+        axs = fig.add_subplot(gs[0, 0])
+
+        if self.params.isphasesweep:
+            var = _np.array(self.data['phase']).flatten()
+        else:
+            var = _np.array(self.data['voltage']).flatten()
+        if isbpm:
+            current = _np.mean(_np.array(self.data['sum']), axis=1)
+        else:
+            current = _np.array(self.data['data']['dcct']).flatten()*1000
+        pol = _np.polynomial.polynomial.polyfit(var, current, 2)
+
+        axs.plot(var, current, 'o')
+        axs.plot(var, _np.polynominal.polynomial.polyval(pol, var)*1000, '--')
+        axs.grid(True)
+        if isbpm:
+            axs.set_ylabel('BPM Sum Signal [au]')
+        else:
+            axs.set_ylabel('DCCT Current [uA]')
+        if self.params.isphasesweep:
+            axs.set_title('RF Phase Scan')
+            axs.set_xlabel('RF Phase [deg]')
+        else:
+            axs.set_title('RF Voltage Scan')
+            axs.set_xlabel('RF Voltage [mV]')
+
+        return fig
+
+    def do_tracking(self, nturns, deltaf=0, voltage=1.4e6, npart=10):
+        """."""
+        mod = self.model
+        idx = self._mod_cavidx
+        mod[idx].voltage = voltage
+        mod[idx].frequency = self._mod_freq0 + deltaf
+        inn = _np.zeros((npart, 6))
+        inn[:, 5] = _np.linspace(-0.30, 0.30, npart)
+        inn[:, 4] = 0.00
+
+        rout = []
+        l_speed = 299792458
+        harm = 864 if self.acc == 'SI' else 828
+        for _ in range(nturns):
+            rou, *_ = _pyaccel.tracking.line_pass(mod, inn, indices=None)
+            inn = rou[-npart:, :]
+            inn[:, 5] -= l_speed*harm/mod[idx].frequency - mod.length
+            rout.append(rou)
+        return _np.array(rout)
+
+    def plot_tracking(self, rout, lims=None):
+        """."""
+        fig = _mplt.figure(figsize=(7, 5))
+        gs = _mgs.GridSpec(2, 1)
+        gs.update(left=0.10, right=0.98, hspace=0.2, wspace=0.25)
+
+        axx = fig.add_subplot(gs[0, 0])
+        lines = axx.plot(rout[:, :, 4]*100, '.')
+        dener = -0.5/3e3*100*100 if self.acc == 'SI' else 0.0
+        axx.plot([0, 100], [0, dener], color='k', label='Without RF')
+        indcs = _np.linspace(0, 1, len(lines))
+        cmap = _mcm.brg(indcs)
+        for cor, line in zip(cmap, lines):
+            line.set_color(cor)
+        axx.grid(True)
+        axx.set_ylim([-3.5, 2] if lims is None else lims)
+
+        axy = fig.add_subplot(gs[1, 0])
+        lines = axy.plot(rout[:, :, 5]/60*360, rout[:, :, 4]*100, '.')
+        for cor, line in zip(cmap, lines):
+            line.set_color(cor)
+        axy.grid(True)
+        return fig
+
+    def _do_scan(self):
         nrpul = self.params.nrpulses
         freq = self.params.freq_pulses
 
         self.devices['sofb'].nr_points = nrpul
 
-        var_span = self.phase_span if isphase else self.voltage_span
+        isphase = self.params.isphasesweep
+        var_span = self.get_scan_param_span()
         self.data['phase'] = []
         self.data['voltage'] = []
         self.data['power'] = []
@@ -144,23 +291,23 @@ class ControlRF(BaseClass):
         for val in var_span:
             print('Turning pulses off --> ', end='')
             self.devices['tim'].cmd_turn_off_pulses(self.params.tim_timeout)
-            print('varying phase --> ', end='')
+            print(f'varying {self.params.sweep_type:s} --> ', end='')
             self._vary(val, isphase=isphase)
             _time.sleep(self.params.wait_rf)
-            phase_data = np.zeros(nrpul)
-            voltage_data = np.zeros(nrpul)
-            power_data = np.zeros(nrpul)
-            dcct_data = np.zeros(nrpul)
+            phase_data = _np.zeros(nrpul)
+            voltage_data = _np.zeros(nrpul)
+            power_data = _np.zeros(nrpul)
+            dcct_data = _np.zeros(nrpul)
             print('turning pulses on --> ', end='')
             self.devices['tim'].cmd_turn_on_pulses(self.params.tim_timeout)
             print('Getting data ', end='')
             self.devices['sofb'].cmd_reset()
             for k in range(nrpul):
                 print('.', end='')
-                phase_data[k] = self.devices['rf'].dev_rfll.phase
-                voltage_data[k] = self.devices['rf'].dev_rfll.voltage
+                phase_data[k] = self.devices['rf'].dev_llrf.phase
+                voltage_data[k] = self.devices['rf'].dev_llrf.voltage
                 power_data[k] = self.devices['rf'].dev_rfpowmon.power
-                dcct_data[k] = np.mean(self.devices['dcct'].current_fast)
+                dcct_data[k] = _np.mean(self.devices['dcct'].current_fast)
                 _time.sleep(1/freq)
                 if self._stopped.is_set():
                     break
@@ -168,16 +315,17 @@ class ControlRF(BaseClass):
             self.data['phase'].append(phase_data)
             self.data['voltage'].append(voltage_data)
             self.data['power'].append(power_data)
-            self.data['sum'].append(self.devices['sofb'].sum)
-            self.data['orbx'].append(self.devices['sofb'].trajx)
-            self.data['orby'].append(self.devices['sofb'].trajy)
+            self.data['sum'].append(self.devices['sofb'].mt_sum)
+            self.data['orbx'].append(self.devices['sofb'].mt_trajx)
+            self.data['orby'].append(self.devices['sofb'].mt_trajy)
             self.data['dcct'].append(dcct_data)
+            self.data['time'] = _time.time()
             if isphase:
                 print('Phase [°]: {0:8.3f}'.format(
-                    self.devices['rf'].dev_rfll.phase))
+                    self.devices['rf'].dev_llrf.phase))
             else:
                 print('Voltage [mV]: {0:8.3f}'.format(
-                    self.devices['rf'].dev_rfll.voltage))
+                    self.devices['rf'].dev_llrf.voltage))
             if self._stopped.is_set():
                 print('Stopped!')
                 break
@@ -208,10 +356,8 @@ class ControlRF(BaseClass):
     def _get_devnames_dcct(acc):
         if acc is None:
             devname_dcct = None
-        elif acc.upper() == 'SI-1':
+        elif acc.upper() == 'SI':
             devname_dcct = DCCT.DEVICES.SI_13C4
-        elif acc.upper() == 'SI-2':
-            devname_dcct = DCCT.DEVICES.SI_14C4
         elif acc.upper() == 'BO':
             devname_dcct = DCCT.DEVICES.BO
         else:
