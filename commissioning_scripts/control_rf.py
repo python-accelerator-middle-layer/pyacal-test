@@ -239,15 +239,16 @@ class ControlRF(BaseClass):
         inn[:, 4] = 0.00
 
         rout = []
+        l_speed = 299792458
+        harm = 864 if self.acc == 'SI' else 828
         for _ in range(nturns):
             rou, *_ = _pyaccel.tracking.line_pass(mod, inn, indices=None)
             inn = rou[-npart:, :]
-            inn[:, 5] -= 299792458*864/mod[idx].frequency - mod.length
+            inn[:, 5] -= l_speed*harm/mod[idx].frequency - mod.length
             rout.append(rou)
         return _np.array(rout)
 
-    @staticmethod
-    def plot_tracking(rout, lims=None):
+    def plot_tracking(self, rout, lims=None):
         """."""
         fig = _mplt.figure(figsize=(7, 5))
         gs = _mgs.GridSpec(2, 1)
@@ -255,7 +256,7 @@ class ControlRF(BaseClass):
 
         axx = fig.add_subplot(gs[0, 0])
         lines = axx.plot(rout[:, :, 4]*100, '.')
-        dener = -0.5/3e3*100*100
+        dener = -0.5/3e3*100*100 if self.acc == 'SI' else 0.0
         axx.plot([0, 100], [0, dener], color='k', label='Without RF')
         indcs = _np.linspace(0, 1, len(lines))
         cmap = _mcm.brg(indcs)
