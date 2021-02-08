@@ -118,7 +118,7 @@ class _Utils(_BaseClass):
             if mag not in self.devices:
                 self.devices[mag] = _PowerSupply(mag)
 
-    def _get_magnet_names(self, magname_filter='.*Q'):
+    def _get_magnet_names(self, magname_filter=None):
         if magname_filter is None:
             mags = self.devices.keys()
         else:
@@ -188,6 +188,15 @@ class SetOpticsMode(_Utils):
                 idx = self.famdata[key]['index'][0][0]
                 self.data['optics_data'][key] *= self.model[idx].length
 
+    def get_goal_optics_vector(self, magname_filter=None, optics_data=None):
+        """."""
+        optics_data = optics_data or self.data['optics_data']
+        maglist = self._get_magnet_names(magname_filter)
+        stren = []
+        for mag in maglist:
+            stren.append(optics_data[mag.dev])
+        return _np.asarray(stren)
+
     def _select_model(self):
         if self.acc == 'TB':
             self._pymodpack = _pymod.tb
@@ -214,13 +223,24 @@ class SetOpticsMode(_Utils):
 
     def _create_optics_data(self):
         optmode = self.data['optics_mode']
-        if self.data['optics_mode'] is None:
+        if optmode is None:
             optmode = self._pymodpack.default_optics_mode
+        self.data['optics_mode'] = optmode
         self.data['optics_data'] = self._pymodpack.lattice.get_optics_mode(
             optics_mode=optmode)
         if 'T' in self.acc:
             self.data['optics_data'] = self.data['optics_data'][0]
             self.model = self.model[0]
+
+    def _get_magnet_names(self, magname_filter=None):
+        maname = magname_filter
+        if isinstance(maname, str) and maname.lower().startswith('quad'):
+            maglist = self.quad_list
+        elif isinstance(maname, str) and maname.lower().startswith('sext'):
+            maglist = self.sext_list
+        else:
+            maglist = super()._get_magnet_names(maname)
+        return maglist
 
 
 class SetCorretorsStrengths(_Utils):
@@ -336,13 +356,12 @@ class SISetTrimStrengths(_Utils):
             qname = f'SI-{sub}:PS-QS-{inst}'
             self.skewquad_names.append(qname.strip('-'))
 
-    def _get_magnet_names(self, magname_filter):
-        magname = magname_filter.lower()
-        if magname.startswith('quad'):
+    def _get_magnet_names(self, magname_filter=None):
+        maname = magname_filter
+        if isinstance(maname, str) and maname.lower().startswith('quad'):
             maglist = self.quad_names
-        elif magname.startswith('skew'):
+        elif isinstance(maname, str) and maname.lower().startswith('skew'):
             maglist = self.skewquad_names
         else:
-            regex = _re.compile(magname_filter)
-            maglist = [mag for mag in self.devices if regex.match(mag)]
+            maglist = super()._get_magnet_names(maname)
         return maglist
