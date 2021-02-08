@@ -268,7 +268,7 @@ class SISetTrimStrengths(_Utils):
         if cond:
             raise ValueError(
                 'Reference and goal models are incompatible.')
-        if magname_filter == 'quadrupole':
+        if magname_filter.lower() == 'quadrupole':
             if ref_model is None:
                 magidx = self.quads_idx
             else:
@@ -279,7 +279,7 @@ class SISetTrimStrengths(_Utils):
                 magidx = _np.asarray([idx[0] for idx in magidx])
             stren_ref = _np.asarray([refmod[idx].KL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KL for idx in magidx])
-        elif magname_filter == 'skew_quadrupole':
+        elif magname_filter.lower() == 'skew_quadrupole':
             if ref_model is None:
                 magidx = self.skewquads_idx
             else:
@@ -334,9 +334,10 @@ class SISetTrimStrengths(_Utils):
             self.skewquad_names.append(qname.strip('-'))
 
     def _get_magnet_names(self, magname_filter):
-        if magname_filter.startswith('quad'):
+        magname = magname_filter.lower()
+        if magname.startswith('quad'):
             maglist = self.quad_names
-        elif magname_filter.startswith('skew'):
+        elif magname.startswith('skew'):
             maglist = self.skewquad_names
         else:
             regex = _re.compile(magname_filter)
