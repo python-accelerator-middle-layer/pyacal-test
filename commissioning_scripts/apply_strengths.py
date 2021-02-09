@@ -232,6 +232,17 @@ class SetOpticsMode(_Utils):
             self.data['optics_data'] = self.data['optics_data'][0]
             self.model = self.model[0]
 
+        self.data['optics_data'] = {
+            key.upper(): val for key, val in self.data['optics_data'].items()}
+        self.famdata = self._pymodpack.get_family_data(self.model)
+        # convert to integrated strengths
+        for key in self.data['optics_data']:
+            if key in self.famdata:
+                # NOTE: This is incorrect for magnets with more than one
+                # segment
+                idx = self.famdata[key]['index'][0][0]
+                self.data['optics_data'][key] *= self.model[idx].length
+
     def _get_magnet_names(self, magname_filter=None):
         magname = magname_filter
         if isinstance(magname, str) and magname.lower().startswith('quad'):
