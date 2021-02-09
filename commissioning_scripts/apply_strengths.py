@@ -233,13 +233,13 @@ class SetOpticsMode(_Utils):
             self.model = self.model[0]
 
     def _get_magnet_names(self, magname_filter=None):
-        maname = magname_filter
-        if isinstance(maname, str) and maname.lower().startswith('quad'):
-            maglist = self.quad_list
-        elif isinstance(maname, str) and maname.lower().startswith('sext'):
-            maglist = self.sext_list
+        magname = magname_filter
+        if isinstance(magname, str) and magname.lower().startswith('quad'):
+            maglist = self.quad_names
+        elif isinstance(magname, str) and magname.lower().startswith('sext'):
+            maglist = self.sext_names
         else:
-            maglist = super()._get_magnet_names(maname)
+            maglist = super()._get_magnet_names(magname)
         return maglist
 
 
@@ -359,11 +359,11 @@ class SISetTrimStrengths(_Utils):
             self.skewquad_names.append(qname.strip('-'))
 
     def _get_magnet_names(self, magname_filter=None):
-        maname = magname_filter
-        if isinstance(maname, str) and maname.lower().startswith('quad'):
+        magname = magname_filter
+        if isinstance(magname, str) and magname.lower().startswith('quad'):
             maglist = self.quad_names
-        elif isinstance(maname, str) and maname.lower().startswith('skew'):
+        elif isinstance(magname, str) and magname.lower().startswith('skew'):
             maglist = self.skewquad_names
         else:
-            maglist = super()._get_magnet_names(maname)
+            maglist = super()._get_magnet_names(magname)
         return maglist
