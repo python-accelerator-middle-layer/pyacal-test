@@ -170,13 +170,13 @@ class SetOpticsMode(_Utils):
         self.data = dict()
         self.data['optics_mode'] = optics_mode
         self.model = None
-        self.quad_list = []
-        self.sext_list = []
+        self.quad_names = list()
+        self.sext_names = list()
         self.devices = _OrderedDict()
         self._select_model()
         self._select_magnets()
         self._create_devices(
-            devices_names=self.quad_list + self.sext_list)
+            devices_names=self.quad_names + self.sext_names)
         self.model = self._pymodpack.create_accelerator()
         self._create_optics_data()
         self.famdata = self._pymodpack.get_family_data(self.model)
@@ -218,8 +218,8 @@ class SetOpticsMode(_Utils):
             pvstr = self.acc + '-Fam:PS-'
             qlist = self._pymodpack.families.families_quadrupoles()
             slist = self._pymodpack.families.families_sextupoles()
-        self.quad_list = [_PVName(pvstr+mag) for mag in qlist]
-        self.sext_list = [_PVName(pvstr+mag) for mag in slist]
+        self.quad_names = [_PVName(pvstr+mag) for mag in qlist]
+        self.sext_names = [_PVName(pvstr+mag) for mag in slist]
 
     def _create_optics_data(self):
         optmode = self.data['optics_mode']
@@ -250,18 +250,20 @@ class SetCorretorsStrengths(_Utils):
         """."""
         super().__init__()
         self.acc = acc.upper()
+        self.ch_names = list()
+        self.cv_names = list()
         self._get_corr_names()
         self.devices = _OrderedDict()
         self._create_devices(
-            devices_names=self.ch_list+self.cv_list)
+            devices_names=self.ch_names+self.cv_names)
 
     def _get_corr_names(self):
         ch_names = _PSSearch.get_psnames(
             {'sec': self.acc, 'dis': 'PS', 'dev': 'CH'})
         cv_names = _PSSearch.get_psnames(
             {'sec': self.acc, 'dis': 'PS', 'dev': 'CV'})
-        self.ch_list = [_PVName(mag) for mag in ch_names]
-        self.cv_list = [_PVName(mag) for mag in cv_names]
+        self.ch_names = [_PVName(mag) for mag in ch_names]
+        self.cv_names = [_PVName(mag) for mag in cv_names]
 
 
 class SISetTrimStrengths(_Utils):
