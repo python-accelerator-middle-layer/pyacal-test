@@ -89,8 +89,9 @@ class OrbRespmat():
             else:
                 respmat.append(respy)
 
-        rfline = self._calc_rfline()
-        respmat.append(rfline)
+        if self.acc == 'SI':
+            rfline = self._calc_rfline()
+            respmat.append(rfline)
         respmat = np.array(respmat).T
 
         self.model.cavity_on = cav
@@ -173,14 +174,22 @@ class TrajRespmat():
             self.ch_idx = sorted(self.ch_idx)
 
         self.ch_idx = self._get_idx(self.ch_idx)
-        self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
+
+        if acc == 'TS':
+            self.cv_idx = pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'CV')
+        else:
+            self.cv_idx = self._get_idx(self.fam_data['CV']['index'])
 
         if self.nturns > 1 and acc in ('BO', 'SI'):
             self.model = self.nturns*model
-            self.bpm_idx = pyaccel.lattice.find_indices(
+            bpm_idx = pyaccel.lattice.find_indices(
                 self.model, 'fam_name', 'BPM')
         else:
-            self.bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
+            bpm_idx = self._get_idx(self.fam_data['BPM']['index'])
+
+        # Remove BPM from Linac
+        self.bpm_idx = bpm_idx[1:] if acc == 'TB' else bpm_idx
 
     @staticmethod
     def _get_idx(indcs):
@@ -207,7 +216,9 @@ class TrajRespmat():
             else:
                 respmat.append(respy)
 
-        respmat.append(np.zeros(2*len(self.bpm_idx)))
+        if self.acc == 'SI':
+            # RF column set as zero for trajectory correction in SI
+            respmat.append(np.zeros(2*len(self.bpm_idx)))
         respmat = np.array(respmat).T
         return respmat
 
