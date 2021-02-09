@@ -137,13 +137,13 @@ class SetOpticsMode(_Utils):
         'TB-01:PS-QD1',
         'TB-01:PS-QF1',
         'TB-02:PS-QD2A',
-        'TB-02:PS-QD2B',
         'TB-02:PS-QF2A',
         'TB-02:PS-QF2B',
-        'TB-03:PS-QD3',
+        'TB-02:PS-QD2B',
         'TB-03:PS-QF3',
-        'TB-04:PS-QD4',
+        'TB-03:PS-QD3',
         'TB-04:PS-QF4',
+        'TB-04:PS-QD4',
         ]
 
     TS_QUADS = [
@@ -153,8 +153,8 @@ class SetOpticsMode(_Utils):
         'TS-02:PS-QF2',
         'TS-03:PS-QF3',
         'TS-04:PS-QD4A',
-        'TS-04:PS-QD4B',
         'TS-04:PS-QF4',
+        'TS-04:PS-QD4B',
         ]
 
     def __init__(self, acc, optics_mode=None):
