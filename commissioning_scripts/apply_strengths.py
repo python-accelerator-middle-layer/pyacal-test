@@ -179,14 +179,6 @@ class SetOpticsMode(_Utils):
             devices_names=self.quad_names + self.sext_names)
         self.model = self._pymodpack.create_accelerator()
         self._create_optics_data()
-        self.famdata = self._pymodpack.get_family_data(self.model)
-        # convert to integrated strengths
-        for key in self.data['optics_data']:
-            if key in self.famdata:
-                # NOTE: This is incorrect for magnets with more than one
-                # segment
-                idx = self.famdata[key]['index'][0][0]
-                self.data['optics_data'][key] *= self.model[idx].length
 
     def get_goal_optics_vector(self, magname_filter=None, optics_data=None):
         """."""
@@ -194,7 +186,9 @@ class SetOpticsMode(_Utils):
         maglist = self._get_magnet_names(magname_filter)
         stren = []
         for mag in maglist:
-            stren.append(optics_data[mag.dev])
+            magname = mag.dev
+            magname += 'L' if self.acc == 'TB' and 'LI' in mag else ''
+            stren.append(optics_data[magname])
         return _np.asarray(stren)
 
     def _select_model(self):
