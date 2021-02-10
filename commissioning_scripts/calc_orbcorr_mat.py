@@ -16,6 +16,10 @@ class OrbRespmat():
         self.model = model
         self.acc = acc
         if self.acc == 'BO':
+            # shift booster to start on injection point
+            inj = pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'InjSept')
+            self.model = pyaccel.lattice.shift(self.model, inj[0])
             self.fam_data = bo.families.get_family_data(self.model)
         elif self.acc == 'SI':
             self.fam_data = si.families.get_family_data(self.model)
@@ -157,18 +161,22 @@ class TrajRespmat():
         self.acc = acc
         self.nturns = nturns
         if acc == 'TB':
-            self.fam_data = tb.get_family_data(model)
+            self.fam_data = tb.get_family_data(self.model)
         elif acc == 'BO':
-            self.fam_data = bo.get_family_data(model)
+            # shift booster to start on injection point
+            inj = pyaccel.lattice.find_indices(
+                self.model, 'fam_name', 'InjSept')
+            self.model = pyaccel.lattice.shift(self.model, inj[0])
+            self.fam_data = bo.get_family_data(self.model)
         elif acc == 'TS':
-            self.fam_data = ts.get_family_data(model)
+            self.fam_data = ts.get_family_data(self.model)
         elif acc == 'SI':
-            self.fam_data = si.get_family_data(model)
+            self.fam_data = si.get_family_data(self.model)
 
         self.ch_idx = self.fam_data['CH']['index']
         if acc == 'TS':
             ejesept = pyaccel.lattice.find_indices(
-                model, 'fam_name', 'EjeSeptG')
+                self.model, 'fam_name', 'EjeSeptG')
             segs = len(ejesept)
             self.ch_idx.append([ejesept[segs//2]])
             self.ch_idx = sorted(self.ch_idx)
