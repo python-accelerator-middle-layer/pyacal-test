@@ -60,7 +60,7 @@ class _Utils(_BaseClass):
         implem = factor * init
         print(
             'Factor {:9.3f} will be applied in {:10s} magnets'.format(
-                magname_filter, factor))
+                factor, magname_filter))
         if apply:
             self._implement_changes(magnets=mags, strengths=implem)
         return init
