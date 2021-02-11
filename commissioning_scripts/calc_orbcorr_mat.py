@@ -94,7 +94,7 @@ class OrbRespmat():
                 respmat.append(respy)
 
         if self.acc == 'SI':
-            rfline = self._calc_rfline()
+            rfline = self._calc_rfline() * 1e6  # convert m/Hz -> um/Hz
             respmat.append(rfline)
         respmat = np.array(respmat).T
 
