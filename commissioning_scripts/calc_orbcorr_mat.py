@@ -228,6 +228,9 @@ class TrajRespmat():
             # RF column set as zero for trajectory correction in SI
             respmat.append(np.zeros(2*len(self.bpm_idx)))
         respmat = np.array(respmat).T
+
+        if self.nturns > 1:
+            respmat = self._calc_nturns_respm(respmat)
         return respmat
 
     def _get_respmat_line(self, rc_mat, rb_mat, corr, length,
@@ -265,3 +268,17 @@ class TrajRespmat():
         respyy[large] = rcb_mat[:, 2, 3]
         respy = np.hstack([respxy, respyy])
         return respx, respy
+
+    def _calc_nturns_respm(self, respmat):
+        """."""
+        hshape = respmat.shape[0]//2
+        respmx = respmat[:hshape, :]
+        respmy = respmat[hshape:, :]
+        matx = respmx.copy()
+        maty = respmy.copy()
+        nturns = self.nturns
+        nbpm = len(self.bpm_idx) // nturns
+        for iturn in range(1, nturns):
+            matx[iturn*nbpm:, :] += respmx[:(nturns - iturn)*nbpm, :]
+            maty[iturn*nbpm:, :] += respmy[:(nturns - iturn)*nbpm, :]
+        return np.vstack((matx, maty))
