@@ -99,7 +99,7 @@ class _FitInjTrajBase(BaseClass):
         for _ in range(1, max_iter):
             if jacobian is None or update_jacobian:
                 jacobian = self.calc_jacobian(vec0, size=trajx.size)
-            if imat is None:
+            if imat is None or update_jacobian:
                 u_mat, s_mat, vh_mat = np.linalg.svd(
                     jacobian, full_matrices=False)
                 imat = vh_mat.T @ np.diag(1/s_mat) @ u_mat.T
@@ -136,7 +136,7 @@ class _FitInjTrajBase(BaseClass):
         trajy -= self.devices['sofb'].refy
 
         ini = np.mean(summ[:self.params.count_init_ref])
-        indcs = summ > ini * self.params.count_rel_thres
+        indcs = summ >= ini * self.params.count_rel_thres
         maxidx = np.sum(indcs)
         trajx = trajx[:maxidx]
         trajy = trajy[:maxidx]
@@ -175,6 +175,10 @@ class _FitInjTrajBase(BaseClass):
         trajx += errx * (np.random.rand(trajx.size)-0.5)*2
         trajy += erry * (np.random.rand(trajy.size)-0.5)*2
         return trajx, trajy, snan
+
+    def unreliable_fitting(self):
+        """."""
+        return ''
 
     # ##### private methods #####
     @classmethod
