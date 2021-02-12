@@ -245,6 +245,7 @@ class DoBBA(_BaseClass):
         self.connect_to_quadrupoles()
 
         self._stopevt = _Event()
+        self._finished = _Event()
         self._thread = _Thread(target=self._do_bba, daemon=True)
 
     def __str__(self):
@@ -271,6 +272,7 @@ class DoBBA(_BaseClass):
         if self.ismeasuring:
             return
         self._stopevt.clear()
+        self._finished.clear()
         self._thread = _Thread(target=self._do_bba, daemon=True)
         self._thread.start()
 
@@ -282,6 +284,10 @@ class DoBBA(_BaseClass):
     def ismeasuring(self):
         """."""
         return self._thread.is_alive()
+
+    def wait_measurement(self, timeout=None):
+        """Wait for measurement to finish."""
+        self._finished.wait(timeout=timeout)
 
     @property
     def measuredbpms(self):
@@ -1190,6 +1196,7 @@ class DoBBA(_BaseClass):
         dtime = str(tfin - tini)
         dtime = dtime.split('.')[0]
         print('finished! Elapsed time {:s}'.format(dtime))
+        self._finished.set()
 
     def _dobba_single_bpm(self, bpmname):
         """."""
