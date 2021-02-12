@@ -249,6 +249,7 @@ class DoBBA(_BaseClass):
 
         self._stopevt = _Event()
         self._finished = _Event()
+        self._finished.set()
         self._thread = _Thread(target=self._do_bba, daemon=True)
 
     def __str__(self):

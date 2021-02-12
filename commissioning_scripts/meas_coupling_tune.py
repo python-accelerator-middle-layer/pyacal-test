@@ -94,6 +94,7 @@ class MeasCoupling(BaseClass):
         self.data = dict()
         self._stopevt = _Event()
         self._finished = _Event()
+        self._finished.set()
         self._thread = _Thread(target=self._do_meas, daemon=True)
 
     def start(self):
