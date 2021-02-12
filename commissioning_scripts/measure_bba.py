@@ -5,6 +5,7 @@ from threading import Thread as _Thread, Event as _Event
 
 from copy import deepcopy as _dcopy
 import numpy as _np
+from scipy.optimize import least_squares as _least_squares
 
 import matplotlib.pyplot as _plt
 import matplotlib.gridspec as _mpl_gs
@@ -358,16 +359,18 @@ class DoBBA(_BaseClass):
                 _time.sleep(self.params.wait_correctors)
         return -1, fmet
 
-    def process_data(self, nbpms_linfit=None, thres=None, mode='symm',
-                     discardpoints=None):
+    def process_data(
+            self, nbpms_linfit=None, thres=None, mode='symm',
+            discardpoints=None, nonlinear=False):
         """."""
         for bpm in self.data['measure']:
             self.analysis[bpm] = self.process_data_single_bpm(
                 bpm, nbpms_linfit=nbpms_linfit, thres=thres, mode=mode,
-                discardpoints=discardpoints)
+                discardpoints=discardpoints, nonlinear=nonlinear)
 
-    def process_data_single_bpm(self, bpm, nbpms_linfit=None, thres=None,
-                                mode='symm', discardpoints=None):
+    def process_data_single_bpm(
+            self, bpm, nbpms_linfit=None, thres=None, mode='symm',
+            discardpoints=None, nonlinear=False):
         """."""
         anl = dict()
         idx = self.data['bpmnames'].index(bpm)
@@ -450,10 +453,26 @@ class DoBBA(_BaseClass):
             px = _np.polyfit(xpos, rmsx, deg=2, cov=False)
             py = _np.polyfit(ypos, rmsy, deg=2, cov=False)
             covx = covy = _np.zeros((3, 3))
+
         x0 = -px[1] / px[0] / 2
         y0 = -py[1] / py[0] / 2
         stdx0 = _np.abs(x0)*_np.sqrt(_np.sum(_np.diag(covx)[:2]/px[:2]/px[:2]))
         stdy0 = _np.abs(y0)*_np.sqrt(_np.sum(_np.diag(covy)[:2]/py[:2]/py[:2]))
+
+        if nonlinear:
+            fitx = _least_squares(
+                fun=lambda par, x, y: (y - par[1]*(x - par[0])**2),
+                x0=[x0, px[0]], args=(xpos, rmsx), method='lm')
+            fity = _least_squares(
+                fun=lambda par, x, y: (y - par[1]*(x - par[0])**2),
+                x0=[y0, py[0]], args=(ypos, rmsy), method='lm')
+            x0, conx = fitx['x']
+            y0, cony = fity['x']
+            px = _np.array([conx, -2*conx*x0, conx*x0*x0])
+            py = _np.array([cony, -2*cony*y0, cony*y0*y0])
+            stdx0 = self._calc_fitting_error(fitx)[0]
+            stdy0 = self._calc_fitting_error(fity)[0]
+
         extrapx = not min(xpos) <= x0 <= max(xpos)
         extrapy = not min(ypos) <= y0 <= max(ypos)
         anl['quadratic_fitting'] = dict()
@@ -537,6 +556,32 @@ class DoBBA(_BaseClass):
             bname = bname.strip('-')
             bpmnames.append(bname.strip('-'))
         return bpmnames, qnames, quads_bba_idx
+
+    @staticmethod
+    def _calc_fitting_error(fit_params):
+        # based on fitting error calculation of scipy.optimization.curve_fit
+        # do Moore-Penrose inverse discarding zero singular values.
+        _, smat, vhmat = _np.linalg.svd(
+            fit_params['jac'], full_matrices=False)
+        thre = _np.finfo(float).eps * max(fit_params['jac'].shape)
+        thre *= smat[0]
+        smat = smat[smat > thre]
+        vhmat = vhmat[:smat.size]
+        pcov = _np.dot(vhmat.T / (smat*smat), vhmat)
+
+        # multiply covariance matrix by residue 2-norm
+        ysize = len(fit_params['fun'])
+        cost = 2 * fit_params['cost']  # res.cost is half sum of squares!
+        popt = fit_params['x']
+        if ysize > popt.size:
+            # normalized by degrees of freedom
+            s_sq = cost / (ysize - popt.size)
+            pcov = pcov * s_sq
+        else:
+            pcov.fill(0.0)
+            print(
+                '# of fitting parameters larger than # of data points!')
+        return _np.sqrt(_np.diag(pcov))
 
     @staticmethod
     def _calc_dorb_scan(deltaorb, nrpts):
