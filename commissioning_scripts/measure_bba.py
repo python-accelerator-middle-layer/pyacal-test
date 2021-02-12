@@ -13,6 +13,7 @@ import matplotlib.cm as _cmap
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import SOFB as _SOFB, PowerSupply as _PowerSupply
 from siriuspy.clientconfigdb import ConfigDBClient
+from siriuspy.epics import PV as _PV
 
 import pyaccel as _pyacc
 
@@ -243,6 +244,7 @@ class DoBBA(_BaseClass):
         self.data['measure'] = dict()
         self.analysis = dict()
         self.connect_to_quadrupoles()
+        self.devices['havebeam'] = _PV('SI-Glob:AP-CurrInfo:StoredEBeam-Mon')
 
         self._stopevt = _Event()
         self._finished = _Event()
@@ -279,6 +281,12 @@ class DoBBA(_BaseClass):
     def stop(self):
         """."""
         self._stopevt.set()
+
+    @property
+    def havebeam(self):
+        """."""
+        haveb = self.devices['havebeam']
+        return haveb.connected and haveb.value
 
     @property
     def ismeasuring(self):
@@ -1184,7 +1192,10 @@ class DoBBA(_BaseClass):
         for i, bpm in enumerate(self._bpms2dobba):
             if self._stopevt.is_set():
                 print('stopped!')
-                return
+                break
+            if not self.havebeam:
+                print('Beam was Lost')
+                break
             print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
             self._dobba_single_bpm(bpm)
 
@@ -1257,7 +1268,7 @@ class DoBBA(_BaseClass):
         tmpl = '{:25s}'.format
         klpos = klneg = 0.0
         for i in range(npts):
-            if self._stopevt.is_set():
+            if self._stopevt.is_set() or not self.havebeam:
                 print('   exiting...')
                 break
             print('    {0:02d}/{1:02d} --> '.format(i+1, npts), end='')
