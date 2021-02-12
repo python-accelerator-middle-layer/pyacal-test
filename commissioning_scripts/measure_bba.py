@@ -238,6 +238,7 @@ class DoBBA(_BaseClass):
         self.clt_confdb = ConfigDBClient(config_type='si_bbadata')
         self.clt_confdb._TIMEOUT_DEFAULT = 20
         self.devices['sofb'] = _SOFB(_SOFB.DEVICES.SI)
+        self.devices['havebeam'] = _PV('SI-Glob:AP-CurrInfo:StoredEBeam-Mon')
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
         self.data['scancenterx'] = _np.zeros(len(BBAParams.BPMNAMES))
@@ -245,7 +246,6 @@ class DoBBA(_BaseClass):
         self.data['measure'] = dict()
         self.analysis = dict()
         self.connect_to_quadrupoles()
-        self.devices['havebeam'] = _PV('SI-Glob:AP-CurrInfo:StoredEBeam-Mon')
 
         self._stopevt = _Event()
         self._finished = _Event()
@@ -297,7 +297,7 @@ class DoBBA(_BaseClass):
 
     def wait_measurement(self, timeout=None):
         """Wait for measurement to finish."""
-        self._finished.wait(timeout=timeout)
+        return self._finished.wait(timeout=timeout)
 
     @property
     def measuredbpms(self):

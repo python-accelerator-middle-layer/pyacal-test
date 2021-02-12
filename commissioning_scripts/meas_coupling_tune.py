@@ -118,7 +118,7 @@ class MeasCoupling(BaseClass):
 
     def wait_measurement(self, timeout=None):
         """Wait for measurement to finish."""
-        self._finished.wait(timeout=timeout)
+        return self._finished.wait(timeout=timeout)
 
     def load_and_apply_old_data(self, fname):
         """."""
