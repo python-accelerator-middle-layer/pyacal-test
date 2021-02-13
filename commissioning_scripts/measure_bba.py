@@ -337,7 +337,7 @@ class DoBBA(_BaseClass):
         """."""
         return [1/2, -1/2, 0]
 
-    def correct_orbit(self, bpmname, x0, y0):
+    def correct_orbit_at_bpm(self, bpmname, x0, y0):
         """."""
         sofb = self.devices['sofb']
         idxx = self.data['bpmnames'].index(bpmname)
@@ -359,6 +359,18 @@ class DoBBA(_BaseClass):
                 sofb.cmd_applycorr_all()
                 _time.sleep(self.params.wait_correctors)
         return -1, fmet
+
+    def correct_orbit(self):
+        """."""
+        sofb = self.devices['sofb']
+        for _ in range(self.params.sofb_maxcorriter):
+            sofb.cmd_calccorr()
+            _time.sleep(self.params.wait_sofb)
+            sofb.cmd_applycorr_all()
+            _time.sleep(self.params.wait_correctors)
+            sofb.cmd_reset()
+            _time.sleep(0.1)
+            sofb.wait_buffer()
 
     def process_data(
             self, nbpms_linfit=None, thres=None, mode='symm',
@@ -1129,7 +1141,7 @@ class DoBBA(_BaseClass):
 
     @staticmethod
     def make_figure_compare_bbas(
-            bbalist, method='linear_fitting', labels=[], bpmsok=None,
+            bbalist, method='linear_fitting', labels=None, bpmsok=None,
             bpmsnok=None, fname='', xlim=None, ylim=None, title='',
             plotdiff=True):
         """."""
@@ -1153,7 +1165,7 @@ class DoBBA(_BaseClass):
             [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpmsnok],
             dtype=int)
 
-        if not labels:
+        if labels is None:
             labels = [str(i) for i in range(len(bbalist))]
         cors = _cmap.brg(_np.linspace(0, 1, len(bbalist)))
 
@@ -1242,6 +1254,9 @@ class DoBBA(_BaseClass):
             if not self.havebeam:
                 print('Beam was Lost')
                 break
+            print('\nCorrecting Orbit...', end='')
+            self.correct_orbit()
+            print('Ok!')
             print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
             self._dobba_single_bpm(bpm)
 
@@ -1320,7 +1335,8 @@ class DoBBA(_BaseClass):
             print('    {0:02d}/{1:02d} --> '.format(i+1, npts), end='')
 
             print('orbit corr: ', end='')
-            ret, fmet = self.correct_orbit(bpmname, x0+dorbsx[i], y0+dorbsy[i])
+            ret, fmet = self.correct_orbit_at_bpm(
+                bpmname, x0+dorbsx[i], y0+dorbsy[i])
             if ret >= 0:
                 txt = tmpl('Ok! in {:02d} iters'.format(ret))
             else:
