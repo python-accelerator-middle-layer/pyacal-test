@@ -5,6 +5,7 @@ from threading import Thread as _Thread, Event as _Event
 
 from copy import deepcopy as _dcopy
 import numpy as _np
+from scipy.optimize import least_squares as _least_squares
 
 import matplotlib.pyplot as _plt
 import matplotlib.gridspec as _mpl_gs
@@ -13,6 +14,7 @@ import matplotlib.cm as _cmap
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import SOFB as _SOFB, PowerSupply as _PowerSupply
 from siriuspy.clientconfigdb import ConfigDBClient
+from siriuspy.epics import PV as _PV
 
 import pyaccel as _pyacc
 
@@ -236,6 +238,7 @@ class DoBBA(_BaseClass):
         self.clt_confdb = ConfigDBClient(config_type='si_bbadata')
         self.clt_confdb._TIMEOUT_DEFAULT = 20
         self.devices['sofb'] = _SOFB(_SOFB.DEVICES.SI)
+        self.devices['havebeam'] = _PV('SI-Glob:AP-CurrInfo:StoredEBeam-Mon')
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
         self.data['scancenterx'] = _np.zeros(len(BBAParams.BPMNAMES))
@@ -245,6 +248,8 @@ class DoBBA(_BaseClass):
         self.connect_to_quadrupoles()
 
         self._stopevt = _Event()
+        self._finished = _Event()
+        self._finished.set()
         self._thread = _Thread(target=self._do_bba, daemon=True)
 
     def __str__(self):
@@ -271,6 +276,7 @@ class DoBBA(_BaseClass):
         if self.ismeasuring:
             return
         self._stopevt.clear()
+        self._finished.clear()
         self._thread = _Thread(target=self._do_bba, daemon=True)
         self._thread.start()
 
@@ -279,9 +285,19 @@ class DoBBA(_BaseClass):
         self._stopevt.set()
 
     @property
+    def havebeam(self):
+        """."""
+        haveb = self.devices['havebeam']
+        return haveb.connected and haveb.value
+
+    @property
     def ismeasuring(self):
         """."""
         return self._thread.is_alive()
+
+    def wait_measurement(self, timeout=None):
+        """Wait for measurement to finish."""
+        return self._finished.wait(timeout=timeout)
 
     @property
     def measuredbpms(self):
@@ -321,7 +337,7 @@ class DoBBA(_BaseClass):
         """."""
         return [1/2, -1/2, 0]
 
-    def correct_orbit(self, bpmname, x0, y0):
+    def correct_orbit_at_bpm(self, bpmname, x0, y0):
         """."""
         sofb = self.devices['sofb']
         idxx = self.data['bpmnames'].index(bpmname)
@@ -344,16 +360,30 @@ class DoBBA(_BaseClass):
                 _time.sleep(self.params.wait_correctors)
         return -1, fmet
 
-    def process_data(self, nbpms_linfit=None, thres=None, mode='symm',
-                     discardpoints=None):
+    def correct_orbit(self):
+        """."""
+        sofb = self.devices['sofb']
+        for _ in range(self.params.sofb_maxcorriter):
+            sofb.cmd_calccorr()
+            _time.sleep(self.params.wait_sofb)
+            sofb.cmd_applycorr_all()
+            _time.sleep(self.params.wait_correctors)
+            sofb.cmd_reset()
+            _time.sleep(0.1)
+            sofb.wait_buffer()
+
+    def process_data(
+            self, nbpms_linfit=None, thres=None, mode='symm',
+            discardpoints=None, nonlinear=False):
         """."""
         for bpm in self.data['measure']:
             self.analysis[bpm] = self.process_data_single_bpm(
                 bpm, nbpms_linfit=nbpms_linfit, thres=thres, mode=mode,
-                discardpoints=discardpoints)
+                discardpoints=discardpoints, nonlinear=nonlinear)
 
-    def process_data_single_bpm(self, bpm, nbpms_linfit=None, thres=None,
-                                mode='symm', discardpoints=None):
+    def process_data_single_bpm(
+            self, bpm, nbpms_linfit=None, thres=None, mode='symm',
+            discardpoints=None, nonlinear=False):
         """."""
         anl = dict()
         idx = self.data['bpmnames'].index(bpm)
@@ -436,10 +466,26 @@ class DoBBA(_BaseClass):
             px = _np.polyfit(xpos, rmsx, deg=2, cov=False)
             py = _np.polyfit(ypos, rmsy, deg=2, cov=False)
             covx = covy = _np.zeros((3, 3))
+
         x0 = -px[1] / px[0] / 2
         y0 = -py[1] / py[0] / 2
         stdx0 = _np.abs(x0)*_np.sqrt(_np.sum(_np.diag(covx)[:2]/px[:2]/px[:2]))
         stdy0 = _np.abs(y0)*_np.sqrt(_np.sum(_np.diag(covy)[:2]/py[:2]/py[:2]))
+
+        if nonlinear:
+            fitx = _least_squares(
+                fun=lambda par, x, y: (y - par[1]*(x - par[0])**2),
+                x0=[x0, px[0]], args=(xpos, rmsx), method='lm')
+            fity = _least_squares(
+                fun=lambda par, x, y: (y - par[1]*(x - par[0])**2),
+                x0=[y0, py[0]], args=(ypos, rmsy), method='lm')
+            x0, conx = fitx['x']
+            y0, cony = fity['x']
+            px = _np.array([conx, -2*conx*x0, conx*x0*x0])
+            py = _np.array([cony, -2*cony*y0, cony*y0*y0])
+            stdx0 = self._calc_fitting_error(fitx)[0]
+            stdy0 = self._calc_fitting_error(fity)[0]
+
         extrapx = not min(xpos) <= x0 <= max(xpos)
         extrapy = not min(ypos) <= y0 <= max(ypos)
         anl['quadratic_fitting'] = dict()
@@ -523,6 +569,32 @@ class DoBBA(_BaseClass):
             bname = bname.strip('-')
             bpmnames.append(bname.strip('-'))
         return bpmnames, qnames, quads_bba_idx
+
+    @staticmethod
+    def _calc_fitting_error(fit_params):
+        # based on fitting error calculation of scipy.optimization.curve_fit
+        # do Moore-Penrose inverse discarding zero singular values.
+        _, smat, vhmat = _np.linalg.svd(
+            fit_params['jac'], full_matrices=False)
+        thre = _np.finfo(float).eps * max(fit_params['jac'].shape)
+        thre *= smat[0]
+        smat = smat[smat > thre]
+        vhmat = vhmat[:smat.size]
+        pcov = _np.dot(vhmat.T / (smat*smat), vhmat)
+
+        # multiply covariance matrix by residue 2-norm
+        ysize = len(fit_params['fun'])
+        cost = 2 * fit_params['cost']  # res.cost is half sum of squares!
+        popt = fit_params['x']
+        if ysize > popt.size:
+            # normalized by degrees of freedom
+            s_sq = cost / (ysize - popt.size)
+            pcov = pcov * s_sq
+        else:
+            pcov.fill(0.0)
+            print(
+                '# of fitting parameters larger than # of data points!')
+        return _np.sqrt(_np.diag(pcov))
 
     @staticmethod
     def _calc_dorb_scan(deltaorb, nrpts):
@@ -1069,7 +1141,7 @@ class DoBBA(_BaseClass):
 
     @staticmethod
     def make_figure_compare_bbas(
-            bbalist, method='linear_fitting', labels=[], bpmsok=None,
+            bbalist, method='linear_fitting', labels=None, bpmsok=None,
             bpmsnok=None, fname='', xlim=None, ylim=None, title='',
             plotdiff=True):
         """."""
@@ -1093,7 +1165,7 @@ class DoBBA(_BaseClass):
             [bbalist[0].data['bpmnames'].index(bpm) for bpm in bpmsnok],
             dtype=int)
 
-        if not labels:
+        if labels is None:
             labels = [str(i) for i in range(len(bbalist))]
         cors = _cmap.brg(_np.linspace(0, 1, len(bbalist)))
 
@@ -1178,7 +1250,13 @@ class DoBBA(_BaseClass):
         for i, bpm in enumerate(self._bpms2dobba):
             if self._stopevt.is_set():
                 print('stopped!')
-                return
+                break
+            if not self.havebeam:
+                print('Beam was Lost')
+                break
+            print('\nCorrecting Orbit...', end='')
+            self.correct_orbit()
+            print('Ok!')
             print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
             self._dobba_single_bpm(bpm)
 
@@ -1190,6 +1268,7 @@ class DoBBA(_BaseClass):
         dtime = str(tfin - tini)
         dtime = dtime.split('.')[0]
         print('finished! Elapsed time {:s}'.format(dtime))
+        self._finished.set()
 
     def _dobba_single_bpm(self, bpmname):
         """."""
@@ -1250,13 +1329,14 @@ class DoBBA(_BaseClass):
         tmpl = '{:25s}'.format
         klpos = klneg = 0.0
         for i in range(npts):
-            if self._stopevt.is_set():
+            if self._stopevt.is_set() or not self.havebeam:
                 print('   exiting...')
                 break
             print('    {0:02d}/{1:02d} --> '.format(i+1, npts), end='')
 
             print('orbit corr: ', end='')
-            ret, fmet = self.correct_orbit(bpmname, x0+dorbsx[i], y0+dorbsy[i])
+            ret, fmet = self.correct_orbit_at_bpm(
+                bpmname, x0+dorbsx[i], y0+dorbsy[i])
             if ret >= 0:
                 txt = tmpl('Ok! in {:02d} iters'.format(ret))
             else:
