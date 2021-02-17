@@ -158,9 +158,10 @@ class MeasCoupling(BaseClass):
             _time.sleep(self.params.time_wait)
             tunes_vec[idx, :] = tunes.tunex, tunes.tuney
             _log.info(
-                '  {:8.4f} A ({:+6.3f} %), nux={:6.4f}, nuy={:6.4f}'.format(
-                    curr, (curr/curr0-1)*100,
-                    tunes_vec[idx, 0], tunes_vec[idx, 1]))
+                f'{idx+1:02d}/{curr_vec.size:02d} --> ' +
+                f'{curr:8.4f} A ({(curr/curr0-1)*100:+6.3f} %), ' +
+                f'nux={tunes_vec[idx, 0]:6.4f}, nuy={tunes_vec[idx, 0]:6.4f}'
+                )
         _log.info('Finished!')
         quad.current = curr0
         self.data['timestamp'] = _time.time()
@@ -172,6 +173,9 @@ class MeasCoupling(BaseClass):
     def process_data(self):
         """."""
         self.analysis = dict()
+        if not self.data:
+            _log.error('There is no data to process.')
+            return
         qcurr, tune1, tune2 = self._filter_data()
         self.analysis['qcurr'] = qcurr
         self.analysis['tune1'] = tune1
