@@ -110,7 +110,7 @@ class _Utils(_BaseClass):
         """."""
         for mag, stren in zip(magnets, strengths):
             self.devices[mag].strength = stren
-            print('\n applied!')
+        print('applied!')
 
     def _create_devices(self, devices_names):
         """."""
@@ -164,6 +164,7 @@ class SetOpticsMode(_Utils):
         - acc: TB, BO, TS or SI.
         - optics_mode: available modes in pymodels. If None, default
         optics_mode for the accelerator will be used (optional).
+
         """
         super().__init__()
         self.acc = acc.upper()
