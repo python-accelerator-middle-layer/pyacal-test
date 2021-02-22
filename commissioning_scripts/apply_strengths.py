@@ -126,6 +126,10 @@ class _Utils(_BaseClass):
             mags = [mag for mag in self.devices if regex.match(mag)]
         return mags
 
+    @staticmethod
+    def _get_idx(allidx):
+        return _np.asarray([idx[0] for idx in allidx])
+
 
 class SetOpticsMode(_Utils):
     """."""
@@ -307,7 +311,7 @@ class SISetTrimStrengths(_Utils):
                 magidx = fam['QN']['index']
                 # NOTE: This is incorrect for magnets with more than one
                 # segment
-                magidx = _np.asarray([idx[0] for idx in magidx])
+                magidx = self._get_idx(magidx)
             stren_ref = _np.asarray([refmod[idx].KL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KL for idx in magidx])
         elif magname_filter.lower() == 'skew_quadrupole':
@@ -318,7 +322,7 @@ class SISetTrimStrengths(_Utils):
                 magidx = fam['QS']['index']
                 # NOTE: This is incorrect for magnets with more than one
                 # segment
-                magidx = _np.asarray([idx[0] for idx in magidx])
+                magidx = self._get_idx(magidx)
             stren_ref = _np.asarray([refmod[idx].KsL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KsL for idx in magidx])
         diff = (stren_goal - stren_ref) * (percentage/100)
@@ -338,9 +342,9 @@ class SISetTrimStrengths(_Utils):
     # private methods
     def _get_quad_names(self):
         """."""
-        idcs = self.fam_data['QN']['index']
+        magidx = self.fam_data['QN']['index']
         # NOTE: This is incorrect for magnets with more than one segment
-        self.quads_idx = _np.asarray([idx[0] for idx in idcs])
+        self.quads_idx = self._get_idx(magidx)
 
         for qidx in self.quads_idx:
             name = self.model[qidx].fam_name
@@ -352,9 +356,9 @@ class SISetTrimStrengths(_Utils):
 
     def _get_skewquad_names(self):
         """."""
-        idcs = self.fam_data['QS']['index']
+        magidx = self.fam_data['QS']['index']
         # NOTE: This is incorrect for magnets with more than one segment
-        self.skewquads_idx = _np.asarray([idx[0] for idx in idcs])
+        self.skewquads_idx = self._get_idx(magidx)
 
         for qidx in self.skewquads_idx:
             name = self.model[qidx].fam_name
