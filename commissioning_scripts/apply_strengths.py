@@ -93,7 +93,6 @@ class _Utils(_BaseClass):
             print('{:17s}: {:9.6f}  {:9.6f}  {:9.6f}%'.format(
                 self.devices[mag].devname, self.devices[mag].strength,
                 stren, diff[-1]*100))
-        print()
 
     def _print_strengths_to_be_implemented(
             self, percentage, magnets, init_strength, implem_strength):
@@ -325,10 +324,10 @@ class SISetTrimStrengths(_Utils):
                 magidx = self._get_idx(magidx)
             stren_ref = _np.asarray([refmod[idx].KsL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KsL for idx in magidx])
-        diff = (stren_goal - stren_ref) * (percentage/100)
-        implem = init + diff
+        diff = stren_goal - stren_ref
+        implem = init + diff * (percentage/100)
         if print_change:
-            self._print_current_status(magnets=mags, goal_strength=stren_goal)
+            self._print_current_status(magnets=mags, goal_strength=init + diff)
             print()
             print('percentage of application: {:5.1f} %'.format(percentage))
             print()
