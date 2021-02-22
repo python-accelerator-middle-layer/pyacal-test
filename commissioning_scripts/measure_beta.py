@@ -358,19 +358,20 @@ class MeasBeta(BaseClass):
         print('recovering tune...')
         tunex0 = meas['tunex_ini'][0]
         tuney0 = meas['tuney_ini'][0]
-        datameas = self.data['measure'][quadname]
-        dkl = self._select_deltakl(datameas)
+        dkl_applied = self._select_deltakl(meas)
 
         dnux = meas['tunex_pos'][-1] - meas['tunex_ini'][-1]
         dnuy = meas['tuney_pos'][-1] - meas['tuney_ini'][-1]
-        cxx = dnux/dkl
-        cyy = dnuy/dkl
+        cxx = dnux/dkl_applied
+        cyy = dnuy/dkl_applied
 
         _time.sleep(self.params.wait_tune)
         tunex_now = self.devices['tune'].tunex
         tuney_now = self.devices['tune'].tuney
         dtunex = tunex_now - tunex0
         dtuney = tuney_now - tuney0
+        dtune_init = np.sqrt(dtunex*dtunex + dtuney*dtuney)
+        kl_init = self.devices[quadname].strength
 
         tol = self.params.recover_tune_tol
         niter = self.params.recover_tune_maxiter
@@ -385,8 +386,7 @@ class MeasBeta(BaseClass):
 
             # minimization of squares [cx cy]*dkl = [dtunex dtuney]
             dkl = (cxx * dtunex + cyy * dtuney)/(cxx*cxx + cyy*cyy)
-
-            if np.abs(dkl) > np.abs(dkl):
+            if np.abs(dkl) > np.abs(dkl_applied):
                 print('   deltakl calculated is too big!')
                 return False
 
