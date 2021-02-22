@@ -20,6 +20,7 @@ from .base import BaseClass
 class BetaParams:
     """."""
 
+    # Currents used in measurements performed at IMA's lab.
     DELTA_CURRENT = {
         'QDA': 1.37,
         'QDB1': 1.40,
@@ -37,6 +38,7 @@ class BetaParams:
         'QFP': 0.59,
         }
 
+    # Integrated field relative variations measured at IMA's lab.
     RELATIVE_DELTA_KL = {
         'QDA': 3.07487/100,
         'QDB1': 2.05806/100,
