@@ -389,7 +389,6 @@ class MeasBeta(BaseClass):
             if np.abs(dkl) > np.abs(dkl_applied):
                 print('   deltakl calculated is too big!')
                 return False
-
             self.devices[quadname].strength -= dkl
 
             _time.sleep(self.params.wait_quadrupole)
@@ -399,6 +398,10 @@ class MeasBeta(BaseClass):
             tuney_now = self.devices['tune'].tuney
             dtunex = tunex_now - tunex0
             dtuney = tuney_now - tuney0
+
+        if dtune_mod > dtune_init:
+            print('   recovering loop increased tune error, reverting changes')
+            self.devices[quadname].strength = kl_init
         return False
 
     def _meas_beta_single_quad(self, quadname):
@@ -489,10 +492,12 @@ class MeasBeta(BaseClass):
         meas['dcurr'] = dcurr
 
         if self.params.recover_tune:
-            if self._recover_tune(meas, quadname):
+            tune_recovered = self._recover_tune(meas, quadname)
+            if tune_recovered:
                 print('tune recovered!')
             else:
                 print('could not recover tune for :{:s}'.format(quadname))
+            meas['tune_recovered'] = tune_recovered
 
         self.data['measure'][quadname] = meas
 
