@@ -127,6 +127,7 @@ class _Utils(_BaseClass):
 
     @staticmethod
     def _get_idx(allidx):
+        # NOTE: This is incorrect for magnets with more than one segment
         return _np.asarray([idx[0] for idx in allidx])
 
 
@@ -308,8 +309,6 @@ class SISetTrimStrengths(_Utils):
             else:
                 fam = _pymod.si.get_family_data(refmod)
                 magidx = fam['QN']['index']
-                # NOTE: This is incorrect for magnets with more than one
-                # segment
                 magidx = self._get_idx(magidx)
             stren_ref = _np.asarray([refmod[idx].KL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KL for idx in magidx])
@@ -319,8 +318,6 @@ class SISetTrimStrengths(_Utils):
             else:
                 fam = _pymod.si.get_family_data(refmod)
                 magidx = fam['QS']['index']
-                # NOTE: This is incorrect for magnets with more than one
-                # segment
                 magidx = self._get_idx(magidx)
             stren_ref = _np.asarray([refmod[idx].KsL for idx in magidx])
             stren_goal = _np.asarray([goal_model[idx].KsL for idx in magidx])
@@ -342,7 +339,6 @@ class SISetTrimStrengths(_Utils):
     def _get_quad_names(self):
         """."""
         magidx = self.fam_data['QN']['index']
-        # NOTE: This is incorrect for magnets with more than one segment
         self.quads_idx = self._get_idx(magidx)
 
         for qidx in self.quads_idx:
@@ -356,7 +352,6 @@ class SISetTrimStrengths(_Utils):
     def _get_skewquad_names(self):
         """."""
         magidx = self.fam_data['QS']['index']
-        # NOTE: This is incorrect for magnets with more than one segment
         self.skewquads_idx = self._get_idx(magidx)
 
         for qidx in self.skewquads_idx:
