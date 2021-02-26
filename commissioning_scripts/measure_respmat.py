@@ -53,6 +53,8 @@ class MeasureRespMat(BaseClass):
         self.params = RespMatParams()
         self.confdb = ConfigDBClient(config_type='si_orbcorr_respm')
         self._stopevt = _Event()
+        self._finished = _Event()
+        self._finished.set()
         self._thread = _Thread(target=self.run_respmat, daemon=True)
 
     def start(self):
@@ -60,6 +62,7 @@ class MeasureRespMat(BaseClass):
         if self._thread.is_alive():
             return
         self._stopevt.clear()
+        self._finished.clear()
         self._thread = _Thread(target=self.run_respmat, daemon=True)
         self._thread.start()
 
@@ -72,17 +75,9 @@ class MeasureRespMat(BaseClass):
         """."""
         return self._thread.is_alive()
 
-    def wait(self, timeout=None):
-        """."""
-        timeout = timeout or MeasureRespMat._DEF_TIMEOUT
-        interval = 1  # [s]
-        ntrials = int(timeout/interval)
-        for _ in range(ntrials):
-            if not self.ismeasuring:
-                break
-            _time.sleep(interval)
-        else:
-            print('WARN: Timed out waiting respmat measurement.')
+    def wait_measurement(self, timeout=None):
+        """Wait for measurement to finish."""
+        return self._finished.wait(timeout=timeout)
 
     def run_respmat(self):
         """."""
@@ -102,6 +97,7 @@ class MeasureRespMat(BaseClass):
         sofb.correct_orbit_manually(self.params.corr_nr_iters)
         self.get_loco_setup(self.params.respmat_name)
         if self._stopevt.is_set():
+            self._finished.set()
             return
         respmat = self.measure_respm()
         respmat = respmat.reshape((-1, self.devices['sofb'].data.nr_corrs))
@@ -112,6 +108,7 @@ class MeasureRespMat(BaseClass):
         sofb.measrespmat_kickch = init_kickx
         sofb.measrespmat_kickcv = init_kicky
         sofb.measrespmat_kickrf = init_rf
+        self._finished.set()
 
     def measure_respm(self):
         """."""
