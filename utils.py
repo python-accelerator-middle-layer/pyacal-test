@@ -16,13 +16,14 @@ class DataBaseClass:
 
     def save_data(self, fname, overwrite=False):
         """."""
-        data = dict(data=self.data)
+        data = dict(params=self.params, data=self.data)
         _save_pickle(data, fname, overwrite=overwrite)
 
     def load_and_apply(self, fname):
         """."""
         data = self.load_data(fname)
         self.data = data['data']
+        self.params = data['params']
 
     @staticmethod
     def load_data(fname):
@@ -30,13 +31,12 @@ class DataBaseClass:
         return _load_pickle(fname)
 
 
-class MeasBaseClass:
+class MeasBaseClass(DataBaseClass):
     """."""
 
     def __init__(self, params=None):
         """."""
-        self.params = params
-        self.data = dict()
+        super().__init__(params=params)
         self.devices = dict()
         self.analysis = dict()
         self.pvs = dict()
@@ -55,22 +55,6 @@ class MeasBaseClass:
             if not dev.wait_for_connection(timeout=timeout):
                 return False
         return True
-
-    def save_data(self, fname, overwrite=False):
-        """."""
-        data = dict(params=self.params, data=self.data)
-        _save_pickle(data, fname, overwrite=overwrite)
-
-    def load_and_apply(self, fname):
-        """."""
-        data = self.load_data(fname)
-        self.data = data['data']
-        self.params = data['params']
-
-    @staticmethod
-    def load_data(fname):
-        """."""
-        return _load_pickle(fname)
 
 
 class ThreadedMeasBaseClass(MeasBaseClass):
