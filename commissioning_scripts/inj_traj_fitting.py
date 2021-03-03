@@ -6,7 +6,7 @@ from siriuspy.devices import SOFB, DCCT, PowerSupplyPU
 import pyaccel
 from pymodels import si, bo
 
-from .base import BaseClass
+from ..utils import MeasBaseClass as _BaseClass
 
 
 class Params:
@@ -24,7 +24,7 @@ class Params:
         self.count_init_ref = 3
 
 
-class _FitInjTrajBase(BaseClass):
+class _FitInjTrajBase(_BaseClass):
     """Base class for fitting injection trajectories."""
 
     CHAMBER_RADIUS = 0.0

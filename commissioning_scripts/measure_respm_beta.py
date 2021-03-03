@@ -1,13 +1,9 @@
-#!/usr/bin/env python-sirius
 """."""
-
-import time as _time
-from threading import Thread as _Thread, Event as _Event
-
 from pymodels import si
 from siriuspy.clientconfigdb import ConfigDBClient
 
-from .base import BaseClass
+from ..utils import ThreadedMeasBaseClass as _BaseClass
+
 from .measure_beta import MeasBeta as _MeasBeta
 from .measure_respmat import MeasureRespMat as _MeasureRespMat
 
@@ -30,20 +26,17 @@ class RespMatBetaParams:
         return stg
 
 
-class MeasureRespMatBeta(BaseClass):
+class MeasureRespMatBeta(_BaseClass):
     """."""
 
     _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(self):
         """."""
-        super().__init__()
-        self.params = RespMatBetaParams()
+        super().__init__(params=RespMatBetaParams(), target=self._run_all)
         self.meas_beta = self._get_measbeta_object()
         self.meas_respmat = _MeasureRespMat()
         self.confdb = ConfigDBClient(config_type='si_orbcorr_respm')
-        self._stopevt = _Event()
-        self._thread = _Thread(target=self.run_all, daemon=True)
 
     def __str__(self):
         """."""
@@ -62,43 +55,12 @@ class MeasureRespMatBeta(BaseClass):
         conn &= self.meas_beta.connected
         return conn
 
-    def start(self):
+    def _run_all(self):
         """."""
-        if self._thread.is_alive():
-            return
-        self._stopevt.clear()
-        self._thread = _Thread(target=self.run_all, daemon=True)
-        self._thread.start()
+        self._run_respmat()
+        self._run_beta()
 
-    def stop(self):
-        """."""
-        self._stopevt.set()
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    def wait(self, timeout=None):
-        """."""
-        def_tim = MeasureRespMatBeta._DEF_TIMEOUT * (
-            self.params.nmeas_respmat, self.params.nmeas_beta)
-        timeout = timeout or def_tim
-        interval = 1  # [s]
-        ntrials = int(timeout/interval)
-        for _ in range(ntrials):
-            if not self.ismeasuring:
-                break
-            _time.sleep(interval)
-        else:
-            print('WARN: Timed out waiting beta measurement.')
-
-    def run_all(self):
-        """."""
-        self.run_respmat()
-        self.run_beta()
-
-    def run_respmat(self):
+    def _run_respmat(self):
         """."""
         for nms in range(self.params.nmeas_respmat):
             if self._stopevt.is_set():
@@ -107,10 +69,10 @@ class MeasureRespMatBeta(BaseClass):
             respmat_name = f'{self.params.filename:s}_n{nms+1:02d}'
             self.meas_respmat.params.respmat_name = respmat_name
             self.meas_respmat.start()
-            self.meas_respmat.wait()
+            self.meas_respmat.wait_measurement()
             self.meas_respmat.save_data('respmat_' + respmat_name)
 
-    def run_beta(self):
+    def _run_beta(self):
         """."""
         for nms in range(self.params.nmeas_beta):
             if self._stopevt.is_set():
@@ -126,7 +88,7 @@ class MeasureRespMatBeta(BaseClass):
             if self._stopevt.is_set():
                 break
             self.meas_beta.start()
-            self.meas_beta.wait()
+            self.meas_beta.wait_measurement()
             self.meas_beta.process_data(mode='pos')
             self.meas_beta.save_data(beta_name)
 

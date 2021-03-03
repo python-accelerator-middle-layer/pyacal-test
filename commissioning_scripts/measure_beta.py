@@ -1,20 +1,19 @@
 """Main module."""
 import time as _time
-from threading import Thread as _Thread, Event as _Event
 import math
 from copy import deepcopy as _dcopy
 from collections import namedtuple as _namedtuple
-from siriuspy.namesys import SiriusPVName as _PVName
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
+from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import PowerSupply, Tune, SOFB
-
 import pyaccel
 from pymodels import si
-from .base import BaseClass
+
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class BetaParams:
@@ -88,7 +87,7 @@ class BetaParams:
         return stg
 
 
-class MeasBeta(BaseClass):
+class MeasBeta(_BaseClass):
     """."""
 
     METHODS = _namedtuple('Methods', ['Analytic', 'Numeric'])(0, 1)
@@ -100,11 +99,10 @@ class MeasBeta(BaseClass):
             self, model, famdata=None, isonline=True,
             meas_method=None, calc_method=None, anly_method=None):
         """."""
-        super().__init__()
-        self.isonline = isonline
+        super().__init__(
+            params=BetaParams(), target=self._meas_beta, isonline=isonline)
         self.quads_betax = []
         self.quads_betay = []
-        self.params = BetaParams()
         self._calc_method = MeasBeta.METHODS.Numeric
         self._meas_method = MeasBeta.MEASUREMENT.Current
         self._anly_method = MeasBeta.ANALYSIS.Excdata
@@ -118,10 +116,7 @@ class MeasBeta(BaseClass):
         self.data['measure'] = dict()
         self.data['tunex_ref'] = 0
         self.data['tuney_ref'] = 0
-        self.analysis = dict()
         self._quads2meas = list()
-        self._stopevt = _Event()
-        self._thread = _Thread(target=self._meas_beta, daemon=True)
         self.model = model
         self.meas_method = meas_method
         self.calc_method = calc_method
@@ -187,35 +182,6 @@ class MeasBeta(BaseClass):
             self._anly_method = int(value in MeasBeta.ANALYSIS._fields[1])
         elif int(value) in MeasBeta.ANALYSIS:
             self._anly_method = int(value)
-
-    def start(self):
-        """."""
-        if not self.isonline or self._thread.is_alive():
-            return
-        self._stopevt.clear()
-        self._thread = _Thread(target=self._meas_beta, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopevt.set()
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    def wait(self, timeout=None):
-        """."""
-        timeout = timeout or MeasBeta._DEF_TIMEOUT
-        interval = 1  # [s]
-        ntrials = int(timeout/interval)
-        for _ in range(ntrials):
-            if not self.ismeasuring:
-                break
-            _time.sleep(interval)
-        else:
-            print('WARN: Timed out waiting beta measurement.')
 
     @property
     def measuredquads(self):

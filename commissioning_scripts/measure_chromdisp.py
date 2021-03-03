@@ -1,19 +1,16 @@
 """Main module."""
 import time as _time
-from threading import Thread as _Thread, Event as _Event
-
 from math import log10, floor
-import numpy as np
 
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
 from siriuspy.devices import SOFB, RFGen, Tune
-
 from pymodels import si
 import pyaccel
 
-from .base import BaseClass
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class MeasParams:
@@ -43,19 +40,15 @@ class MeasParams:
         return stg
 
 
-class MeasDispChrom(BaseClass):
+class MeasDispChrom(_BaseClass):
     """."""
 
     def __init__(self):
         """."""
-        super().__init__()
-        self.params = MeasParams()
+        super().__init__(params=MeasParams(), target=self._do_meas)
         self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
         self.devices['rf'] = RFGen()
-        self.analysis = dict()
-        self._stopevt = _Event()
-        self._thread = _Thread(target=self._do_meas, daemon=True)
 
     def __str__(self):
         """."""
@@ -65,23 +58,6 @@ class MeasDispChrom(BaseClass):
         stn += stp + '\n'
         stn += 'Connected?  ' + str(self.connected) + '\n\n'
         return stn
-
-    def start(self):
-        """."""
-        if self.ismeasuring:
-            return
-        self._stopevt.clear()
-        self._thread = _Thread(target=self._do_meas, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopevt.set()
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
 
     def _do_meas(self):
         sofb = self.devices['sofb']

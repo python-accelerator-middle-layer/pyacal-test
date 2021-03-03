@@ -1,16 +1,15 @@
-#!/usr/bin/env python-sirius
 """."""
-
 import time as _time
-from threading import Thread as _Thread, Event as _Event
+
 import numpy as np
 
 import pyaccel
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import SOFB, LLRF
 
-from apsuite.optimization import SimulAnneal
-from apsuite.commissioning_scripts.base import BaseClass
+from ..optimization import SimulAnneal
+from ..utils import MeasBaseClass as _BaseClass, \
+    ThreadedMeasBaseClass as _TBaseClass
 
 
 class ParamsDisp:
@@ -27,7 +26,7 @@ class ParamsDisp:
         self.klystron_excit_coefs = [0.80518365, 87.56545895]  # < 2.5nC
 
 
-class MeasureDispTBBO(BaseClass):
+class MeasureDispTBBO(_BaseClass):
     """."""
 
     def __init__(self):
@@ -113,18 +112,16 @@ class ParamsDispMat:
         self.deltas = {'QF': 0.1, 'QD': 0.1}
 
 
-class MeasureDispMatTBBO(BaseClass):
+class MeasureDispMatTBBO(_TBaseClass):
     """."""
 
     def __init__(self, quads):
         """."""
-        super().__init__(ParamsDispMat())
+        super().__init__(ParamsDispMat(), target=self._measure_matrix_thread)
         self._all_corrs = quads
         self.measdisp = MeasureDispTBBO()
         self._matrix = dict()
         self._corrs_to_measure = []
-        self._thread = _Thread(target=self._measure_matrix_thread)
-        self._stopped = _Event()
 
     @property
     def connected(self):
@@ -160,23 +157,6 @@ class MeasureDispMatTBBO(BaseClass):
                 mat[i, :] = line
         return mat
 
-    @property
-    def measuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    def start(self):
-        """."""
-        if not self._thread.is_alive():
-            self._thread = _Thread(
-                target=self._measure_matrix_thread, daemon=True)
-            self._stopped.clear()
-            self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopped.set()
-
     def _measure_matrix_thread(self):
         corrs = self.corrs_to_measure
         print('Starting...')
@@ -189,12 +169,12 @@ class MeasureDispMatTBBO(BaseClass):
                 print('  pos' if sig > 0 else '  neg\n', end='')
                 self._all_corrs[cor].strength = origkl + sig * delta / 2
                 orb.append(sig*self.measdisp.measure_dispersion())
-                if self._stopped.is_set():
+                if self._stopevt.is_set():
                     break
             else:
                 self._matrix[cor] = np.array(orb).sum(axis=0)/delta
             self._all_corrs[cor].strength = origkl
-            if self._stopped.is_set():
+            if self._stopevt.is_set():
                 print('Stopped!')
                 break
         else:

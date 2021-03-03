@@ -1,11 +1,12 @@
-#!/usr/bin/env python-sirius
 """."""
 
 import numpy as np
-from apsuite.optimization import PSO, SimulAnneal, GA
+
+from ..optimization import PSO, SimulAnneal, GA
 
 
 class SHBPSO(PSO):
+    """."""
 
     C = 299792458
     E0 = 0.51099895e6
@@ -17,12 +18,14 @@ class SHBPSO(PSO):
     BUN_LEN = np.pi
 
     def initialization(self):
+        """."""
         self._upper_limits = np.array([np.pi, 40e3])
         self._lower_limits = np.array([-np.pi, 10e3])
         self.beta0 = self.calc_beta(self.EMIN)
         self._nswarm = 10 + 2 * int(np.sqrt(len(self._upper_limits)))
 
     def phase_drift(self, phi_c, vg):
+        """."""
         phi_min = phi_c - self.BUN_LEN / 2
         phi_max = phi_c + self.BUN_LEN / 2
         phi0 = np.linspace(phi_min, phi_max, self.NPOINT)
@@ -34,10 +37,12 @@ class SHBPSO(PSO):
         return phi0, phif
 
     def calc_beta(self, E):
+        """."""
         gamma = E/self.E0
         return np.sqrt(1 - 1/gamma**2)
 
     def calc_merit_function(self):
+        """."""
         f_out = np.zeros(self._nswarm)
 
         for i in range(self._nswarm):
@@ -50,6 +55,7 @@ class SHBPSO(PSO):
 
 
 class SHBSimulAnneal(SimulAnneal):
+    """."""
 
     C = 299792458
     E0 = 0.51099895e6
@@ -61,6 +67,7 @@ class SHBSimulAnneal(SimulAnneal):
     BUN_LEN = np.pi
 
     def initialization(self):
+        """."""
         self._upper_limits = np.array([np.pi, 40e3])
         self._lower_limits = np.array([-np.pi, 10e3])
         self._max_delta = np.array([2*np.pi, 30e3])
@@ -68,6 +75,7 @@ class SHBSimulAnneal(SimulAnneal):
         self._temperature = 0
 
     def phase_drift(self, phi_c, vg):
+        """."""
         phi_min = phi_c - self.BUN_LEN / 2
         phi_max = phi_c + self.BUN_LEN / 2
         phi0 = np.linspace(phi_min, phi_max, self.NPOINT)
@@ -79,10 +87,12 @@ class SHBSimulAnneal(SimulAnneal):
         return phi0, phif
 
     def calc_beta(self, E):
+        """."""
         gamma = E/self.E0
         return np.sqrt(1 - 1/gamma**2)
 
     def calc_merit_function(self):
+        """."""
         phi_c, vg = self._position[0], self._position[1]
         phi_init, phi_final = self.phase_drift(phi_c, vg)
         t0 = np.std(phi_init)
@@ -91,6 +101,7 @@ class SHBSimulAnneal(SimulAnneal):
 
 
 class SHBGA(GA):
+    """."""
 
     C = 299792458
     E0 = 0.51099895e6
@@ -102,15 +113,18 @@ class SHBGA(GA):
     BUN_LEN = np.pi
 
     def __init__(self, npop, nparents, mutrate):
-        GA.__init__(self, npop=npop, nparents=nparents, mutrate=mutrate)
+        """."""
+        super().__init__(npop=npop, nparents=nparents, mutrate=mutrate)
 
     def initialization(self):
+        """."""
         self._upper_limits = np.array([np.pi, 40e3])
         self._lower_limits = np.array([-np.pi, 10e3])
         self.beta0 = self.calc_beta(self.EMIN)
         self._temperature = 0
 
     def phase_drift(self, phi_c, vg):
+        """."""
         phi_min = phi_c - self.BUN_LEN / 2
         phi_max = phi_c + self.BUN_LEN / 2
         phi0 = np.linspace(phi_min, phi_max, self.NPOINT)
@@ -122,10 +136,12 @@ class SHBGA(GA):
         return phi0, phif
 
     def calc_beta(self, E):
+        """."""
         gamma = E/self.E0
         return np.sqrt(1 - 1/gamma**2)
 
     def calc_merit_function(self):
+        """."""
         f_out = np.zeros(self._npop)
 
         for i in range(self._npop):

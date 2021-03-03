@@ -6,7 +6,7 @@ from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import PowerSupply as _PowerSupply
 from siriuspy.search import PSSearch as _PSSearch
 import pymodels as _pymod
-from .base import BaseClass as _BaseClass
+from ..utils import MeasBaseClass as _BaseClass
 
 
 class _Utils(_BaseClass):

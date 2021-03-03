@@ -12,7 +12,7 @@ from matplotlib.collections import PolyCollection as _PolyCollection
 
 from siriuspy.devices import BunchbyBunch
 
-from .base import BaseClass as _BaseClass
+from ..utils import MeasBaseClass as _BaseClass
 
 
 class BbBLParams:
@@ -45,10 +45,8 @@ class BbBLData(_BaseClass):
 
     def __init__(self):
         """."""
-        super().__init__()
-        self.params = BbBLParams()
+        super().__init__(params=BbBLParams())
         self.devices['bbb'] = BunchbyBunch(BunchbyBunch.DEVICES.L)
-        self.analysis = dict()
 
     def get_data(self):
         """Get Raw data to file."""

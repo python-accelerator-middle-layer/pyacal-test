@@ -1,12 +1,12 @@
-#!/usr/bin/env python-sirius
 """."""
-
 import time as _time
-import numpy as np
 
+import numpy as np
 from epics import PV
+
 from siriuspy.devices import EGBias, ICT, TranspEff, LLRF
-from apsuite.commissioning_scripts.base import BaseClass
+
+from ..utils import MeasBaseClass as _BaseClass
 
 
 class ParamsBias:
@@ -30,7 +30,7 @@ class ParamsBias:
         return st
 
 
-class MeasCharge(BaseClass):
+class MeasCharge(_BaseClass):
     """."""
 
     def __init__(self):
@@ -136,7 +136,7 @@ class ParamsKly2:
         return st
 
 
-class Kly2Energy(BaseClass):
+class Kly2Energy(_BaseClass):
     """."""
 
     def __init__(self):

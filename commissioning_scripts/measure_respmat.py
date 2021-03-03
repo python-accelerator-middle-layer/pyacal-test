@@ -1,15 +1,12 @@
-#!/usr/bin/env python-sirius
 """."""
-
 import time as _time
-from threading import Thread as _Thread, Event as _Event
 
 import numpy as np
 
 from siriuspy.devices import SOFB, Tune, CurrInfo, RFGen
 from siriuspy.clientconfigdb import ConfigDBClient
 
-from .base import BaseClass
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class RespMatParams:
@@ -37,49 +34,22 @@ class RespMatParams:
         return stg
 
 
-class MeasureRespMat(BaseClass):
+class MeasureRespMat(_BaseClass):
     """."""
 
     _DEF_TIMEOUT = 60 * 60  # [s]
 
     def __init__(self):
         """."""
-        super().__init__()
+        super().__init__(params=RespMatParams(), target=self._run_respmat)
         sofb, tune, curr, rfgen = self._create_devices()
         self.devices['sofb'] = sofb
         self.devices['tune'] = tune
         self.devices['curr'] = curr
         self.devices['rfgen'] = rfgen
-        self.params = RespMatParams()
         self.confdb = ConfigDBClient(config_type='si_orbcorr_respm')
-        self._stopevt = _Event()
-        self._finished = _Event()
-        self._finished.set()
-        self._thread = _Thread(target=self.run_respmat, daemon=True)
 
-    def start(self):
-        """."""
-        if self._thread.is_alive():
-            return
-        self._stopevt.clear()
-        self._finished.clear()
-        self._thread = _Thread(target=self.run_respmat, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopevt.set()
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    def wait_measurement(self, timeout=None):
-        """Wait for measurement to finish."""
-        return self._finished.wait(timeout=timeout)
-
-    def run_respmat(self):
+    def _run_respmat(self):
         """."""
         if self._stopevt.is_set():
             return
@@ -95,11 +65,10 @@ class MeasureRespMat(BaseClass):
         sofb.measrespmat_kickrf = self.params.delta_rf
 
         sofb.correct_orbit_manually(self.params.corr_nr_iters)
-        self.get_loco_setup(self.params.respmat_name)
+        self._get_loco_setup(self.params.respmat_name)
         if self._stopevt.is_set():
-            self._finished.set()
             return
-        respmat = self.measure_respm()
+        respmat = self._measure_respm()
         respmat = respmat.reshape((-1, self.devices['sofb'].data.nr_corrs))
         self.data['respmat'] = respmat
         self.confdb.insert_config(self.params.respmat_name, respmat)
@@ -108,9 +77,8 @@ class MeasureRespMat(BaseClass):
         sofb.measrespmat_kickch = init_kickx
         sofb.measrespmat_kickcv = init_kicky
         sofb.measrespmat_kickrf = init_rf
-        self._finished.set()
 
-    def measure_respm(self):
+    def _measure_respm(self):
         """."""
         sofb = self.devices['sofb']
         # Start the respm measurement
@@ -123,14 +91,14 @@ class MeasureRespMat(BaseClass):
         _time.sleep(1)
         return sofb.respmat
 
-    def get_loco_setup(self, orbmat_name):
+    def _get_loco_setup(self, orbmat_name):
         """."""
         sofb = self.devices['sofb']
         tune = self.devices['tune']
         curr = self.devices['curr']
         rfgen = self.devices['rfgen']
 
-        bpm_var = self.get_bpm_variation(period=10)
+        bpm_var = self._get_bpm_variation(period=10)
         self.data['timestamp'] = _time.time()
         self.data['rf_frequency'] = rfgen.frequency
         self.data['tunex'] = tune.tunex
@@ -140,7 +108,7 @@ class MeasureRespMat(BaseClass):
         self.data['bpm_variation'] = bpm_var
         self.data['orbmat_name'] = orbmat_name
 
-    def get_bpm_variation(self, period=10):
+    def _get_bpm_variation(self, period=10):
         """."""
         sofb = self.devices['sofb']
         orbx_pv = sofb.pv_object('SlowOrbX-Mon')

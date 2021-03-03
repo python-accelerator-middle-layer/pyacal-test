@@ -1,7 +1,6 @@
 """Main module."""
 import time as _time
 import datetime as _datetime
-from threading import Thread as _Thread, Event as _Event
 
 from copy import deepcopy as _dcopy
 import numpy as _np
@@ -18,7 +17,7 @@ from siriuspy.epics import PV as _PV
 
 import pyaccel as _pyacc
 
-from .base import BaseClass as _BaseClass
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class BBAParams:
@@ -230,27 +229,24 @@ class BBAParams:
 class DoBBA(_BaseClass):
     """."""
 
-    def __init__(self):
+    def __init__(self, isonline=True):
         """."""
-        super().__init__()
-        self.params = BBAParams()
+        super().__init__(
+            params=BBAParams(), target=self._do_bba, isonline=isonline)
         self._bpms2dobba = list()
         self.clt_confdb = ConfigDBClient(config_type='si_bbadata')
         self.clt_confdb._TIMEOUT_DEFAULT = 20
-        self.devices['sofb'] = _SOFB(_SOFB.DEVICES.SI)
-        self.devices['havebeam'] = _PV('SI-Glob:AP-CurrInfo:StoredEBeam-Mon')
         self.data['bpmnames'] = list(BBAParams.BPMNAMES)
         self.data['quadnames'] = list(BBAParams.QUADNAMES)
         self.data['scancenterx'] = _np.zeros(len(BBAParams.BPMNAMES))
         self.data['scancentery'] = _np.zeros(len(BBAParams.BPMNAMES))
         self.data['measure'] = dict()
-        self.analysis = dict()
-        self.connect_to_quadrupoles()
 
-        self._stopevt = _Event()
-        self._finished = _Event()
-        self._finished.set()
-        self._thread = _Thread(target=self._do_bba, daemon=True)
+        if self.isonline:
+            self.devices['sofb'] = _SOFB(_SOFB.DEVICES.SI)
+            self.devices['havebeam'] = _PV(
+                'SI-Glob:AP-CurrInfo:StoredEBeam-Mon')
+            self.connect_to_quadrupoles()
 
     def __str__(self):
         """."""
@@ -271,33 +267,11 @@ class DoBBA(_BaseClass):
                 dta['scancenterx'][idx], dta['scancentery'][idx])
         return stn
 
-    def start(self):
-        """."""
-        if self.ismeasuring:
-            return
-        self._stopevt.clear()
-        self._finished.clear()
-        self._thread = _Thread(target=self._do_bba, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopevt.set()
-
     @property
     def havebeam(self):
         """."""
         haveb = self.devices['havebeam']
         return haveb.connected and haveb.value
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    def wait_measurement(self, timeout=None):
-        """Wait for measurement to finish."""
-        return self._finished.wait(timeout=timeout)
 
     @property
     def measuredbpms(self):
@@ -1268,7 +1242,6 @@ class DoBBA(_BaseClass):
         dtime = str(tfin - tini)
         dtime = dtime.split('.')[0]
         print('finished! Elapsed time {:s}'.format(dtime))
-        self._finished.set()
 
     def _dobba_single_bpm(self, bpmname):
         """."""

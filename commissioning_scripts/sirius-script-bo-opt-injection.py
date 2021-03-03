@@ -1,11 +1,11 @@
-#!/usr/bin/env python-sirius
 """."""
-
 import time as _time
+
 from epics import PV as _PV
 import numpy as _np
 import matplotlib.pyplot as plt
-from apsuite.optimization import PSO, SimulAnneal
+
+from ..optimization import PSO, SimulAnneal
 
 
 class PSOInjection(PSO):
@@ -511,29 +511,3 @@ class SAInjection(SimulAnneal):
                 print('Ok... Setting initial reference!')
                 self.set_change(self.reference)
         return pos, fig
-
-
-if __name__ == "__main__":
-    import os
-    print('='*50)
-    print('OPTIMIZATION SCRIPT FOR BOOSTER INJECTION')
-    print('='*50)
-    for f in os.listdir('.'):
-        if f.endswith('.txt'):
-            os.system('rm *.txt')
-        if f.endswith('.png'):
-            os.system('rm *.png')
-    FOLDER = input('Enter the folder name to save the data: ')
-    MODE = input('Choose the optimization method (PSO or SA): ')
-    if MODE == 'PSO':
-        INJBO = PSOInjection(save=True)
-        INJBO.run()
-    elif MODE == 'SA':
-        INJBO = SAInjection(save=True)
-        INJBO.run()
-    else:
-        raise Exception('Invalid method!')
-    CMD1 = 'mkdir ' + FOLDER
-    os.system(CMD1)
-    CMD2 = 'mv *.txt *.png ' + FOLDER
-    os.system(CMD2)

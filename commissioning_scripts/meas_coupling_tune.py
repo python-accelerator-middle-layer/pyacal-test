@@ -3,7 +3,6 @@
 import sys as _sys
 import os as _os
 import time as _time
-from threading import Thread as _Thread, Event as _Event
 import logging as _log
 
 import numpy as _np
@@ -12,7 +11,8 @@ import matplotlib.pyplot as _plt
 import matplotlib.gridspec as _mpl_gs
 
 from siriuspy.devices import PowerSupply, Tune
-from .base import BaseClass
+
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 # _log.basicConfig(format=)
 root = _log.getLogger()
@@ -67,7 +67,7 @@ class CouplingParams():
         return stg
 
 
-class MeasCoupling(BaseClass):
+class MeasCoupling(_BaseClass):
     """Coupling measurement and fitting.
 
     tunex = coeff1 * quad_parameter + offset1
@@ -81,44 +81,14 @@ class MeasCoupling(BaseClass):
           dependency for tunes!
     """
 
-    def __init__(self, is_online=True):
+    def __init__(self, isonline=True):
         """."""
-        super().__init__()
-        self.params = CouplingParams()
-        self.isonline = bool(is_online)
+        super().__init__(
+            params=CouplingParams(), target=self._do_meas, isonline=isonline)
         if self.isonline:
             self.devices['quad'] = PowerSupply(
                 'SI-Fam:PS-' + self.params.quadfam_name)
             self.devices['tune'] = Tune(Tune.DEVICES.SI)
-        self.analysis = dict()
-        self.data = dict()
-        self._stopevt = _Event()
-        self._finished = _Event()
-        self._finished.set()
-        self._thread = _Thread(target=self._do_meas, daemon=True)
-
-    def start(self):
-        """."""
-        if self.ismeasuring:
-            _log.error('There is another measurement happening.')
-            return
-        self._stopevt.clear()
-        self._finished.clear()
-        self._thread = _Thread(target=self._do_meas, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopevt.set()
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    def wait_measurement(self, timeout=None):
-        """Wait for measurement to finish."""
-        return self._finished.wait(timeout=timeout)
 
     def load_and_apply_old_data(self, fname):
         """."""
@@ -168,7 +138,6 @@ class MeasCoupling(BaseClass):
         self.data['qname'] = quad.devname
         self.data['current'] = curr_vec
         self.data['tunes'] = tunes_vec
-        self._finished.set()
 
     def process_data(self):
         """."""

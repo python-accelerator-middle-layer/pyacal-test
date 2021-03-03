@@ -1,12 +1,12 @@
-#!/usr/bin/env python-sirius
 """."""
 
 import time as _time
+
 import numpy as np
+
 from siriuspy.epics import PV
 from siriuspy.devices import DCCT, SOFB
-
-from apsuite.optimization import PSO, SimulAnneal
+from ..optimization import PSO, SimulAnneal
 
 
 class Septum:

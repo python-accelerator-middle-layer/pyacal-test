@@ -1,14 +1,13 @@
-#!/usr/bin/env python-sirius
 """."""
-
 import time as _time
+
 import numpy as np
-
 from epics import PV
-import pyaccel
 
+import pyaccel
 from siriuspy.devices import SOFB, RFGen
-from apsuite.commissioning_scripts.base import BaseClass
+
+from ..utils import MeasBaseClass as _BaseClass
 
 
 class ParamsDisp:
@@ -25,6 +24,7 @@ class ParamsDisp:
 
     @property
     def ejection_delta(self):
+        """."""
         return self.energy_delta / self.delay2energy  # in us
 
     def __str__(self):
@@ -39,7 +39,7 @@ class ParamsDisp:
         return strt
 
 
-class MeasureDispTS(BaseClass):
+class MeasureDispTS(_BaseClass):
     """."""
 
     HARMONIC_NUM = 828

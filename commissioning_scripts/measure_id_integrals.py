@@ -1,17 +1,18 @@
 """."""
-from threading import Thread as _Thread, Event as _Event
 from collections import namedtuple as _namedtuple
 from copy import deepcopy as _dcopy
 import time as _time
-import numpy as _np
-from siriuspy.devices import SOFB, APU, Tune, CurrInfoSI
-from apsuite.optics_analysis.tune_correction import TuneCorr
-from siriuspy.namesys import SiriusPVName as _SiriusPVName
 
+import numpy as _np
 from epics import PV
+
+from siriuspy.devices import SOFB, APU, Tune, CurrInfoSI
+from siriuspy.namesys import SiriusPVName as _SiriusPVName
 import pyaccel
 from pymodels import si
-from .base import BaseClass
+
+from ..optics_analysis import TuneCorr
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class IDParams:
@@ -60,23 +61,27 @@ class IDParams:
         return stg
 
 
-class MeasIDIntegral(BaseClass):
+class MeasIDIntegral(_BaseClass):
     """."""
 
     DEFAULT_CORR_LEN = 1e-6  # [m]
     MEAS_TYPE = _namedtuple('MeasType', ['Static', 'Dynamic'])(0, 1)
 
-    def __init__(self,
-                 model,
-                 id_name=None, phases=None, meas_type=None):
+    def __init__(
+            self, model, id_name=None, phases=None, meas_type=None):
         """."""
-        super().__init__()
-        self.model = model
-        self.famdata = si.get_family_data(model)
         if meas_type is None:
             self._meas_type = MeasIDIntegral.MEAS_TYPE.Static
         else:
             self.meas_type = meas_type
+        if self.meas_type == MeasIDIntegral.MEAS_TYPE.Static:
+            self._meas_func = self._meas_integral_static
+        elif self.meas_type == MeasIDIntegral.MEAS_TYPE.Dynamic:
+            self._meas_func = self._meas_integral_dynamic
+        super().__init__(target=self._meas_func)
+
+        self.model = model
+        self.famdata = si.get_family_data(model)
         self.id_name = _SiriusPVName(id_name)
         self.devices['apu'] = APU(self.id_name)
         self.devices['tune'] = Tune(Tune.DEVICES.SI)
@@ -89,15 +94,7 @@ class MeasIDIntegral(BaseClass):
         self.sofb_init_config = dict()
         self.ph_dyn_tstamp = []
         self.ph_dyn_mon = []
-        self.analysis = dict()
         self.data['measure'] = dict()
-        self._stopevt = _Event()
-        if self.params.meas_type == MeasIDIntegral.MEAS_TYPE.Static:
-            self._meas_func = self._meas_integral_static
-        elif self.params.meas_type == MeasIDIntegral.MEAS_TYPE.Dynamic:
-            self._meas_func = self._meas_integral_dynamic
-        self._thread = _Thread(
-            target=self._meas_func, daemon=True)
 
     @property
     def meas_type(self):
@@ -117,23 +114,6 @@ class MeasIDIntegral(BaseClass):
     def meas_type_str(self):
         """."""
         return MeasIDIntegral.MEAS_TYPE._fields[self._meas_type]
-
-    def start(self):
-        """."""
-        if self._thread.is_alive():
-            return
-        self._stopevt.clear()
-        self._thread = _Thread(target=self._meas_func, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopevt.set()
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
 
     def _get_id_idx(self):
         id_sub = self.famdata[self.id_name.dev]['subsection']
@@ -363,9 +343,9 @@ class MeasIDIntegral(BaseClass):
             mat[:, len(corr_idx) + num] = dcodxy/dkick
         return mat
 
-    def fit_kicks(self,
-                  diff_orbit, model=None, corr_idx=None,
-                  invmat=None, nr_iter=5, nsv=None):
+    def fit_kicks(
+            self, diff_orbit, model=None, corr_idx=None,
+            invmat=None, nr_iter=5, nsv=None):
         """."""
         if model is None:
             model = self.model

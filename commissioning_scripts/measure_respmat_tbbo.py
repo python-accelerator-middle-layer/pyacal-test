@@ -1,16 +1,13 @@
-#!/usr/bin/env python-sirius
 """."""
 
-from threading import Thread as _Thread, Event as _Event
 import numpy as np
 
 import pyaccel
-
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import SOFB
 
-from apsuite.optimization import SimulAnneal
-from apsuite.commissioning_scripts.base import BaseClass
+from ..optimization import SimulAnneal
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class Params:
@@ -25,12 +22,12 @@ class Params:
         self.num_points = 10
 
 
-class MeasureRespMatTBBO(BaseClass):
+class MeasureRespMatTBBO(_BaseClass):
     """."""
 
     def __init__(self, all_corrs):
         """."""
-        super().__init__(Params())
+        super().__init__(params=Params(), target=self._measure_matrix_thread)
         self.devices = {
             'bo_sofb': SOFB(SOFB.DEVICES.BO),
             'tb_sofb': SOFB(SOFB.DEVICES.TB),
@@ -38,8 +35,6 @@ class MeasureRespMatTBBO(BaseClass):
         self._all_corrs = all_corrs
         self._matrix = dict()
         self._corrs_to_measure = []
-        self._thread = _Thread(target=self._measure_matrix_thread)
-        self._stopped = _Event()
 
     @property
     def trajx(self):
@@ -60,11 +55,11 @@ class MeasureRespMatTBBO(BaseClass):
 
     def reset(self, wait=0):
         """."""
-        if self._stopped.wait(wait):
+        if self._stopevt.wait(wait):
             return False
         self.devices['tb_sofb'].cmd_reset()
         self.devices['bo_sofb'].cmd_reset()
-        if self._stopped.wait(1):
+        if self._stopevt.wait(1):
             return False
         return True
 
@@ -100,11 +95,6 @@ class MeasureRespMatTBBO(BaseClass):
         return mat
 
     @property
-    def measuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    @property
     def nr_points(self):
         """."""
         return min(
@@ -115,18 +105,6 @@ class MeasureRespMatTBBO(BaseClass):
     def nr_points(self, value):
         self.devices['tb_sofb'].nr_points = int(value)
         self.devices['bo_sofb'].nr_points = int(value)
-
-    def start(self):
-        """."""
-        if not self._thread.is_alive():
-            self._thread = _Thread(
-                target=self._measure_matrix_thread, daemon=True)
-            self._stopped.clear()
-            self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopped.set()
 
     def _measure_matrix_thread(self):
         self.nr_points = self.params.num_points
@@ -152,7 +130,7 @@ class MeasureRespMatTBBO(BaseClass):
             orb.append(np.hstack([self.trajx, self.trajy]))
 
             self._all_corrs[cor].strength = origkick
-            if self._stopped.is_set():
+            if self._stopevt.is_set():
                 print('Stopped!')
                 break
             else:
@@ -161,8 +139,8 @@ class MeasureRespMatTBBO(BaseClass):
             print('Finished!')
 
 
-def calc_model_respmatTBBO(tb_mod, model, corr_names, elems, meth='middle',
-                           ishor=True):
+def calc_model_respmatTBBO(
+        tb_mod, model, corr_names, elems, meth='middle', ishor=True):
     """."""
     bpms = np.array(pyaccel.lattice.find_indices(model, 'fam_name', 'BPM'))[1:]
     _, cumulmat = pyaccel.tracking.find_m44(
@@ -198,9 +176,9 @@ def calc_model_respmatTBBO(tb_mod, model, corr_names, elems, meth='middle',
     return matrix
 
 
-def _get_respmat_line(cumul_mat, indcs, bpms, length,
-                      kxl=0, kyl=0, ksxl=0, ksyl=0,
-                      cortype='vertical', meth='middle'):
+def _get_respmat_line(
+    cumul_mat, indcs, bpms, length, kxl=0, kyl=0, ksxl=0, ksyl=0,
+    cortype='vertical', meth='middle'):
 
     idx = 3 if cortype.startswith('vertical') else 1
     cor = indcs[0]

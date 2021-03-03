@@ -1,7 +1,6 @@
 """."""
 
 import time as _time
-from threading import Thread as _Thread, Event as _Event
 
 import numpy as _np
 import matplotlib.pyplot as _mplt
@@ -10,7 +9,7 @@ import matplotlib.gridspec as _mgs
 from siriuspy.namesys import SiriusPVName as _PVName
 from siriuspy.devices import PowerSupplyPU, Screen, SOFB
 
-from .base import BaseClass
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class Params:
@@ -47,7 +46,7 @@ class Params:
         return st
 
 
-class DelaysPMBeamBasedSearch(BaseClass):
+class DelaysPMBeamBasedSearch(_BaseClass):
     """."""
 
     PULSED_MAGNETS = PowerSupplyPU.DEVICES
@@ -55,7 +54,7 @@ class DelaysPMBeamBasedSearch(BaseClass):
 
     def __init__(self, pulsed_mag, screen, sofb_acc='BO'):
         """."""
-        super().__init__(params=Params())
+        super().__init__(params=Params(), target=self._findmax_thread)
         self._magname = _PVName(pulsed_mag)
         self._scrname = _PVName(screen)
         self.devices[self._magname] = PowerSupplyPU(self._magname)
@@ -63,9 +62,6 @@ class DelaysPMBeamBasedSearch(BaseClass):
         self.devices['sofb'] = SOFB(sofb_acc.upper() + '-Glob:AP-SOFB')
         self.data = dict(
             delay=[], trajx=[], trajy=[], posx=[], posy=[], sizex=[], sizey=[])
-        self.analysis = dict()
-        self._thread = _Thread(target=self._findmax_thread)
-        self._stopped = _Event()
 
     @property
     def magnet_name(self):
@@ -122,23 +118,6 @@ class DelaysPMBeamBasedSearch(BaseClass):
         """."""
         return self.data['sizey']
 
-    def start(self):
-        """."""
-        if not self._thread.is_alive():
-            self._thread = _Thread(
-                target=self._findmax_thread, daemon=True)
-            self._stopped.clear()
-            self._thread.start()
-
-    @property
-    def ismeasuring(self):
-        """."""
-        return self._thread.is_alive()
-
-    def stop(self):
-        """."""
-        self._stopped.set()
-
     def _findmax_thread(self):
         """."""
         print(self._magname)
@@ -167,10 +146,10 @@ class DelaysPMBeamBasedSearch(BaseClass):
                 self.data['sizex'].append(self.screen.sigmax)
                 self.data['sizey'].append(self.screen.sigmay)
                 _time.sleep(self.params.wait_mean_scrn)
-                if self._stopped.is_set():
+                if self._stopevt.is_set():
                     break
             print('done!')
-            if self._stopped.is_set():
+            if self._stopevt.is_set():
                 break
         self.magnet.delay = origdelay
         for k, v in self.data.items():

@@ -8,7 +8,7 @@ from siriuspy.devices import APU as _APU
 from siriuspy.devices import IDCorrectors as _IDCorrectors
 from siriuspy.devices import APUFeedForward as _APUFeedForward
 
-from .base import BaseClass as _BaseClass
+from ..utils import MeasBaseClass as _BaseClass
 
 
 class APUFFWDParams:

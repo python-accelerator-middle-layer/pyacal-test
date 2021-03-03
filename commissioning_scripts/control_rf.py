@@ -1,7 +1,6 @@
 """."""
 
 import time as _time
-from threading import Thread, Event
 
 import numpy as _np
 import matplotlib.pyplot as _mplt
@@ -9,9 +8,10 @@ import matplotlib.gridspec as _mgs
 import matplotlib.cm as _mcm
 
 from siriuspy.devices import RFCav, SOFB, DCCT, EVG
-from apsuite.commissioning_scripts.base import BaseClass
 import pyaccel as _pyaccel
 from pymodels import si as _si, bo as _bo
+
+from ..utils import ThreadedMeasBaseClass as _BaseClass
 
 
 class Params:
@@ -79,12 +79,12 @@ class Params:
         return strep
 
 
-class ControlRF(BaseClass):
+class ControlRF(_BaseClass):
     """."""
 
     def __init__(self, acc=None):
         """."""
-        super().__init__(Params())
+        super().__init__(params=Params(), target=self._do_scan)
         if acc in ('BO', 'SI'):
             self.acc = acc
         else:
@@ -123,8 +123,6 @@ class ControlRF(BaseClass):
             'dcct': [],
             'time': None,
             }
-        self._thread = Thread(target=self._do_scan)
-        self._stopped = Event()
 
     def get_scan_param_span(self):
         """."""
@@ -139,17 +137,6 @@ class ControlRF(BaseClass):
 
         npts = abs(int((fin - ini)/dlt)) + 1
         return _np.linspace(ini, fin, npts)
-
-    def start(self):
-        """."""
-        if not self._thread.is_alive():
-            self._thread = Thread(target=self._do_scan, daemon=True)
-            self._stopped.clear()
-            self._thread.start()
-
-    def stop(self):
-        """."""
-        self._stopped.set()
 
     def plot_energy_vs_turns(self, npts=None, navg=1, cut_sum=1.8):
         """."""
@@ -309,7 +296,7 @@ class ControlRF(BaseClass):
                 power_data[k] = self.devices['rf'].dev_rfpowmon.power
                 dcct_data[k] = _np.mean(self.devices['dcct'].current_fast)
                 _time.sleep(1/freq)
-                if self._stopped.is_set():
+                if self._stopevt.is_set():
                     break
             self.devices['sofb'].wait_buffer(self.params.sofb_timeout)
             self.data['phase'].append(phase_data)
@@ -326,7 +313,7 @@ class ControlRF(BaseClass):
             else:
                 print('Voltage [mV]: {0:8.3f}'.format(
                     self.devices['rf'].dev_llrf.voltage))
-            if self._stopped.is_set():
+            if self._stopevt.is_set():
                 print('Stopped!')
                 break
         self.devices['tim'].cmd_turn_off_pulses(self.params.tim_timeout)
