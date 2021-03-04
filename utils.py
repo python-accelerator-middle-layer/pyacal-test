@@ -66,8 +66,6 @@ class ThreadedMeasBaseClass(MeasBaseClass):
         self.isonline = bool(isonline)
         self._target = target
         self._stopevt = _Event()
-        self._finished = _Event()
-        self._finished.set()
         self._thread = _Thread(target=self._run, daemon=True)
 
     def start(self):
@@ -76,7 +74,6 @@ class ThreadedMeasBaseClass(MeasBaseClass):
             _log.error('There is another measurement happening.')
             return
         self._stopevt.clear()
-        self._finished.clear()
         self._thread = _Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -87,14 +84,16 @@ class ThreadedMeasBaseClass(MeasBaseClass):
     @property
     def ismeasuring(self):
         """."""
-        return self._finished.is_set()
+        return self._thread.is_alive()
 
     def wait_measurement(self, timeout=None):
         """Wait for measurement to finish."""
-        return self._finished.wait(timeout=timeout)
+        if self._thread.is_alive():
+            self._thread.join(timeout=timeout)
+        else:
+            return True
+        return self._thread.is_alive()
 
     def _run(self):
-        self._finished.clear()
         if self._target is not None:
             self._target()
-        self._finished.set()
