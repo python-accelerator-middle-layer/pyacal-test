@@ -1,6 +1,8 @@
 """."""
 from threading import Thread as _Thread, Event as _Event
 import logging as _log
+import sys as _sys
+import apsuite.commisslib as _commisslib
 
 from mathphys.functions import save_pickle as _save_pickle, \
     load_pickle as _load_pickle
@@ -28,7 +30,12 @@ class DataBaseClass:
     @staticmethod
     def load_data(fname):
         """."""
-        return _load_pickle(fname)
+        try:
+            data = _load_pickle(fname)
+        except ModuleNotFoundError:
+            _sys.modules['apsuite.commissioning_scripts'] = _commisslib
+            data = _load_pickle(fname)
+        return data
 
 
 class MeasBaseClass(DataBaseClass):
