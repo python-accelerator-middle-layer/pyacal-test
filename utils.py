@@ -26,7 +26,7 @@ class DataBaseClass:
         data = self.load_data(fname)
         self.data = data['data']
         params = data['params']
-        if params is not dict:
+        if not isinstance(params, dict):
             params = params.to_dict()
         self.params.from_dict(params_dict=params)
 
