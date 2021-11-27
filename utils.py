@@ -19,13 +19,25 @@ class DataBaseClass:
         self.data = dict()
         self.params = params
 
-    def save_data(self, fname, overwrite=False):
-        """."""
+    def save_data(self, fname: str, overwrite=False):
+        """Save `data` and `params` to pickle file.
+
+        Args:
+            fname (str): name of the pickle file. Extension is not needed.
+            overwrite (bool, optional): Whether to overwrite existing file.
+                Defaults to False.
+
+        """
         data = dict(params=self.params.to_dict(), data=self.data)
         _save_pickle(data, fname, overwrite=overwrite)
 
-    def load_and_apply(self, fname):
-        """."""
+    def load_and_apply(self, fname: str):
+        """Load and apply `data` and `params` from pickle file.
+
+        Args:
+            fname (str): name of the pickle file. Extension is not needed.
+
+        """
         data = self.load_data(fname)
         self.data = data['data']
         params = data['params']
@@ -34,8 +46,16 @@ class DataBaseClass:
         self.params.from_dict(params_dict=params)
 
     @staticmethod
-    def load_data(fname):
-        """."""
+    def load_data(fname: str):
+        """Load and return `data` and `params` from pickle file.
+
+        Args:
+            fname (str): name of the pickle file. Extension is not needed.
+
+        Returns:
+            data (dict): Dictionary with keys: `data` and `params`.
+
+        """
         try:
             data = _load_pickle(fname)
         except ModuleNotFoundError:
