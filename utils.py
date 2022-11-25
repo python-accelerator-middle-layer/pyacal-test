@@ -2,6 +2,7 @@
 from threading import Event as _Event
 import logging as _log
 import sys as _sys
+from copy import deepcopy as _dcopy
 
 from epics.ca import CAThread as _Thread
 
@@ -69,7 +70,7 @@ class ParamsBaseClass:
 
     def to_dict(self):
         """."""
-        return self.__dict__
+        return _dcopy(self.__dict__)
 
     def from_dict(self, params_dict):
         """."""
