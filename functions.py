@@ -3,6 +3,7 @@ import os as _os
 from collections import namedtuple as _namedtuple
 from functools import partial as _partial
 import pickle as _pickle
+from git import Repo as _Repo
 
 import numpy as _np
 
@@ -89,3 +90,32 @@ def load_pickle(fname):
     with open(fname, 'rb') as fil:
         data = _pickle.load(fil)
     return data
+
+
+def repository_info(repo_path):
+    """Get repository information.
+
+    Args:
+        repo_path (str): Repository path.
+
+    Returns:
+        repo_info (dict): Repository info.
+            path, active_branch, last_tag, last_commit, is_dirty.
+
+    """
+    repo_info = {}
+    try:
+        repo = _Repo(repo_path, search_parent_directories=True)
+    except:
+        print(f'Repository path not found: {repo_path:s}.')
+        return repo_info
+    branch = repo.active_branch.name
+    last_tag = repo.tags[-1].name
+    last_commit = repo.head.commit.hexsha[:7]
+    is_dirty = repo.is_dirty()
+    repo_info['path'] = repo_path
+    repo_info['active_branch'] = branch
+    repo_info['last_tag'] = last_tag
+    repo_info['last_commit'] = last_commit
+    repo_info['is_dirty'] = is_dirty
+    return repo_info
