@@ -4,6 +4,8 @@ from collections import namedtuple as _namedtuple
 from functools import partial as _partial
 import pickle as _pickle
 import subprocess as _subprocess
+import pkg_resources as _pkg_resources
+from types import ModuleType as _ModuleType
 
 import numpy as _np
 
@@ -127,3 +129,33 @@ def repo_info(repo_path):
     info['last_commit'] = last_commit
     info['is_dirty'] = is_dirty
     return info
+
+
+def get_path_from_package(package):
+    """Return the directory where package is installed.
+
+    Args:
+        package (str or module): Package name or module
+
+    Raises:
+        ValueError: If package argument type is different from str or module
+
+    Returns:
+        location (str): Package installation directory
+        version (str) : Package installation version
+
+    """
+    if isinstance(package, str):
+        pkg = package
+    elif isinstance(package, _ModuleType):
+        pkg = package.__package__
+    else:
+        raise ValueError('Invalid package type, must be str or module')
+    dist = _pkg_resources.get_distribution(pkg)
+    return dist.location, dist.version
+
+
+def is_git_repo(path):
+    """."""
+    git_dir = _os.path.join(path, '.git')
+    return _os.path.isdir(git_dir)
