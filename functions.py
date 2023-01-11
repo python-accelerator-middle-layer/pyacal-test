@@ -3,7 +3,7 @@ import os as _os
 from collections import namedtuple as _namedtuple
 from functools import partial as _partial
 import pickle as _pickle
-from git import Repo as _Repo
+import subprocess as _subprocess
 
 import numpy as _np
 
@@ -92,7 +92,7 @@ def load_pickle(fname):
     return data
 
 
-def repository_info(repo_path):
+def repo_info(repo_path):
     """Get repository information.
 
     Args:
@@ -103,19 +103,27 @@ def repository_info(repo_path):
             path, active_branch, last_tag, last_commit, is_dirty.
 
     """
-    repo_info = {}
+    info = dict()
+    err = _subprocess.CalledProcessError
+    out = _subprocess.check_output
     try:
-        repo = _Repo(repo_path, search_parent_directories=True)
-    except:
-        print(f'Repository path not found: {repo_path:s}.')
-        return repo_info
-    branch = repo.active_branch.name
-    last_tag = repo.tags[-1].name
-    last_commit = repo.head.commit.hexsha[:7]
-    is_dirty = repo.is_dirty()
-    repo_info['path'] = repo_path
-    repo_info['active_branch'] = branch
-    repo_info['last_tag'] = last_tag
-    repo_info['last_commit'] = last_commit
-    repo_info['is_dirty'] = is_dirty
-    return repo_info
+        cmd = ['git', '-C', repo_path, 'rev-parse', '--abbrev-ref', 'HEAD']
+        active_branch = out(cmd, universal_newlines=True).strip()
+    except err:
+        print(f'Repository path not found: {repo_path}.')
+        return info
+    try:
+        cmd = ['git', '-C', repo_path, 'describe', '--tags', '--abbrev=0']
+        last_tag = out(cmd, universal_newlines=True).strip()
+    except err:
+        last_tag = ''
+    cmd = ['git', '-C', repo_path, 'rev-parse', 'HEAD']
+    last_commit = out(cmd, universal_newlines=True).strip()[:7]
+    cmd = ['git', '-C', repo_path, 'status', '--short']
+    is_dirty = out(cmd, universal_newlines=True).strip() != ''
+    info['path'] = repo_path
+    info['active_branch'] = active_branch
+    info['last_tag'] = last_tag
+    info['last_commit'] = last_commit
+    info['is_dirty'] = is_dirty
+    return info
