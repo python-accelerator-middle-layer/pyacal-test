@@ -108,24 +108,34 @@ def repo_info(repo_path):
     info = dict()
     err = _subprocess.CalledProcessError
     out = _subprocess.check_output
+    # save initial directory and go to repository directory
+    init_dir = _os.getcwd()
+    _os.chdir(repo_path)
     try:
-        cmd = ['git', '-C', repo_path, 'rev-parse', '--abbrev-ref', 'HEAD']
+        cmd = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
         active_branch = out(cmd, universal_newlines=True).strip()
     except err:
         print(f'Repository path not found: {repo_path}.')
         return info
     try:
-        cmd = ['git', '-C', repo_path, 'describe', '--tags', '--abbrev=0']
+        cmd = ['git', 'describe', '--tags', '--abbrev=0']
         last_tag = out(cmd, universal_newlines=True).strip()
+        cmd = ['git', 'rev-list', '-n', '1', last_tag]
+        last_tag_commit = out(cmd, universal_newlines=True).strip()[:7]
     except err:
         last_tag = ''
-    cmd = ['git', '-C', repo_path, 'rev-parse', 'HEAD']
+        last_tag_commit = ''
+    cmd = ['git', 'rev-parse', 'HEAD']
     last_commit = out(cmd, universal_newlines=True).strip()[:7]
-    cmd = ['git', '-C', repo_path, 'status', '--short']
+    cmd = ['git', 'status', '--short']
     is_dirty = out(cmd, universal_newlines=True).strip() != ''
+    # return to initial directory
+    _os.chdir(init_dir)
+
     info['path'] = repo_path
     info['active_branch'] = active_branch
     info['last_tag'] = last_tag
+    info['last_tag_commit'] = last_tag_commit
     info['last_commit'] = last_commit
     info['is_dirty'] = is_dirty
     return info
