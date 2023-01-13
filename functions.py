@@ -157,5 +157,10 @@ def get_path_from_package(package):
 
 def is_git_repo(path):
     """."""
-    git_dir = _os.path.join(path, '.git')
-    return _os.path.isdir(git_dir)
+    try:
+        cmd = ['git', 'rev-parse', '--is-inside-work-tree']
+        null = _subprocess.DEVNULL
+        _subprocess.run(cmd, cwd=path, check=True, stdout=null, stderr=null)
+        return True
+    except _subprocess.CalledProcessError:
+        return False
