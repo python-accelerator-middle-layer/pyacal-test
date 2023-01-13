@@ -174,3 +174,21 @@ def is_git_repo(path):
         return True
     except _subprocess.CalledProcessError:
         return False
+
+
+def get_package_string(package):
+    """."""
+    path, ver = get_path_from_package(package)
+    repo_str = ''
+    if is_git_repo(path):
+        info = repo_info(path)
+        if info['last_tag'] != '':
+            repo_str += f"{info['last_tag']:s}"
+        if info['last_tag_commit'] != info['last_commit']:
+            repo_str += '+' if info['last_tag'] != '' else ''
+            repo_str += f"{info['last_commit']:s}"
+        if info['is_dirty']:
+            repo_str += f"+dirty"
+    else:
+        repo_str += f'{ver:s}'
+    return repo_str
