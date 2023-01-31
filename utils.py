@@ -2,6 +2,7 @@
 from threading import Event as _Event
 import logging as _log
 import sys as _sys
+from copy import deepcopy as _dcopy
 
 from epics.ca import CAThread as _Thread
 
@@ -19,6 +20,35 @@ class DataBaseClass:
         self.data = dict()
         self.params = params
 
+    def to_dict(self) -> dict:
+        """Dump all relevant object properties to dictionary.
+
+        Returns:
+            dict: contains all relevant properties of object.
+
+        """
+        return dict(data=self.data, params=self.params.to_dict())
+
+    def from_dict(self, info: dict):
+        """Update all relevant info from dictionary.
+
+        Args:
+            info (dict): dictionary with all relevant info.
+
+        Returns:
+            keys_not_used (set): Set containing keys not used by
+                `self.params` object.
+
+        """
+        self.data = _dcopy(info['data'])
+        params = info['params']
+        if not isinstance(params, dict):
+            params = params.to_dict()
+        keys_not_used = self.params.from_dict(params)
+        if keys_not_used:
+            print('Some keys were not used in params')
+        return keys_not_used
+
     def save_data(self, fname: str, overwrite=False):
         """Save `data` and `params` to pickle file.
 
@@ -28,8 +58,7 @@ class DataBaseClass:
                 Defaults to False.
 
         """
-        data = dict(params=self.params.to_dict(), data=self.data)
-        _save_pickle(data, fname, overwrite=overwrite)
+        _save_pickle(self.to_dict(), fname, overwrite=overwrite)
 
     def load_and_apply(self, fname: str):
         """Load and apply `data` and `params` from pickle file.
@@ -38,12 +67,7 @@ class DataBaseClass:
             fname (str): name of the pickle file. Extension is not needed.
 
         """
-        data = self.load_data(fname)
-        self.data = data['data']
-        params = data['params']
-        if not isinstance(params, dict):
-            params = params.to_dict()
-        self.params.from_dict(params_dict=params)
+        self.from_dict(self.load_data(fname))
 
     @staticmethod
     def load_data(fname: str):
@@ -68,12 +92,31 @@ class ParamsBaseClass:
     """."""
 
     def to_dict(self):
-        """."""
-        return self.__dict__
+        """Dump all relevant object properties to dictionary.
+
+        Returns:
+            dict: contains all relevant properties of object.
+
+        """
+        return _dcopy(self.__dict__)
 
     def from_dict(self, params_dict):
-        """."""
-        self.__dict__.update(params_dict)
+        """Update all relevant info from dictionary.
+
+        Args:
+            info (dict): dictionary with all relevant info.
+
+        Returns:
+            keys_not_used (set): Set containing keys not used.
+
+        """
+        keys_not_used = set()
+        for k, v in params_dict.items():
+            if k in self.__dict__:
+                self.__dict__[k] = v
+            else:
+                keys_not_used.add(k)
+        return keys_not_used
 
 
 class MeasBaseClass(DataBaseClass):
