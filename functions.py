@@ -74,7 +74,8 @@ def save_pickle(data, fname, overwrite=False, makedirs=False):
         raise FileExistsError(f'file {fname} already exists.')
     if makedirs:
         dirname = _os.path.dirname(fname)
-        _os.makedirs(dirname)
+        if not _os.path.exists(dirname):
+            _os.makedirs(dirname)
     with open(fname, 'wb') as fil:
         _pickle.dump(data, fil)
 
