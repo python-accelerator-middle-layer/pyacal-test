@@ -158,6 +158,16 @@ class ThreadedMeasBaseClass(MeasBaseClass):
         self._finished.set()
         self._thread = _Thread(target=self._run, daemon=True)
 
+    @property
+    def target(self):
+        """Target function to be executed by Thread."""
+        return self._target
+
+    @target.setter
+    def target(self, func):
+        if callable(func):
+            self._target = func
+
     def start(self):
         """."""
         if self.ismeasuring:
