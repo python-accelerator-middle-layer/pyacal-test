@@ -702,13 +702,13 @@ class Image2D_Fit(Image2D_ROI):
         # fit roiy
         param, roi_fit, roi_error = \
             self._curve_fit.calc_fit(
-                self.roiy_proj, self.roiy_indcs, self.roiy_center)
+                self, self.roiy_proj, self.roiy_indcs, self.roiy_center)
         self._roiy_sigma, self._roiy_mean, self._roiy_amp, _ = param
         self._roiy_fit, self._roiy_fit_error = roi_fit, roi_error
 
         # fit roix
         param, roi_fit, roi_error = \
             self._curve_fit.calc_fit(
-                self.roix_proj, self.roix_indcs, self.roix_center)
+                self, self.roix_proj, self.roix_indcs, self.roix_center)
         self._roix_sigma, self._roix_mean, self._roix_amp, _ = param
         self._roix_fit, self._roix_fit_error = roi_fit, roi_error
