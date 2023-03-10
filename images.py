@@ -5,8 +5,6 @@ import numpy as _np
 import matplotlib.pyplot as _plt
 import matplotlib.patches as _patches
 
-from scipy.optimize import curve_fit as _curve_fit
-
 
 # NOTE: lnls560-linux was used in benchmarking
 #
@@ -930,7 +928,7 @@ class Image1D_Fit(Image1D_ROI):
 
 
 class Image2D_Fit(Image2D):
-    
+
     """2D Image Fit."""
 
     def __init__(self, *args, curve_fit=None, **kwargs):
