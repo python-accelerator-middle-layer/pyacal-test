@@ -2,7 +2,7 @@
 
 import numpy as _np
 import matplotlib.pyplot as _plt
-from mathphys.functions import save_pickle
+from mathphys.functions import save_pickle, load_pickle
 
 
 class ConfigErrors:
@@ -143,9 +143,9 @@ class MultipolesErrors(ConfigErrors):
         n_multipoles_order_dict = dict()
         s_multipoles_order_dict = dict()
         for i, order in enumerate(self.normal_multipoles_order):
-            n_multipoles_order_dict[order] = self.sigma_multipoles_n
+            n_multipoles_order_dict[order] = self.sigma_multipoles_n[i]
         for i, order in enumerate(self.skew_multipoles_order):
-            s_multipoles_order_dict[order] = self.sigma_multipoles_s
+            s_multipoles_order_dict[order] = self.sigma_multipoles_s[i]
         self.multipoles_dict = dict()
         self.multipoles_dict['normal'] = n_multipoles_order_dict
         self.multipoles_dict['skew'] = n_multipoles_order_dict
@@ -307,40 +307,115 @@ class BpmsErrors(ConfigErrors):
 
 class ManageErrors():
 
-    @staticmethod
-    def generate_normal_dist(sigma, cutoff, dim, mean=0, seed=131070):
-        _np.random.seed(seed=seed)
+    def __init__(self):
+        self._nr_mach = 20
+        self._seed = 131071
+        self._cutoff = 1
+        self._error_configs = []
+        self._famdata = None
+        self._fam_errors = None
+
+    @property
+    def nr_mach(self):
+        return self._nr_mach
+
+    @nr_mach.setter
+    def nr_mach(self, value):
+        if isinstance(value, int):
+            self._nr_mach = value
+        else:
+            raise ValueError('Number of machines must be an integer')
+
+    @property
+    def seed(self):
+        return self._seed
+
+    @seed.setter
+    def seed(self, value):
+        self._seed = value
+
+    @property
+    def error_configs(self):
+        return self._error_configs
+
+    @error_configs.setter
+    def error_configs(self, value):
+        self._error_configs = value
+
+    @property
+    def famdata(self):
+        return self._famdata
+
+    @famdata.setter
+    def famdata(self, value):
+        self._famdata = value
+
+    @property
+    def cutoff(self):
+        return self._cutoff
+
+    @cutoff.setter
+    def cutoff(self, value):
+        self._cutoff = value
+
+    @property
+    def fam_errors(self):
+        return self._fam_errors
+
+    @fam_errors.setter
+    def fam_errors(self, value):
+        self._fam_errors = value
+
+    def generate_normal_dist(self, sigma, dim, mean=0):
+        _np.random.seed = self.seed
         dist = _np.random.normal(loc=mean, scale=sigma, size=dim)
-        dist = _np.where(_np.abs(dist) < cutoff*sigma, dist, 0)
+        while _np.any(_np.abs(dist) > self.cutoff*sigma):
+            idx = _np.argwhere(_np.abs(dist) > self.cutoff*sigma)
+            for i in idx:
+                mach = i[0]
+                element = i[1]
+                dist[mach][element] = _np.random.normal(
+                    loc=mean, scale=sigma, size=1)
         return dist
 
-    # @staticmethod
-    # def generate_normal_dist(sigma, cutoff, dim, mean=0, seed=131070):
-    #     _np.random.seed(seed=seed)
-    #     if not isinstance(sigma, list):
-    #         dist = _np.random.normal(loc=mean, scale=sigma, size=dim)
-    #         dist = _np.where(_np.abs(dist) < cutoff*sigma, dist, 0)
-    #     else:
-    #         dist = _np.ones((dim[0], dim[1], len(sigma)))
-    #         for i, sigma_ in enumerate(sigma):
-    #             dist[:, :, i] = _np.random.normal(
-    #                 loc=mean, scale=sigma_, size=dim)
-    #             dist[:, :, i] = _np.where(
-    #                 _np.abs(dist[:, :, i]) < cutoff*sigma_, dist[:, :, i], 0)
-    #     return dist
-
-    @staticmethod
-    def generate_errors(error_configs, nr_mach, cutoff, fam_data, seed=131071):
+    def generate_errors(self, save_errors=False):
         fam_errors = dict()
-        for config in error_configs:
+        for config in self.error_configs:
             for fam_name in config.fam_names:
-                idcs = _np.array(fam_data[fam_name]['index'], dtype="object")
+                idcs = _np.array(self.famdata[fam_name]['index'],
+                                 dtype="object")
                 error_type_dict = dict()
                 for error_type, sigma in config.sigmas.items():
-                    error = ManageErrors.generate_normal_dist(
-                        sigma=sigma, cutoff=cutoff,
-                        dim=(nr_mach, len(idcs)), seed=seed)
+                    if error_type == 'multipoles':
+                        error = dict()
+                        multipole_dict_n = dict()
+                        multipole_dict_s = dict()
+                        for order, mp_value in sigma['normal'].items():
+                            error_ = self.generate_normal_dist(
+                                        sigma=mp_value, dim=(self.nr_mach,
+                                                             len(idcs)))
+                            multipole_dict_n[order] = error_
+                        for order, mp_value in sigma['skew'].items():
+                            error_ = self.generate_normal_dist(
+                                        sigma=mp_value, dim=(self.nr_mach,
+                                                             len(idcs)))
+                            multipole_dict_s[order] = error_
+                        error['normal'] = multipole_dict_n
+                        error['skew'] = multipole_dict_s
+                    else:
+                        error = self.generate_normal_dist(
+                            sigma=sigma, dim=(self.nr_mach, len(idcs)))
                     error_type_dict[error_type] = error
                 error_type_dict['index'] = idcs
                 fam_errors[fam_name] = error_type_dict
+        self.fam_errors = fam_errors
+        if save_errors:
+            self.save_error_file()
         return fam_errors
+
+    def save_error_file(self):
+        save_pickle(self.fam_errors, 'errors', overwrite=True)
+
+    def load_error_file(self):
+        self.fam_errors = load_pickle('errors')
+        return self.fam_errors
