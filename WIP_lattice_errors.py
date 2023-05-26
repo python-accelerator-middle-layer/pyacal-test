@@ -6,6 +6,7 @@ import matplotlib.pyplot as _plt
 import pyaccel as _pyaccel
 import pymodels as _pymodels
 from apsuite.orbcorr import OrbitCorr, CorrParams
+from apsuite.commisslib.measure_bba import BBAParams
 from mathphys.functions import save_pickle, load_pickle
 
 
@@ -185,8 +186,8 @@ class DipolesErrors(MultipolesErrors):
         self.sigma_x = 40
         self.sigma_y = 40
         self.sigma_roll = 0.30
-        self.sigma_pitch = 0.10
-        self.sigma_yaw = 0.10
+        self.sigma_pitch = 0
+        self.sigma_yaw = 0
         self.sigma_excit = 0.05
         self.sigma_kdip = 0.10
         self.sigma_multipoles_n = _np.ones(4)*1.5e-4
@@ -215,12 +216,43 @@ class QuadsErrors(MultipolesErrors):
 
     def _set_default_quad_config(self):
         self.fam_names = ['QFA', 'QDA', 'Q1', 'Q2', 'Q3', 'Q4', 'QDB1',
-                          'QFB',  'QDB2', 'QDP1', 'QFP', 'QDP2', 'QS']
+                          'QFB',  'QDB2', 'QDP1', 'QFP', 'QDP2']
         self.sigma_x = 40
         self.sigma_y = 40
         self.sigma_roll = 0.30
-        self.sigma_pitch = 0.10
-        self.sigma_yaw = 0.10
+        self.sigma_pitch = 0
+        self.sigma_yaw = 0
+        self.sigma_excit = 0.05
+        self.sigma_multipoles_n = _np.ones(4)*1.5e-4
+        self.sigma_multipoles_s = _np.ones(4)*0.5e-4
+        self.normal_multipoles_order = [3, 4, 5, 6]
+        self.skew_multipoles_order = [3, 4, 5, 6]
+        self.create_multipoles_dict()
+
+        sigmas = dict()
+        sigmas['posx'] = self.sigma_x
+        sigmas['posy'] = self.sigma_y
+        sigmas['roll'] = self.sigma_roll
+        sigmas['pitch'] = self.sigma_pitch
+        sigmas['yaw'] = self.sigma_yaw
+        sigmas['excitation'] = self.sigma_excit
+        sigmas['multipoles'] = self.multipoles_dict
+        self.sigmas = sigmas
+
+
+class QuadsSkewErrors(MultipolesErrors):
+
+    def __init__(self):
+        super().__init__()
+        self._set_default_quad_config()
+
+    def _set_default_quad_config(self):
+        self.fam_names = ['QS']
+        self.sigma_x = 0
+        self.sigma_y = 0
+        self.sigma_roll = 0
+        self.sigma_pitch = 0
+        self.sigma_yaw = 0
         self.sigma_excit = 0.05
         self.sigma_multipoles_n = _np.ones(4)*1.5e-4
         self.sigma_multipoles_s = _np.ones(4)*0.5e-4
@@ -253,8 +285,8 @@ class SextsErrors(MultipolesErrors):
         self.sigma_x = 40
         self.sigma_y = 40
         self.sigma_roll = 0.17
-        self.sigma_pitch = 0.10
-        self.sigma_yaw = 0.10
+        self.sigma_pitch = 0
+        self.sigma_yaw = 0
         self.sigma_excit = 0.05
         self.sigma_multipoles_n = _np.ones(4)*1.5e-4
         self.sigma_multipoles_s = _np.ones(4)*0.5e-4
@@ -284,8 +316,8 @@ class GirderErrors(ConfigErrors):
         self.sigma_x = 80
         self.sigma_y = 80
         self.sigma_roll = 0.30
-        self.sigma_pitch = 0.10
-        self.sigma_yaw = 0.10
+        self.sigma_pitch = 0
+        self.sigma_yaw = 0
 
         sigmas = dict()
         sigmas['posx'] = self.sigma_x
@@ -307,8 +339,8 @@ class BpmsErrors(ConfigErrors):
         self.sigma_x = 20
         self.sigma_y = 20
         self.sigma_roll = 0.30
-        self.sigma_pitch = 0.10
-        self.sigma_yaw = 0.10
+        self.sigma_pitch = 0
+        self.sigma_yaw = 0
 
         sigmas = dict()
         sigmas['posx'] = self.sigma_x
@@ -332,6 +364,17 @@ class ManageErrors():
         self._bba_idcs = None
         self._nominal_model = None
         self._models = []
+        self.functions = {'posx': _pyaccel.lattice.add_error_misalignment_x,
+                          'posy': _pyaccel.lattice.add_error_misalignment_y,
+                          'roll': _pyaccel.lattice.add_error_rotation_roll,
+                          'pitch': _pyaccel.lattice.add_error_rotation_pitch,
+                          'yaw': _pyaccel.lattice.add_error_rotation_yaw,
+                          'excitation': _pyaccel.lattice.add_error_excitation_main,
+                          'kdip': _pyaccel.lattice.add_error_excitation_kdip}
+        self._ocorr_params = None
+        self._orbcorr = None
+        self._nominal_orbrespm = None
+        self.use_nominal_jacobian = True
 
     @property
     def nr_mach(self):
@@ -416,6 +459,33 @@ class ManageErrors():
     def nominal_model(self, value):
         self._nominal_model = value
 
+    @property
+    def nominal_orbrespm(self):
+        return self._nominal_orbrespm
+
+    @nominal_orbrespm.setter
+    def nominal_orbrespm(self, value):
+        self._nominal_orbrespm = value
+
+    @property
+    def orbcorr(self):
+        return self._orbcorr
+
+    @orbcorr.setter
+    def orbcorr(self, value):
+        self._orbcorr = value
+
+    @property
+    def ocorr_params(self):
+        return self._ocorr_params
+
+    @ocorr_params.setter
+    def ocorr_params(self, value):
+        self._ocorr_params = value
+        self.orbcorr = OrbitCorr(
+                self.nominal_model, 'SI', params=self.ocorr_params)
+        self.nominal_orbrespm = self.orbcorr.get_jacobian_matrix()
+
     def generate_normal_dist(self, sigma, dim, mean=0):
         _np.random.seed = self.seed
         dist = _np.random.normal(loc=mean, scale=sigma, size=dim)
@@ -478,30 +548,26 @@ class ManageErrors():
 
     def create_models(self):
         models_ = list()
-        for mach in _np.arange(self.nr_mach):
+        for _ in range(self.nr_mach):
             model = _pymodels.si.create_accelerator()
+            model.cavity_on = True
+            model.radiation_on = 1
             models_.append(model)
         self.models = models_
 
     def get_bba_idcs(self):
-        quad_idx = _np.array(self.famdata['QN']['index']).ravel()
-        bpm_idx = _np.array(self.famdata['BPM']['index']).ravel()
-        bpm_spos = _np.array(self.spos[bpm_idx]).ravel()
-        quad_spos = _np.array(self.spos[quad_idx]).ravel()
-        idx_aux = _np.abs(
-            bpm_spos[:, None] - quad_spos[None, :]).argmin(axis=1)
-        self.bba_idcs = quad_idx[idx_aux]
+        quaddevnames = list(BBAParams.QUADNAMES)
+        quads = [famname for famname in self.famdata.keys()
+                 if famname[0] == 'Q' and famname[1] != 'N']
+        quads_idcs = list()
+        for quadfam in quads:
+            for idx, devname in zip(self.famdata[quadfam]['index'],
+                                    self.famdata[quadfam]['devnames']):
+                if devname in quaddevnames:
+                    quads_idcs.append(idx)
+        self.bba_idcs = _np.array(quads_idcs).ravel()
 
     def apply_errors(self, nr_steps, mach):
-        functions = {'posx': _pyaccel.lattice.add_error_misalignment_x,
-                     'posy': _pyaccel.lattice.add_error_misalignment_y,
-                     'roll': _pyaccel.lattice.add_error_rotation_roll,
-                     'pitch': _pyaccel.lattice.add_error_rotation_pitch,
-                     'yaw': _pyaccel.lattice.add_error_rotation_yaw,
-                     'excitation': _pyaccel.lattice.add_error_excitation_main,
-                     'kdip': _pyaccel.lattice.add_error_excitation_kdip}
-
-        main_monoms = {'B': 1, 'Q': 2, 'S': 3, 'QS': -2}
 
         print('Applying errors...', end='')
         for fam, family in self.fam_errors.items():
@@ -510,27 +576,61 @@ class ManageErrors():
             for error_type in error_types:
                 if error_type != 'multipoles':
                     errors = family[error_type]
-                    functions[error_type](
+                    self.functions[error_type](
                         self.models[mach], inds, errors[mach]/nr_steps)
-                else:
-                    mag_key = fam[0] if fam != 'QS' else fam
-                    main_monom = _np.ones(len(inds))*main_monoms[mag_key]
-                    r0 = family[error_type]['r0']
-                    polb_order = list(family[error_type]['normal'].keys())
-                    pola_order = list(family[error_type]['skew'].keys())
-                    Bn_norm = _np.zeros((len(inds), max(polb_order)+1))
-                    An_norm = _np.zeros((len(inds), max(pola_order)+1))
-                    for n in polb_order:
-                        Bn_norm[:, n] = family[error_type]['normal'][n][mach]/nr_steps
-                    for n in pola_order:
-                        An_norm[:, n] = family[error_type]['skew'][n][mach]/nr_steps
-                    _pyaccel.lattice.add_error_multipoles(
-                        self.models[mach], inds, r0,
-                        main_monom, Bn_norm, An_norm)
+                # else:
+                #     mag_key = fam[0] if fam != 'QS' else fam
+                #     main_monom = _np.ones(len(inds))*main_monoms[mag_key]
+                #     r0 = family[error_type]['r0']
+                #     polb_order = list(family[error_type]['normal'].keys())
+                #     pola_order = list(family[error_type]['skew'].keys())
+                #     Bn_norm = _np.zeros((len(inds), max(polb_order)+1))
+                #     An_norm = _np.zeros((len(inds), max(pola_order)+1))
+                #     for n in polb_order:
+                #         Bn_norm[:, n] = family[error_type]['normal'][n][mach]/nr_steps
+                #     for n in pola_order:
+                #         An_norm[:, n] = family[error_type]['skew'][n][mach]/nr_steps
+                #     _pyaccel.lattice.add_error_multipoles(
+                #         self.models[mach], inds, r0,
+                #         main_monom, Bn_norm, An_norm)
         print('Done!')
 
-    def simulate_bba(self, mach):
-        bpms = self.famdata['BPM']['index']
+    def apply_multipoles_errors(self, nr_steps, mach):
+        error_type = 'multipoles'
+        for fam, family in self.fam_errors.items():
+            inds = family['index']
+            if error_type in family.keys():
+                main_monoms = {'B': 1, 'Q': 2, 'S': 3, 'QS': -2}
+                mag_key = fam[0] if fam != 'QS' else fam
+                main_monom = _np.ones(len(inds))*main_monoms[mag_key]
+                r0 = family[error_type]['r0']
+                polb_order = list(family[error_type]['normal'].keys())
+                pola_order = list(family[error_type]['skew'].keys())
+                Bn_norm = _np.zeros((len(inds), max(polb_order)+1))
+                An_norm = _np.zeros((len(inds), max(pola_order)+1))
+                for n in polb_order:
+                    Bn_norm[:, n] = family[error_type]['normal'][n][mach]/nr_steps
+                for n in pola_order:
+                    An_norm[:, n] = family[error_type]['skew'][n][mach]/nr_steps
+                _pyaccel.lattice.add_error_multipoles(
+                    self.models[mach], inds, r0,
+                    main_monom, Bn_norm, An_norm)
+
+    def get_girder_errors(self, nr_steps, step, bpms, mach):
+        girder_errorx = list()
+        girder_errory = list()
+        for i, girder in enumerate(self.fam_errors['girder']['index']):
+            for idx in girder:
+                if _np.any(bpms == idx):
+                    girder_errorx.append(
+                        self.fam_errors['girder']['posx'][mach][i])
+                    girder_errory.append(
+                        self.fam_errors['girder']['posy'][mach][i])
+        girder_errors_bpms = _np.array(girder_errorx + girder_errory).ravel()
+        return step*girder_errors_bpms/nr_steps
+
+    def simulate_bba(self, nr_steps, step, mach):
+        bpms = _np.array(self.famdata['BPM']['index']).ravel()
         orb0 = _np.zeros(2*len(bpms))
         orb0[:len(bpms)] += _pyaccel.lattice.get_error_misalignment_x(
                 self.models[mach], self.bba_idcs).ravel()
@@ -540,38 +640,45 @@ class ManageErrors():
                 self.models[mach], self.bba_idcs).ravel()
         orb0[len(bpms):] += _pyaccel.lattice.get_error_misalignment_y(
                 self.models[mach], bpms).ravel()
+
+        if 'girder' in self.fam_errors.keys():
+            orb0 -= self.get_girder_errors(nr_steps, step, bpms, mach)
         return orb0
 
     def correct_orbit(self, orb0, mach):
         print('Correcting orbit...', end='')
-        ocorr = OrbitCorr(self.models[mach], 'SI')
-        if not ocorr.correct_orbit(goal_orbit=orb0):
-            raise ValueError('Could not correct orbit!')
+        jac = None
+        if self.use_nominal_jacobian:
+            jac = self.nominal_orbrespm
+        self.orbcorr.respm.model = self.models[mach]
+        if not self.orbcorr.correct_orbit(
+                jacobian_matrix=jac, goal_orbit=orb0):
+            print('Could not achieve tolerance!')
         else:
-            print('Done!')
-            orbf = ocorr.get_orbit()
-        return orbf
+            print('Done!\n')
 
-    def generate_error_machines(self, nr_steps=10):
+        return self.orbcorr.get_orbit()
+
+    def generate_machines(self, nr_steps=10):
 
         # Get quadrupoles near BPMs indexes
         self.get_bba_idcs()
 
-        # Check if BPM errors were configured
-        if 'BPM' not in self.fam_errors.keys():
-            print('BPM errors were not configured.')
-
-            # If BPM errors were not configured -> then set them to zero
-            bpm_idx = _np.array(self.famdata['BPM']['index']).ravel()
-            self.fam_errors['BPM'] = _np.zeros((self.nr_mach, len(bpm_idx)))
-
         self.create_models()
-        for mach in range(self.nr_mach):
+        self.orb0, self.orbf = list(), list()
 
-            _plt.figure(1)
-            for _ in range(nr_steps):
+        for mach in range(self.nr_mach):
+            print('Machine ', mach)
+
+            for step in range(nr_steps):
+                print('Step ', step+1)
+
                 self.apply_errors(nr_steps, mach)
-                orb0 = self.simulate_bba(mach)
-                orbf = self.correct_orbit(orb0, mach)
-                _plt.plot(1e6*(orbf-orb0))
-            _plt.show()
+
+                orb0_ = self.simulate_bba(nr_steps, step+1, mach)
+                orbf_ = self.correct_orbit(orb0_, mach)
+
+
+            self.orb0.append(orb0_)
+            self.orbf.append(orbf_)
+        return self.orb0, self.orbf
