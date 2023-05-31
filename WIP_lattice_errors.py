@@ -360,7 +360,6 @@ class ManageErrors():
         self._cutoff = 1
         self._error_configs = []
         self._famdata = None
-        self._spos = None
         self._fam_errors = None
         self._bba_idcs = None
         self._nominal_model = None
@@ -372,20 +371,18 @@ class ManageErrors():
                           'yaw': _pyaccel.lattice.add_error_rotation_yaw,
                           'excit': _pyaccel.lattice.add_error_excitation_main,
                           'kdip': _pyaccel.lattice.add_error_excitation_kdip}
-        self._ocorr_params = None
+        self._ocorr_params = CorrParams()
         self._orbcorr = None
-        self._nominal_orbrespm = None
-        self.use_nominal_jacobian = True
+        self._save_jacobians = True
+        self._load_jacobians = False
         self.do_bba = True
         self.ramp_optics = True
         self.ramp_tunes = True
         self.ramp_coup = True
-        self.ramp_multipoles = False
 
         # debug tools
         self.apply_girder = True
         self.rescale_girder = 1
-        self.set_sext_to_zero = False
 
     @property
     def nr_mach(self):
@@ -421,14 +418,6 @@ class ManageErrors():
     @famdata.setter
     def famdata(self, value):
         self._famdata = value
-
-    @property
-    def spos(self):
-        return self._spos
-
-    @spos.setter
-    def spos(self, value):
-        self._spos = value
 
     @property
     def cutoff(self):
@@ -471,12 +460,20 @@ class ManageErrors():
         self._nominal_model = value
 
     @property
-    def nominal_orbrespm(self):
-        return self._nominal_orbrespm
+    def save_jacobians(self):
+        return self._save_jacobians
 
-    @nominal_orbrespm.setter
-    def nominal_orbrespm(self, value):
-        self._nominal_orbrespm = value
+    @property
+    def load_jacobians(self):
+        return self._load_jacobians
+
+    @load_jacobians.setter
+    def load_jacobians(self, value):
+        if type(value) != bool:
+            raise ValueError('Load jacobian must be boolean type')
+        else:
+            self._load_jacobians = value
+            self._save_jacobians = not value
 
     @property
     def orbcorr(self):
@@ -657,34 +654,39 @@ class ManageErrors():
 
         return orb0
 
-    def config_orb_corr(self):
+    def config_orb_corr(self, jac=None):
         self.orbcorr = OrbitCorr(
                 self.nominal_model, 'SI', params=self.ocorr_params)
-        self.nominal_orbrespm = self.orbcorr.get_jacobian_matrix()
+        if jac is not None:
+            self.orbmat = jac
+        else:
+            self.orbmat = self.orbcorr.get_jacobian_matrix()
+        return self.orbmat
 
     def correct_orbit(self, orb0, mach):
         print('Correcting orbit...', end='')
-        jac = None
-        if self.use_nominal_jacobian:
-            jac = self.nominal_orbrespm
         self.orbcorr.respm.model = self.models[mach]
         if not self.orbcorr.correct_orbit(
-                jacobian_matrix=jac, goal_orbit=orb0):
+                jacobian_matrix=self.orbmat, goal_orbit=orb0):
             print('Could not achieve tolerance!')
         else:
             print('Done!\n')
 
-        return self.orbcorr.get_orbit()
+        return self.orbcorr.get_orbit(), self.orbcorr.get_kicks()
 
-    def config_tune_corr(self):
+    def config_tune_corr(self, jac=None):
         self.tunecorr = TuneCorr(
                             self.nominal_model,
                             'SI', method='Proportional',
                             grouping='TwoKnobs')
-        self.tunemat = self.tunecorr.calc_jacobian_matrix()
+        if jac is not None:
+            self.tunemat = jac
+        else:
+            self.tunemat = self.tunecorr.calc_jacobian_matrix()
         self.goal_tunes = self.tunecorr.get_tunes()
         print('Nominal tunes: {:.4f} {:.4f}'.format(
             self.goal_tunes[0], self.goal_tunes[1]))
+        return self.tunemat
 
     def correct_tunes(self, mach):
         self.tunecorr.correct_parameters(
@@ -699,10 +701,21 @@ class ManageErrors():
 
         return min_tunesep
 
-    def config_coupling_corr(self):
-        self.coup_corr = CouplingCorr(self.nominal_model, 'SI')
-        self.coupmat = self.coup_corr.calc_jacobian_matrix(
-            model=self.nominal_model)
+    def config_coupling_corr(self, jac=None):
+        idcs = list()
+        for idx, sub in zip(
+                self.famdata['QS']['index'],
+                self.famdata['QS']['subsection']):
+            if 'C2' not in sub:
+                idcs.append(idx)
+        self.coup_corr = CouplingCorr(self.nominal_model, 'SI',
+                                      skew_list=idcs)
+        if jac is not None:
+            self.coupmat = jac
+        else:
+            self.coupmat = self.coup_corr.calc_jacobian_matrix(
+                model=self.nominal_model)
+        return self.coupmat
 
     def correct_coupling(self, mach):
         self.coup_corr.model = self.models[mach]
@@ -710,9 +723,13 @@ class ManageErrors():
                     jacobian_matrix=self.coupmat,
                     tol=1e-8, weight_dispy=1)
 
-    def config_optics_corr(self):
+    def config_optics_corr(self, jac=None):
         self.opt_corr = OpticsCorr(self.nominal_model, 'SI')
-        self.optmat = self.opt_corr.calc_jacobian_matrix()
+        if jac is not None:
+            self.optmat = jac
+        else:
+            self.optmat = self.opt_corr.calc_jacobian_matrix()
+        return self.optmat
 
     def correct_optics(self, mach):
         self.opt_corr.model = self.models[mach]
@@ -720,49 +737,52 @@ class ManageErrors():
                                               jacobian_matrix=self.optmat)
 
     def configure_corrections(self):
+        orbmat, optmat, tunemat, coupmat = None, None, None, None
+        if self.load_jacobians:
+            respmats = load_pickle('respmats')
+            orbmat = respmats['orbmat']
+            optmat = respmats['optmat']
+            tunemat = respmats['tunemat']
+            coupmat = respmats['coupmat']
+
         # Config orbit correction
         print('Configuring orbit correction...')
-        self.config_orb_corr()
+        orbmat = self.config_orb_corr(orbmat)
 
         # Config optics correction
         print('Configuring optics correction...')
-        self.config_optics_corr()
+        optmat = self.config_optics_corr(optmat)
 
         # Config tune correction
         print('Configuring tune correction...')
-        self.config_tune_corr()
+        tunemat = self.config_tune_corr(tunemat)
 
         # Config coupling correction
         print('Configuring coupling correction...')
-        self.config_coupling_corr()
+        coupmat = self.config_coupling_corr(coupmat)
+
+        if self.save_jacobians:
+            respmats = dict()
+            respmats['orbmat'] = orbmat
+            respmats['optmat'] = optmat
+            respmats['tunemat'] = tunemat
+            respmats['coupmat'] = coupmat
+            save_pickle(respmats, 'respmats', overwrite=True)
 
     def generate_machines(self, nr_steps=10):
         # Get quadrupoles near BPMs indexes
         self.get_bba_idcs()
 
+        # Create SI models
         self.create_models()
 
+        data = dict()
         for mach in range(self.nr_mach):
             print('Machine ', mach)
 
-            fig, axs = _plt.subplots(4)
-
-            if self.set_sext_to_zero:
-                index = self.famdata['SN']['index']
-                values = _np.zeros(len(index))
-                _pyaccel.lattice.set_attribute(
-                    self.models[mach], 'SL', index, values)
-
+            step_data = dict()
             for step in range(nr_steps):
                 print('Step ', step+1)
-
-                self.apply_errors(nr_steps, mach)
-                if self.ramp_multipoles:
-                    self.apply_multipoles_errors(nr_steps, mach)
-
-                if self.set_sext_to_zero:
-                    print(_np.all(_pyaccel.lattice.get_attribute(
-                        self.models[mach], 'SL', index)) == 0)
 
                 # Orbit setted by BBA or setted to zero
                 if self.do_bba:
@@ -770,7 +790,7 @@ class ManageErrors():
                 else:
                     orb0_ = _np.zeros(2*len(self.bba_idcs))
 
-                orbf_ = self.correct_orbit(orb0_, mach)
+                orbf_, kicks_ = self.correct_orbit(orb0_, mach)
 
                 twiss, *_ = _pyaccel.optics.calc_twiss(self.models[mach])
                 twiss0, *_ = _pyaccel.optics.calc_twiss(self.nominal_model)
@@ -786,7 +806,7 @@ class ManageErrors():
                     tunes = self.tunecorr.get_tunes(model=self.models[mach])
                     print(
                         'Old tunes: {:.4f} {:.4f}'.format(tunes[0], tunes[1]))
-                    for i in range(2):
+                    for i in range(1):
                         self.correct_tunes(mach)
                         tunes = self.tunecorr.get_tunes(
                             model=self.models[mach])
@@ -808,41 +828,23 @@ class ManageErrors():
 
                 dbetax = 100*(twiss.betax - twiss0.betax)/twiss0.betax
                 dbetay = 100*(twiss.betay - twiss0.betay)/twiss0.betay
-                fig.suptitle('Orbref and orbfinal')
-                axs[0].plot(dbetax, label=step)
-                axs[1].plot(dbetay, label=step)
-                axs[2].plot(1e6*(orb0_[:160]-orbf_[:160]), label=step)
-                axs[3].plot(1e6*(orb0_[160:]-orbf_[160:]), label=step)
-                axs[0].legend()
 
-                _plt.show()
+                step_dict = dict()
+                step_dict['twiss'] = twiss
+                step_dict['betabeatingx'] = dbetax
+                step_dict['betabeatingy'] = dbetay
+                step_dict['coupling'] = mintune
+                step_dict['ref_orb'] = orb0_
+                step_dict['orbit'] = orbf_
+                step_dict['corr_kicks'] = kicks_
+                step_data['step_' + str(step)] = step_dict
 
-            # Symmetrize optics
-            res = self.correct_optics(mach)
-            res = True if res == 1 else False
-            print('Optics correction tolerance achieved: ', res)
+            # Apply multipoles errors
+            self.apply_multipoles_errors(1, mach)
 
-            # Correct tunes
-            tunes = self.tunecorr.get_tunes(model=self.models[mach])
-            print('Old tunes: {:.4f} {:.4f}'.format(tunes[0], tunes[1]))
-            for i in range(2):
-                self.correct_tunes(mach)
-                tunes = self.tunecorr.get_tunes(model=self.models[mach])
-                print('iter # {} - New tunes: {:.4f} {:.4f}'.format(
-                    i+1, tunes[0], tunes[1]))
+            model_dict = dict()
+            model_dict['model'] = self.models[mach]
+            model_dict['data'] = step_data
+            data[mach] = model_dict
 
-            # Correct coupling
-            mintune = self.calc_coupling(mach)
-            print(
-                'Minimum tune separation before correction: {:.3f} %'.format(
-                    100*mintune))
-            self.correct_coupling(mach)
-            mintune = self.calc_coupling(mach)
-            print(
-                'Minimum tune separation after correction: {:.3f} %'.format(
-                    100*mintune))
-
-            if not self.ramp_multipoles:
-                self.apply_multipoles_errors(1, mach)
-
-        return self.models
+        return data
