@@ -2,6 +2,7 @@
 
 import numpy as _np
 import matplotlib.pyplot as _plt
+import time as _time
 
 import pyaccel as _pyaccel
 import pymodels as _pymodels
@@ -355,8 +356,9 @@ class BpmsErrors(ConfigErrors):
 class ManageErrors():
 
     def __init__(self):
+        self._machines_data = None
         self._nr_mach = 20
-        self._seed = 131071
+        self._seed = 140699
         self._cutoff = 1
         self._error_configs = []
         self._famdata = None
@@ -373,8 +375,8 @@ class ManageErrors():
                           'kdip': _pyaccel.lattice.add_error_excitation_kdip}
         self._ocorr_params = CorrParams()
         self._orbcorr = None
-        self._save_jacobians = True
-        self._load_jacobians = False
+        self._save_jacobians = False
+        self._load_jacobians = True
         self.do_bba = True
         self.ramp_optics = True
         self.ramp_tunes = True
@@ -383,6 +385,14 @@ class ManageErrors():
         # debug tools
         self.apply_girder = True
         self.rescale_girder = 1
+
+    @property
+    def machines_data(self):
+        return self._machines_data
+
+    @machines_data.setter
+    def machines_data(self, value):
+        self._machines_data = value
 
     @property
     def nr_mach(self):
@@ -402,6 +412,7 @@ class ManageErrors():
     @seed.setter
     def seed(self, value):
         self._seed = value
+        _np.random.seed(seed=self._seed)
 
     @property
     def error_configs(self):
@@ -463,6 +474,13 @@ class ManageErrors():
     def save_jacobians(self):
         return self._save_jacobians
 
+    @save_jacobians.setter
+    def save_jacobians(self, value):
+        if type(value) != bool:
+            raise ValueError('Save jacobian must be boolean type')
+        else:
+            self._save_jacobians = value
+
     @property
     def load_jacobians(self):
         return self._load_jacobians
@@ -473,7 +491,6 @@ class ManageErrors():
             raise ValueError('Load jacobian must be boolean type')
         else:
             self._load_jacobians = value
-            self._save_jacobians = not value
 
     @property
     def orbcorr(self):
@@ -491,8 +508,11 @@ class ManageErrors():
     def ocorr_params(self, value):
         self._ocorr_params = value
 
+    def reset_seed(self):
+        self.seed = int(_time.time_ns() % 1e6)
+        print('New seed: ', self.seed)
+
     def generate_normal_dist(self, sigma, dim, mean=0):
-        _np.random.seed = self.seed
         dist = _np.random.normal(loc=mean, scale=sigma, size=dim)
         while _np.any(_np.abs(dist) > self.cutoff*sigma):
             idx = _np.argwhere(_np.abs(dist) > self.cutoff*sigma)
@@ -541,7 +561,8 @@ class ManageErrors():
 
     def save_error_file(self, filename=None):
         if filename is None:
-            filename = 'errors'  # Need to change this
+            filename = str(self.nr_mach) + '_errors_seed_' + str(
+                self.seed)
         save_pickle(self.fam_errors, filename, overwrite=True)
 
     def load_error_file(self, filename):
@@ -769,6 +790,10 @@ class ManageErrors():
             respmats['coupmat'] = coupmat
             save_pickle(respmats, 'respmats', overwrite=True)
 
+    def save_machines(self):
+        filename = str(self.nr_mach) + '_machines_seed_' + str(self.seed)
+        save_pickle(self.machines_data, filename, overwrite=False)
+
     def generate_machines(self, nr_steps=10):
         # Get quadrupoles near BPMs indexes
         self.get_bba_idcs()
@@ -846,5 +871,8 @@ class ManageErrors():
             model_dict['model'] = self.models[mach]
             model_dict['data'] = step_data
             data[mach] = model_dict
+        data['orbcorr_params'] = self.ocorr_params
 
+        self.machines_data = data
+        self.save_machines()
         return data
