@@ -378,9 +378,9 @@ class ManageErrors():
         self._save_jacobians = False
         self._load_jacobians = True
         self.do_bba = True
-        self.ramp_optics = True
-        self.ramp_tunes = True
-        self.ramp_coup = True
+        self._ramp_corrections = True
+        self._ramp_sextupoles = False
+        self._dim = '6d'
 
         # debug tools
         self.apply_girder = True
@@ -508,6 +508,36 @@ class ManageErrors():
     def ocorr_params(self, value):
         self._ocorr_params = value
 
+    @property
+    def ramp_corrections(self):
+        return self._ramp_corrections
+
+    @ramp_corrections.setter
+    def ramp_corrections(self, value):
+        if type(value) != bool:
+            raise ValueError('Ramp_corrections must be boolean type')
+        else:
+            self._ramp_corrections = value
+            self._ramp_sextupoles = not value
+        self._dim = '6d' if value is True else '4d'
+
+    @property
+    def ramp_sextupoles(self):
+        return self._ramp_sextupoles
+
+    @ramp_sextupoles.setter
+    def ramp_sextupoles(self, value):
+        if type(value) != bool:
+            raise ValueError('Ramp_sextupoles must be boolean type')
+        else:
+            self._ramp_sextupoles = value
+            self._ramp_corrections = not value
+        self._dim = '4d' if value is True else '6d'
+
+    @property
+    def orbcorr_dim(self):
+        return self._dim
+
     def reset_seed(self):
         self.seed = int(_time.time_ns() % 1e6)
         print('New seed: ', self.seed)
@@ -576,8 +606,8 @@ class ManageErrors():
         models_ = list()
         for _ in range(self.nr_mach):
             model = _pymodels.si.create_accelerator()
-            model.cavity_on = True
-            model.radiation_on = 1
+            model.cavity_on = False
+            model.radiation_on = 0
             model.vchamber_on = False
             models_.append(model)
         self.models = models_
@@ -677,7 +707,8 @@ class ManageErrors():
 
     def config_orb_corr(self, jac=None):
         self.orbcorr = OrbitCorr(
-                self.nominal_model, 'SI', params=self.ocorr_params)
+                self.nominal_model, 'SI', self.orbcorr_dim,
+                params=self.ocorr_params)
         if jac is not None:
             self.orbmat = jac
         else:
@@ -757,6 +788,36 @@ class ManageErrors():
         return self.opt_corr.optics_corr_loco(goal_model=self.nominal_model,
                                               jacobian_matrix=self.optmat)
 
+    def do_all_opt_corrections(self, mach, n_iter=1):
+        twiss, *_ = _pyaccel.optics.calc_twiss(self.models[mach])
+        twiss0, *_ = _pyaccel.optics.calc_twiss(self.nominal_model)
+
+        # Symmetrize optics
+        res = self.correct_optics(mach)
+        res = True if res == 1 else False
+        print('Optics correction tolerance achieved: ', res)
+
+        # Correct tunes
+        tunes = self.tunecorr.get_tunes(model=self.models[mach])
+        print('Old tunes: {:.4f} {:.4f}'.format(tunes[0], tunes[1]))
+        for i in range(n_iter):
+            self.correct_tunes(mach)
+            tunes = self.tunecorr.get_tunes(
+                        model=self.models[mach])
+            print('iter # {} - New tunes: {:.4f} {:.4f}'.format(
+                        i+1, tunes[0], tunes[1]))
+
+        # Correct coupling
+        mintune = self.calc_coupling(mach)
+        print('Minimum tune separation before corr: {:.3f} %'.format(
+                 100*mintune))
+        self.correct_coupling(mach)
+        mintune = self.calc_coupling(mach)
+        print('Minimum tune separation after corr: {:.3f} %'.format(
+                            100*mintune))
+
+        return mintune, twiss, twiss0
+
     def configure_corrections(self):
         orbmat, optmat, tunemat, coupmat = None, None, None, None
         if self.load_jacobians:
@@ -792,6 +853,8 @@ class ManageErrors():
 
     def save_machines(self):
         filename = str(self.nr_mach) + '_machines_seed_' + str(self.seed)
+        if self.ramp_sextupoles:
+            filename += '_sext_ramp'
         save_pickle(self.machines_data, filename, overwrite=False)
 
     def generate_machines(self, nr_steps=10):
@@ -809,6 +872,17 @@ class ManageErrors():
             for step in range(nr_steps):
                 print('Step ', step+1)
 
+                self.apply_errors(nr_steps, mach)
+
+                if self.ramp_sextupoles:
+                    index = self.famdata['SN']['index']
+                    values = _pyaccel.lattice.get_attribute(
+                        self.models[mach], 'SL', index)
+
+                    zeros = _np.zeros(len(index))
+                    _pyaccel.lattice.set_attribute(
+                        self.models[mach], 'SL', index, zeros)
+
                 # Orbit setted by BBA or setted to zero
                 if self.do_bba:
                     orb0_ = self.simulate_bba(nr_steps, step+1, mach)
@@ -817,43 +891,33 @@ class ManageErrors():
 
                 orbf_, kicks_ = self.correct_orbit(orb0_, mach)
 
-                twiss, *_ = _pyaccel.optics.calc_twiss(self.models[mach])
-                twiss0, *_ = _pyaccel.optics.calc_twiss(self.nominal_model)
+                if self.ramp_sextupoles:
+                    zeros = _np.zeros(len(index))
+                    _pyaccel.lattice.set_attribute(
+                        self.models[mach], 'SL', index,
+                        (step+1)*values/nr_steps)
 
-                # Symmetrize optics
-                if self.ramp_optics:
-                    res = self.correct_optics(mach)
-                    res = True if res == 1 else False
-                    print('Optics correction tolerance achieved: ', res)
+                if self.ramp_corrections:
+                    mintune, twiss, twiss0 = self.do_all_opt_corrections(mach)
+                    dbetax = 100*(twiss.betax - twiss0.betax)/twiss0.betax
+                    dbetay = 100*(twiss.betay - twiss0.betay)/twiss0.betay
+                    step_dict = dict()
+                    step_dict['twiss'] = twiss
+                    step_dict['betabeatingx'] = dbetax
+                    step_dict['betabeatingy'] = dbetay
+                    step_dict['coupling'] = mintune
+                    step_dict['ref_orb'] = orb0_
+                    step_dict['orbit'] = orbf_
+                    step_dict['corr_kicks'] = kicks_
+                    step_data['step_' + str(step)] = step_dict
 
-                # Correct tunes
-                if self.ramp_tunes:
-                    tunes = self.tunecorr.get_tunes(model=self.models[mach])
-                    print(
-                        'Old tunes: {:.4f} {:.4f}'.format(tunes[0], tunes[1]))
-                    for i in range(1):
-                        self.correct_tunes(mach)
-                        tunes = self.tunecorr.get_tunes(
-                            model=self.models[mach])
-                        print(
-                            'iter # {} - New tunes: {:.4f} {:.4f}'.format(
-                                i+1, tunes[0], tunes[1]))
-
-                # Correct coupling
-                if self.ramp_coup:
-                    mintune = self.calc_coupling(mach)
-                    print(
-                        'Minimum tune separation before corr: {:.3f} %'.format(
-                            100*mintune))
-                    self.correct_coupling(mach)
-                    mintune = self.calc_coupling(mach)
-                    print(
-                        'Minimum tune separation after corr: {:.3f} %'.format(
-                            100*mintune))
-
+            # Do optics corrections:
+            if self.ramp_sextupoles:
+                for i in range(5):
+                    mintune, twiss, twiss0 = self.do_all_opt_corrections(
+                        mach, n_iter=1)
                 dbetax = 100*(twiss.betax - twiss0.betax)/twiss0.betax
                 dbetay = 100*(twiss.betay - twiss0.betay)/twiss0.betay
-
                 step_dict = dict()
                 step_dict['twiss'] = twiss
                 step_dict['betabeatingx'] = dbetax
@@ -862,7 +926,7 @@ class ManageErrors():
                 step_dict['ref_orb'] = orb0_
                 step_dict['orbit'] = orbf_
                 step_dict['corr_kicks'] = kicks_
-                step_data['step_' + str(step)] = step_dict
+                step_data['step_1'] = step_dict
 
             # Apply multipoles errors
             self.apply_multipoles_errors(1, mach)
