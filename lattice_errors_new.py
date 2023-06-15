@@ -357,6 +357,7 @@ class ManageErrors():
 
     def __init__(self):
         self._machines_data = None
+        self._ids = None
         self._nr_mach = 20
         self._seed = 140699
         self._cutoff = 1
@@ -393,6 +394,14 @@ class ManageErrors():
     @machines_data.setter
     def machines_data(self, value):
         self._machines_data = value
+
+    @property
+    def ids(self):
+        return self._ids
+
+    @ids.setter
+    def ids(self, value):
+        self._ids = value
 
     @property
     def nr_mach(self):
@@ -605,9 +614,13 @@ class ManageErrors():
     def create_models(self):
         models_ = list()
         for _ in range(self.nr_mach):
-            model = _pymodels.si.create_accelerator()
-            model.cavity_on = False
-            model.radiation_on = 0
+            model = _pymodels.si.create_accelerator(ids=self.ids)
+            if self.orbcorr_dim == '4d':
+                model.cavity_on = False
+                model.radiation_on = 0
+            else:
+                model.cavity_on = True
+                model.radiation_on = 1
             model.vchamber_on = False
             models_.append(model)
         self.models = models_
@@ -895,7 +908,7 @@ class ManageErrors():
                     zeros = _np.zeros(len(index))
                     _pyaccel.lattice.set_attribute(
                         self.models[mach], 'SL', index,
-                        (step+1)*values/nr_steps)
+                        values)
 
                 if self.ramp_corrections:
                     mintune, twiss, twiss0 = self.do_all_opt_corrections(mach)
