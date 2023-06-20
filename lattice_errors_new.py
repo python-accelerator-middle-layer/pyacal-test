@@ -817,7 +817,7 @@ class ManageErrors():
         return self.opt_corr.optics_corr_loco(goal_model=self.nominal_model,
                                               jacobian_matrix=self.optmat)
 
-    def _insert_kickmap(self, model):
+    def insert_kickmap(self, model):
         kickmaps = _pymodels.si.lattice.create_id_kickmaps_dict(
             self.ids, energy=3e9)
         for id_ in self.ids:
@@ -998,7 +998,7 @@ class ManageErrors():
         models = list()
         for mach in range(self.nr_mach):
             model_ = data_mach[mach]['model']
-            model = self._insert_kickmap(model_)
+            model = self.insert_kickmap(model_)
             models.append(model)
         self.models = models
 
