@@ -820,11 +820,25 @@ class ManageErrors():
     def insert_kickmap(self, model):
         kickmaps = _pymodels.si.lattice.create_id_kickmaps_dict(
             self.ids, energy=3e9)
-        for id_ in self.ids:
+        twiss, *_ = _pyaccel.optics.calc_twiss(model, indices='closed')
+        print('Model without ID:')
+        print('length : {:.4f} m'.format(model.length))
+        print('tunex  : {:.6f}'.format(twiss.mux[-1]/2/_np.pi))
+        print('tuney  : {:.6f}'.format(twiss.muy[-1]/2/_np.pi))
+        print()
+
+        for id_ in self.ids:    # Using just one ID
             idcs = _np.array(
                 self.famdata[id_.fam_name]['index']).ravel()
             model[idcs[0]] = kickmaps[id_.subsec][0]
             model[idcs[-1]] = kickmaps[id_.subsec][-1]
+
+        twiss, *_ = _pyaccel.optics.calc_twiss(model, indices='closed')
+        print('Model with ID:')
+        print('length : {:.4f} m'.format(model.length))
+        print('tunex  : {:.6f}'.format(twiss.mux[-1]/2/_np.pi))
+        print('tuney  : {:.6f}'.format(twiss.muy[-1]/2/_np.pi))
+        print()
         return model
 
     def _do_all_opt_corrections(self, mach, n_iter=1):
@@ -896,9 +910,12 @@ class ManageErrors():
         filename = str(self.nr_mach) + '_machines_seed_' + str(self.seed)
         if self.ramp_sextupoles:
             filename += '_sext_ramp'
+        if self.ramp_with_ids:
+            filename += '_'
+            filename += self.ids[0].fam_name
         if sulfix is not None:
             filename += sulfix
-        save_pickle(self.machines_data, filename, overwrite=False)
+        save_pickle(self.machines_data, filename, overwrite=True)
 
     def load_machines(self):
         filename = str(self.nr_mach) + '_machines_seed_' + str(self.seed)
@@ -942,6 +959,12 @@ class ManageErrors():
 
                 orbf_, kicks_ = self._correct_orbit(orb0_, mach)
 
+                cod = 1e6*(orbf_ - orb0_)
+                if _np.max(cod) <= 100:
+                    good_corr_flag = True
+                else:
+                    good_corr_flag = False
+
                 if self.ramp_sextupoles:
                     _pyaccel.lattice.set_attribute(
                         self.models[mach], 'SL', index,
@@ -963,20 +986,31 @@ class ManageErrors():
 
             # Do optics corrections:
             if self.ramp_sextupoles:
-                for i in range(5):
-                    twiss, edtang, twiss0 = self._do_all_opt_corrections(
-                        mach, n_iter=1)
-                dbetax = 100*(twiss.betax - twiss0.betax)/twiss0.betax
-                dbetay = 100*(twiss.betay - twiss0.betay)/twiss0.betay
-                step_dict = dict()
-                step_dict['twiss'] = twiss
-                step_dict['edtang'] = edtang
-                step_dict['betabeatingx'] = dbetax
-                step_dict['betabeatingy'] = dbetay
-                step_dict['ref_orb'] = orb0_
-                step_dict['orbit'] = orbf_
-                step_dict['corr_kicks'] = kicks_
-                step_data['step_1'] = step_dict
+                if good_corr_flag:
+                    for i in range(5):
+                        twiss, edtang, twiss0 = self._do_all_opt_corrections(
+                            mach, n_iter=1)
+                    dbetax = 100*(twiss.betax - twiss0.betax)/twiss0.betax
+                    dbetay = 100*(twiss.betay - twiss0.betay)/twiss0.betay
+                    step_dict = dict()
+                    step_dict['twiss'] = twiss
+                    step_dict['edtang'] = edtang
+                    step_dict['betabeatingx'] = dbetax
+                    step_dict['betabeatingy'] = dbetay
+                    step_dict['ref_orb'] = orb0_
+                    step_dict['orbit'] = orbf_
+                    step_dict['corr_kicks'] = kicks_
+                    step_data['step_1'] = step_dict
+                else:
+                    step_dict = dict()
+                    step_dict['twiss'] = 0
+                    step_dict['edtang'] = 0
+                    step_dict['betabeatingx'] = 0
+                    step_dict['betabeatingy'] = 0
+                    step_dict['ref_orb'] = orb0_
+                    step_dict['orbit'] = orbf_
+                    step_dict['corr_kicks'] = kicks_
+                    step_data['step_1'] = step_dict
 
             # Apply multipoles errors
             self._apply_multipoles_errors(1, mach)
@@ -985,67 +1019,7 @@ class ManageErrors():
             model_dict['model'] = self.models[mach]
             model_dict['data'] = step_data
             data[mach] = model_dict
-        data['orbcorr_params'] = self.ocorr_params
-
-        self.machines_data = data
-        self._save_machines()
+            data['orbcorr_params'] = self.ocorr_params
+            self.machines_data = data
+            self._save_machines()
         return data
-
-    def corr_ids(self):
-        data_mach = self.load_machines()
-
-        # insert ID in each machine
-        models = list()
-        for mach in range(self.nr_mach):
-            model_ = data_mach[mach]['model']
-            model = self.insert_kickmap(model_)
-            models.append(model)
-        self.models = models
-
-        data = dict()
-        for mach in range(self.nr_mach):
-            step_data = dict()
-
-            # get ref_orb
-            ref_orb = data_mach[mach]['data']['step_1']['ref_orb']
-
-            # get sextupoles values
-            index = self.famdata['SN']['index']
-            values = _pyaccel.lattice.get_attribute(
-                    self.models[mach], 'SL', index)
-
-            # set sextupoles to zero
-            zeros = _np.zeros(len(index))
-            _pyaccel.lattice.set_attribute(
-                self.models[mach], 'SL', index, zeros)
-
-            # correct orbit
-            orbf_, kicks_ = self._correct_orbit(ref_orb, mach)
-
-            # restore sextupoles values
-            _pyaccel.lattice.set_attribute(
-                self.models[mach], 'SL', index, values)
-
-            # do all optics corretions
-            for i in range(5):
-                twiss, edtang, twiss0 = self._do_all_opt_corrections(
-                    mach, n_iter=1)
-                dbetax = 100*(twiss.betax - twiss0.betax)/twiss0.betax
-                dbetay = 100*(twiss.betay - twiss0.betay)/twiss0.betay
-                step_dict = dict()
-                step_dict['twiss'] = twiss
-                step_dict['edtang'] = edtang
-                step_dict['betabeatingx'] = dbetax
-                step_dict['betabeatingy'] = dbetay
-                step_dict['ref_orb'] = ref_orb
-                step_dict['orbit'] = orbf_
-                step_dict['corr_kicks'] = kicks_
-                step_data['step_1'] = step_dict
-
-            model_dict = dict()
-            model_dict['model'] = self.models[mach]
-            model_dict['data'] = step_data
-            data[mach] = model_dict
-        self.machines_data = data
-        sulfix = '_' + self.ids[0].fam_name + '_symm'
-        self._save_machines(sulfix=sulfix)
