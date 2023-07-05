@@ -375,18 +375,18 @@ class ManageErrors():
                           'yaw': _pyaccel.lattice.add_error_rotation_yaw,
                           'excit': _pyaccel.lattice.add_error_excitation_main,
                           'kdip': _pyaccel.lattice.add_error_excitation_kdip}
-        self._ocorr_params = CorrParams()
+        self._orbcorr_params = CorrParams()
         self._orbcorr = None
         self._save_jacobians = False
         self._load_jacobians = True
         self.do_bba = True
         self._ramp_with_ids = False
         self._do_opt_corr = True
-        self.try_jacobian_w_errors = True
 
         # debug tools
         self.apply_girder = True
         self.rescale_girder = 1
+        self.try_jacobian_w_errors = True
 
     @property
     def machines_data(self):
@@ -511,12 +511,12 @@ class ManageErrors():
         self._orbcorr = value
 
     @property
-    def ocorr_params(self):
-        return self._ocorr_params
+    def orbcorr_params(self):
+        return self._orbcorr_params
 
-    @ocorr_params.setter
-    def ocorr_params(self, value):
-        self._ocorr_params = value
+    @orbcorr_params.setter
+    def orbcorr_params(self, value):
+        self._orbcorr_params = value
 
     @property
     def ramp_with_ids(self):
@@ -539,7 +539,6 @@ class ManageErrors():
             raise ValueError('do_opt_corr must be boolean type')
         else:
             self._do_opt_corr = value
-
 
     def reset_seed(self):
         self.seed = int(_time.time_ns() % 1e6)
@@ -715,14 +714,14 @@ class ManageErrors():
     def _config_orb_corr(self, jac=None):
         self.orbcorr = OrbitCorr(
                 self.nominal_model, 'SI', '4d',
-                params=self.ocorr_params)
+                params=self.orbcorr_params)
         if jac is not None:
             self.orbmat = jac
         else:
             self.orbmat = self.orbcorr.get_jacobian_matrix()
         return self.orbmat
 
-    def _correct_orbit(self, orb0, mach):
+    def _correct_orbit_once(self, orb0, mach):
         print('Correcting orbit...', end='')
         self.orbcorr.respm.model = self.models[mach]
         self.orbcorr_status = self.orbcorr.correct_orbit(
@@ -735,6 +734,18 @@ class ManageErrors():
             print('Done!\n')
 
         return self.orbcorr.get_orbit(), self.orbcorr.get_kicks()
+
+    def _correct_orbit_iter(self, orb0, mach):
+        orb_temp, kicks_temp = self._correct_orbit_once(orb0, mach)
+        init_minsingval = self.orbcorr_params.minsingval
+        while self.orbcorr_status == 2:
+            self.orbcorr.set_kicks(self.kicks_)
+            self.orbcorr_params.minsingval += 0.05
+            orb_temp, kicks_temp = self._correct_orbit_once(
+                orb0, mach)
+        self.orbf_, self.kicks_ = orb_temp, kicks_temp
+        self.orbcorr_params.minsingval = init_minsingval
+        return self.orbf_, self.kicks_
 
     def _config_tune_corr(self, jac=None):
         self.tunecorr = TuneCorr(
@@ -897,7 +908,6 @@ class ManageErrors():
         self._create_models()
 
         data = dict()
-        cont_fail_mach = 0
         for mach in range(2*self.nr_mach):
             print('Machine ', mach)
 
@@ -907,13 +917,14 @@ class ManageErrors():
 
                 self._apply_errors(nr_steps, mach)
 
-                # Save sextupoles values and set them to zero
-                index = self.famdata['SN']['index']
-                values = _pyaccel.lattice.get_attribute(
-                    self.models[mach], 'SL', index)
+                # Save sextupoles values and set then to zero
+                if step == 0:
+                    index = self.famdata['SN']['index']
+                    values = _pyaccel.lattice.get_attribute(
+                        self.models[mach], 'SL', index)
 
-                zeros = _np.zeros(len(index))
-                _pyaccel.lattice.set_attribute(
+                    zeros = _np.zeros(len(index))
+                    _pyaccel.lattice.set_attribute(
                         self.models[mach], 'SL', index, zeros)
 
                 # Orbit setted by BBA or setted to zero
@@ -923,13 +934,7 @@ class ManageErrors():
                     orb0_ = _np.zeros(2*len(self.bba_idcs))
 
                 # Correct orbit
-                orbf_, kicks_ = self._correct_orbit(orb0_, mach)
-
-                if self.orbcorr_status == 2:
-                    cont_fail_mach += 1
-                    fail_flag = True
-                else:
-                    fail_flag = False
+                orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach)
 
                 step_dict = dict()
                 step_dict['orbcorr_status'] = self.orbcorr_status
@@ -939,11 +944,22 @@ class ManageErrors():
                 step_data['step_' + str(step + 1)] = step_dict
 
                 _pyaccel.lattice.set_attribute(
-                    self.models[mach], 'SL', index, values)
+                    self.models[mach], 'SL', index, (step + 1)*values/nr_steps)
+
+            # Perform one last orbit correction after turning ON sextupoles
+            orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach)
+
+            # Save last orbit corr data
+            step_dict = dict()
+            step_dict['orbcorr_status'] = self.orbcorr_status
+            step_dict['ref_orb'] = orb0_
+            step_dict['orbit'] = orbf_
+            step_dict['corr_kicks'] = kicks_
+            step_data['step_' + str(step + 2)] = step_dict
 
             # Do optics corrections:
-            if not fail_flag:
-                step_dict = step_data['step_' + str(step + 1)]
+            if True:
+                step_dict = step_data['step_' + str(step + 2)]
                 if self.do_opt_corr:
 
                     for i in range(2):
@@ -951,7 +967,7 @@ class ManageErrors():
                             mach, n_iter=1)
 
                     orb0_ = step_dict['ref_orb']
-                    orbf_, kicks_ = self._correct_orbit(orb0_, mach)
+                    orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach)
 
                     for i in range(2):
                         twiss, edtang, twiss0 = self._do_all_opt_corrections(
@@ -968,20 +984,19 @@ class ManageErrors():
                     step_dict['betabeatingx'] = dbetax
                     step_dict['betabeatingy'] = dbetay
 
-                step_data['step_' + str(step+1)] = step_dict
+                step_data['step_final'] = step_dict
 
             # Apply multipoles errors
             self._apply_multipoles_errors(1, mach)
 
-            if not fail_flag:
-                model_dict = dict()
-                model_dict['model'] = self.models[mach]
-                model_dict['data'] = step_data
-                data['orbcorr_params'] = self.ocorr_params
-                data[mach - cont_fail_mach] = model_dict
-                self.machines_data = data
-                self.save_machines()
-            if mach - cont_fail_mach + 1 == self.nr_mach:
+            model_dict = dict()
+            model_dict['model'] = self.models[mach]
+            model_dict['data'] = step_data
+            data['orbcorr_params'] = self.orbcorr_params
+            data[mach] = model_dict
+            self.machines_data = data
+            self.save_machines()
+            if mach + 1 == self.nr_mach:
                 break
         return data
 
@@ -1011,7 +1026,7 @@ class ManageErrors():
 
     def corr_ids(self):
         data_mach = self.load_machines()
-        self.ocorr_params = data_mach['orbcorr_params']
+        self.orbcorr_params = data_mach['orbcorr_params']
         # insert ID in each machine
         models = list()
         for mach in range(self.nr_mach):
