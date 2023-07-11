@@ -379,14 +379,14 @@ class ManageErrors():
         self._orbcorr = None
         self._save_jacobians = False
         self._load_jacobians = True
-        self.do_bba = True
+        self._do_bba = True
         self._ramp_with_ids = False
         self._do_opt_corr = True
+        self._corr_multipoles = True
 
         # debug tools
         self.apply_girder = True
         self.rescale_girder = 1
-        self.try_jacobian_w_errors = True
 
     @property
     def machines_data(self):
@@ -540,6 +540,28 @@ class ManageErrors():
         else:
             self._do_opt_corr = value
 
+    @property
+    def do_bba(self):
+        return self._do_bba
+
+    @do_bba.setter
+    def do_bba(self, value):
+        if type(value) != bool:
+            raise ValueError('do_bba must be boolean type')
+        else:
+            self._do_bba = value
+
+    @property
+    def corr_multipoles(self):
+        return self._corr_multipoles
+
+    @corr_multipoles.setter
+    def corr_multipoles(self, value):
+        if type(value) != bool:
+            raise ValueError('corr_multipoles must be boolean type')
+        else:
+            self._corr_multipoles = value
+
     def reset_seed(self):
         self.seed = int(_time.time_ns() % 1e6)
         print('New seed: ', self.seed)
@@ -656,6 +678,30 @@ class ManageErrors():
 
         print('Done!')
 
+    def _restore_error_step(self, nr_steps, mach):
+        print('Restoring machine...', end='')
+        for fam, family in self.fam_errors.items():
+            if fam != 'girder':
+                apply_flag = True
+                rescale = -1
+            elif fam == 'girder' and self.apply_girder:
+                apply_flag = True
+                rescale = -1*self.rescale_girder
+            else:
+                apply_flag = False
+
+            if apply_flag:
+                inds = family['index']
+                error_types = [err for err in family.keys() if err != 'index']
+                for error_type in error_types:
+                    if error_type != 'multipoles':
+                        errors = family[error_type]
+                        self.functions[error_type](
+                            self.models[mach], inds,
+                            rescale*errors[mach]/nr_steps)
+
+        print('Done!')
+
     def _apply_multipoles_errors(self, nr_steps, mach):
         error_type = 'multipoles'
         for fam, family in self.fam_errors.items():
@@ -735,14 +781,25 @@ class ManageErrors():
 
         return self.orbcorr.get_orbit(), self.orbcorr.get_kicks()
 
-    def _correct_orbit_iter(self, orb0, mach):
+    def _correct_orbit_iter(self, orb0, mach, nr_steps=1):
         orb_temp, kicks_temp = self._correct_orbit_once(orb0, mach)
-        init_minsingval = self.orbcorr_params.minsingval
-        while self.orbcorr_status == 2:
+        init_minsingval = _copy.copy(self.orbcorr_params.minsingval)
+        i = 0
+        while self.orbcorr_status == 2 and i < 50:
             self.orbcorr.set_kicks(self.kicks_)
+            self._restore_error_step(nr_steps, mach)
             self.orbcorr_params.minsingval += 0.05
+            if self.orbcorr_params.minsingval > 0.5:
+                print('Correcting optics...')
+                res = self._correct_optics(mach)
+                res = True if res == 1 else False
+                print('Optics correction tolerance achieved: ', res)
+                print()
+                self.orbcorr_params.minsingval = init_minsingval
+            print('min singval: ', self.orbcorr_params.minsingval)
             orb_temp, kicks_temp = self._correct_orbit_once(
                 orb0, mach)
+            i += 1
         self.orbf_, self.kicks_ = orb_temp, kicks_temp
         self.orbcorr_params.minsingval = init_minsingval
         return self.orbf_, self.kicks_
@@ -807,13 +864,16 @@ class ManageErrors():
     def _correct_optics(self, mach):
         self.opt_corr.model = self.models[mach]
         return self.opt_corr.optics_corr_loco(goal_model=self.nominal_model,
+                                              nr_max=10, nsv=150,
                                               jacobian_matrix=self.optmat)
 
-    def _do_all_opt_corrections(self, mach, n_iter=1):
+    def _do_all_opt_corrections(self, mach):
 
         # Symmetrize optics
         print('Correcting optics...')
-        res = self._correct_optics(mach)
+        for i in range(1):
+            res = self._correct_optics(mach)
+            # self._correct_orbit_once(orb0, mach)
         res = True if res == 1 else False
         print('Optics correction tolerance achieved: ', res)
         print()
@@ -822,13 +882,12 @@ class ManageErrors():
         print('Correcting tunes:')
         tunes = self.tunecorr.get_tunes(model=self.models[mach])
         print('Old tunes: {:.4f} {:.4f}'.format(tunes[0], tunes[1]))
-        for i in range(n_iter):
-            self._correct_tunes(mach)
-            tunes = self.tunecorr.get_tunes(
-                        model=self.models[mach])
-            print('iter # {} - New tunes: {:.4f} {:.4f}'.format(
-                        i+1, tunes[0], tunes[1]))
-            print()
+        self._correct_tunes(mach)
+        tunes = self.tunecorr.get_tunes(
+                    model=self.models[mach])
+        print('New tunes: {:.4f} {:.4f}'.format(
+                        tunes[0], tunes[1]))
+        print()
 
         # Correct coupling
         print('Correcting coupling:')
@@ -934,7 +993,7 @@ class ManageErrors():
                     orb0_ = _np.zeros(2*len(self.bba_idcs))
 
                 # Correct orbit
-                orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach)
+                orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach, nr_steps)
 
                 step_dict = dict()
                 step_dict['orbcorr_status'] = self.orbcorr_status
@@ -947,7 +1006,7 @@ class ManageErrors():
                     self.models[mach], 'SL', index, (step + 1)*values/nr_steps)
 
             # Perform one last orbit correction after turning ON sextupoles
-            orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach)
+            orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach, nr_steps)
 
             # Save last orbit corr data
             step_dict = dict()
@@ -958,36 +1017,44 @@ class ManageErrors():
             step_data['step_' + str(step + 2)] = step_dict
 
             # Do optics corrections:
-            if True:
-                step_dict = step_data['step_' + str(step + 2)]
-                if self.do_opt_corr:
+            step_dict = step_data['step_' + str(step + 2)]
+            if self.do_opt_corr:
 
-                    for i in range(2):
-                        twiss, edtang, twiss0 = self._do_all_opt_corrections(
-                            mach, n_iter=1)
+                for i in range(1):
+                    twiss, edtang, twiss0 = self._do_all_opt_corrections(
+                        mach)
 
-                    orb0_ = step_dict['ref_orb']
-                    orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach)
+                orbf_, kicks_ = self._correct_orbit_once(orb0_, mach)
 
-                    for i in range(2):
-                        twiss, edtang, twiss0 = self._do_all_opt_corrections(
-                            mach, n_iter=1)
-
-                    dbetax = (twiss.betax - twiss0.betax)/twiss0.betax
-                    dbetay = (twiss.betay - twiss0.betay)/twiss0.betay
-                    step_dict['orbcorr_status'] = self.orbcorr_status
-                    step_dict['ref_orb'] = orb0_
-                    step_dict['orbit'] = orbf_
-                    step_dict['corr_kicks'] = kicks_
-                    step_dict['twiss'] = twiss
-                    step_dict['edtang'] = edtang
-                    step_dict['betabeatingx'] = dbetax
-                    step_dict['betabeatingy'] = dbetay
-
+                dbetax = (twiss.betax - twiss0.betax)/twiss0.betax
+                dbetay = (twiss.betay - twiss0.betay)/twiss0.betay
+                step_dict['orbcorr_status'] = self.orbcorr_status
+                step_dict['ref_orb'] = orb0_
+                step_dict['orbit'] = orbf_
+                step_dict['corr_kicks'] = kicks_
+                step_dict['twiss'] = twiss
+                step_dict['edtang'] = edtang
+                step_dict['betabeatingx'] = dbetax
+                step_dict['betabeatingy'] = dbetay
                 step_data['step_final'] = step_dict
 
             # Apply multipoles errors
             self._apply_multipoles_errors(1, mach)
+            if self.corr_multipoles:
+
+                twiss, edtang, twiss0 = self._do_all_opt_corrections(
+                        mach)
+                dbetax = (twiss.betax - twiss0.betax)/twiss0.betax
+                dbetay = (twiss.betay - twiss0.betay)/twiss0.betay
+                step_dict['orbcorr_status'] = self.orbcorr_status
+                step_dict['ref_orb'] = orb0_
+                step_dict['orbit'] = orbf_
+                step_dict['corr_kicks'] = kicks_
+                step_dict['twiss'] = twiss
+                step_dict['edtang'] = edtang
+                step_dict['betabeatingx'] = dbetax
+                step_dict['betabeatingy'] = dbetay
+                step_data['step_final'] = step_dict
 
             model_dict = dict()
             model_dict['model'] = self.models[mach]
@@ -1040,40 +1107,27 @@ class ManageErrors():
             step_data = dict()
 
             # get ref_orb
-            ref_orb = data_mach[mach]['data']['step_3']['ref_orb']
-
-            # get sextupoles values
-            index = self.famdata['SN']['index']
-            values = _pyaccel.lattice.get_attribute(
-                    self.models[mach], 'SL', index)
-
-            # set sextupoles to zero
-            zeros = _np.zeros(len(index))
-            _pyaccel.lattice.set_attribute(
-                self.models[mach], 'SL', index, zeros)
+            ref_orb = data_mach[mach]['data']['step_final']['ref_orb']
 
             # correct orbit
-            orbf_, kicks_ = self._correct_orbit(ref_orb, mach)
-
-            # restore sextupoles values
-            _pyaccel.lattice.set_attribute(
-                self.models[mach], 'SL', index, values)
+            orbf_, kicks_ = self._correct_orbit_once(ref_orb, mach=mach)
 
             # do all optics corretions
-            for i in range(5):
+            for i in range(1):
                 twiss, edtang, twiss0 = self._do_all_opt_corrections(
-                    mach, n_iter=1)
-                dbetax = 100*(twiss.betax - twiss0.betax)/twiss0.betax
-                dbetay = 100*(twiss.betay - twiss0.betay)/twiss0.betay
-                step_dict = dict()
-                step_dict['twiss'] = twiss
-                step_dict['edtang'] = edtang
-                step_dict['betabeatingx'] = dbetax
-                step_dict['betabeatingy'] = dbetay
-                step_dict['ref_orb'] = ref_orb
-                step_dict['orbit'] = orbf_
-                step_dict['corr_kicks'] = kicks_
-                step_data['step_1'] = step_dict
+                    mach)
+
+            dbetax = (twiss.betax - twiss0.betax)/twiss0.betax
+            dbetay = (twiss.betay - twiss0.betay)/twiss0.betay
+            step_dict = dict()
+            step_dict['twiss'] = twiss
+            step_dict['edtang'] = edtang
+            step_dict['betabeatingx'] = dbetax
+            step_dict['betabeatingy'] = dbetay
+            step_dict['ref_orb'] = ref_orb
+            step_dict['orbit'] = orbf_
+            step_dict['corr_kicks'] = kicks_
+            step_data['step_final'] = step_dict
 
             model_dict = dict()
             model_dict['model'] = self.models[mach]
