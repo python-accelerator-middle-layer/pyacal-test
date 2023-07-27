@@ -14,8 +14,10 @@ from mathphys.functions import save_pickle, load_pickle
 
 
 class ConfigErrors:
+    """Class for configure general types of errors."""
 
     def __init__(self):
+        """Errors attributes"""
         self._fam_names = []
         self._sigma_x = 0
         self._sigma_y = 0
@@ -28,11 +30,12 @@ class ConfigErrors:
         self._percent = 1e-2
 
     @property
-    def error_types(self):
-        return self._error_types
-
-    @property
     def fam_names(self):
+        """Families which the errors are to be applied.
+
+        Returns:
+            list of string: List with the names of the families
+        """
         return self._fam_names
 
     @fam_names.setter
@@ -41,6 +44,11 @@ class ConfigErrors:
 
     @property
     def sigma_x(self):
+        """Standard deviation of the x position errors.
+
+        Returns:
+            float: [um]
+        """
         return self._sigma_x
 
     @sigma_x.setter
@@ -49,6 +57,11 @@ class ConfigErrors:
 
     @property
     def sigma_y(self):
+        """Standard deviation of the y position errors.
+
+        Returns:
+            float: [um]
+        """
         return self._sigma_y
 
     @sigma_y.setter
@@ -57,6 +70,11 @@ class ConfigErrors:
 
     @property
     def sigma_roll(self):
+        """Standard deviation of the roll errors.
+
+        Returns:
+            float: [mrad]
+        """
         return self._sigma_roll
 
     @sigma_roll.setter
@@ -65,6 +83,11 @@ class ConfigErrors:
 
     @property
     def sigma_pitch(self):
+        """Standard deviation of the pitch errors.
+
+        Returns:
+            float: [mrad]
+        """
         return self._sigma_pitch
 
     @sigma_pitch.setter
@@ -73,6 +96,11 @@ class ConfigErrors:
 
     @property
     def sigma_yaw(self):
+        """Standard deviation of the yaw errors.
+
+        Returns:
+            float: [mrad]
+        """
         return self._sigma_yaw
 
     @sigma_yaw.setter
@@ -81,6 +109,11 @@ class ConfigErrors:
 
     @property
     def sigmas(self):
+        """Dictionary with names and values of the configured errors.
+
+        Returns:
+            dictionary: Keys are the types of the errors, values are the std.
+        """
         return self._sigmas
 
     @sigmas.setter
@@ -89,8 +122,10 @@ class ConfigErrors:
 
 
 class MultipolesErrors(ConfigErrors):
+    """Class for configure multipole errors."""
 
     def __init__(self):
+        """Multipole errors attributes."""
         super().__init__()
         self._sigma_excit = 0
         self._r0 = 12e-3
@@ -102,6 +137,11 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def sigma_excit(self):
+        """Standard deviation of the excitation errors.
+
+        Returns:
+            float: percentual units
+        """
         return self._sigma_excit
 
     @sigma_excit.setter
@@ -110,6 +150,12 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def r0(self):
+        """ Transverse horizontal position where
+            the multipoles are normalized.
+
+        Returns:
+            float: [meter]
+        """
         return self._r0
 
     @r0.setter
@@ -118,6 +164,11 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def normal_multipoles_order(self):
+        """List with multipoles order in which the error are to be applied.
+
+        Returns:
+            list of integers: no unit
+        """
         return self._normal_multipoles_order
 
     @normal_multipoles_order.setter
@@ -126,6 +177,11 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def skew_multipoles_order(self):
+        """List with multipoles order in which the error are to be applied.
+
+        Returns:
+            list of integers: no unit
+        """
         return self._skew_multipoles_order
 
     @skew_multipoles_order.setter
@@ -134,6 +190,11 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def sigma_multipoles_n(self):
+        """List of standard deviation of the normalized normal multipole errors
+
+        Returns:
+            list of floats: no unit
+        """
         return self._sigma_multipoles_n
 
     @sigma_multipoles_n.setter
@@ -142,6 +203,11 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def sigma_multipoles_s(self):
+        """List of standard deviation of the normalized skew multipole errors
+
+        Returns:
+            list of floats: no unit
+        """
         return self._sigma_multipoles_s
 
     @sigma_multipoles_s.setter
@@ -150,6 +216,13 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def multipoles_dict(self):
+        """Dictionary whose keys are the type and the order of the multipole
+            and the items are the errors std value.
+
+        Returns:
+            dictionary: example: multipoles_dict['normal][3] will return the
+                std of the normalized normal sextupolar error.
+        """
         return self._multipoles_dict
 
     @multipoles_dict.setter
@@ -157,6 +230,7 @@ class MultipolesErrors(ConfigErrors):
         self._multipoles_dict = value
 
     def create_multipoles_dict(self):
+        """Create the dictionary struct for multipoles errors."""
         n_multipoles_order_dict = dict()
         s_multipoles_order_dict = dict()
         for i, order in enumerate(self.normal_multipoles_order):
@@ -170,14 +244,21 @@ class MultipolesErrors(ConfigErrors):
 
 
 class DipolesErrors(MultipolesErrors):
+    """Class for configure dipole errors."""
 
     def __init__(self):
+        """Dipole errors attributes."""
         super().__init__()
         self._sigma_kdip = 0
         self._set_default_dipole_config()
 
     @property
     def sigma_kdip(self):
+        """Standard deviation of the field gradient errors.
+
+        Returns:
+            float: percentual units
+        """
         return self._sigma_kdip
 
     @sigma_kdip.setter
@@ -185,6 +266,7 @@ class DipolesErrors(MultipolesErrors):
         self._sigma_kdip = value * self._percent
 
     def _set_default_dipole_config(self):
+        """Create a default configuration for dipole errors."""
         self.fam_names = ['B1', 'B2', 'BC']
         self.sigma_x = 40
         self.sigma_y = 40
@@ -212,12 +294,15 @@ class DipolesErrors(MultipolesErrors):
 
 
 class QuadsErrors(MultipolesErrors):
+    """Class for configure quadrupole errors."""
 
     def __init__(self):
+        """Constructor."""
         super().__init__()
         self._set_default_quad_config()
 
     def _set_default_quad_config(self):
+        """Create a default configuration for quadrupole errors."""
         self.fam_names = ['QFA', 'QDA', 'Q1', 'Q2', 'Q3', 'Q4', 'QDB1',
                           'QFB',  'QDB2', 'QDP1', 'QFP', 'QDP2']
         self.sigma_x = 40
@@ -244,12 +329,15 @@ class QuadsErrors(MultipolesErrors):
 
 
 class QuadsSkewErrors(MultipolesErrors):
+    """Class for configure skew quadrupole errors."""
 
     def __init__(self):
+        """Constructor."""
         super().__init__()
         self._set_default_quad_config()
 
     def _set_default_quad_config(self):
+        """Create a default configuration for skew quadrupole errors."""
         self.fam_names = ['QS']
         self.sigma_x = 0
         self.sigma_y = 0
@@ -275,12 +363,15 @@ class QuadsSkewErrors(MultipolesErrors):
 
 
 class SextsErrors(MultipolesErrors):
+    """Class for configure sextupole errors."""
 
     def __init__(self):
+        """Constructor."""
         super().__init__()
         self._set_default_sext_config()
 
     def _set_default_sext_config(self):
+        """Create a default configuration for sextupole errors."""
         self.fam_names = ['SFA0', 'SDA0', 'SDA1', 'SFA1', 'SDA2', 'SDA3',
                           'SFA2', 'SFB2', 'SDB3', 'SDB2', 'SFB1', 'SDB1',
                           'SDB0', 'SFB0', 'SFP2', 'SDP3', 'SDP2', 'SFP1',
@@ -309,12 +400,15 @@ class SextsErrors(MultipolesErrors):
 
 
 class GirderErrors(ConfigErrors):
+    """Class for configure girder errors."""
 
     def __init__(self):
+        """Constructor"""
         super().__init__()
         self._set_default_girder_config()
 
     def _set_default_girder_config(self):
+        """Create a default configuration for girder errors."""
         self.fam_names = ['girder']
         self.sigma_x = 80
         self.sigma_y = 80
@@ -332,12 +426,15 @@ class GirderErrors(ConfigErrors):
 
 
 class BpmsErrors(ConfigErrors):
+    """Class for configure bpm errors."""
 
     def __init__(self):
+        """Constructor"""
         super().__init__()
         self._set_default_bpm_config()
 
     def _set_default_bpm_config(self):
+        """Create a default configuration for bpm errors."""
         self.fam_names = ['BPM']
         self.sigma_x = 20
         self.sigma_y = 20
@@ -355,8 +452,10 @@ class BpmsErrors(ConfigErrors):
 
 
 class ManageErrors():
+    """Class to generate errors and create machines with them."""
 
     def __init__(self):
+        """Class attributes."""
         self._machines_data = None
         self._ids = None
         self._nr_mach = 20
@@ -368,13 +467,13 @@ class ManageErrors():
         self._bba_idcs = None
         self._nominal_model = None
         self._models = []
-        self.functions = {'posx': _pyaccel.lattice.add_error_misalignment_x,
-                          'posy': _pyaccel.lattice.add_error_misalignment_y,
-                          'roll': _pyaccel.lattice.add_error_rotation_roll,
-                          'pitch': _pyaccel.lattice.add_error_rotation_pitch,
-                          'yaw': _pyaccel.lattice.add_error_rotation_yaw,
-                          'excit': _pyaccel.lattice.add_error_excitation_main,
-                          'kdip': _pyaccel.lattice.add_error_excitation_kdip}
+        self._functions = {'posx': _pyaccel.lattice.add_error_misalignment_x,
+                           'posy': _pyaccel.lattice.add_error_misalignment_y,
+                           'roll': _pyaccel.lattice.add_error_rotation_roll,
+                           'pitch': _pyaccel.lattice.add_error_rotation_pitch,
+                           'yaw': _pyaccel.lattice.add_error_rotation_yaw,
+                           'excit': _pyaccel.lattice.add_error_excitation_main,
+                           'kdip': _pyaccel.lattice.add_error_excitation_kdip}
         self._orbcorr_params = CorrParams()
         self._orbcorr = None
         self._save_jacobians = False
@@ -390,6 +489,12 @@ class ManageErrors():
 
     @property
     def machines_data(self):
+        """Dictionary with the data of all machines.
+
+        Returns:
+            dictionary: The keys select the machine number and the parameter
+                    to be analysed.
+        """
         return self._machines_data
 
     @machines_data.setter
@@ -398,6 +503,12 @@ class ManageErrors():
 
     @property
     def ids(self):
+        """Dictionary with insertion devices information.
+
+        Returns:
+            dictionary: It contains informations as the ID name and its
+                straight section.
+        """
         return self._ids
 
     @ids.setter
@@ -406,6 +517,11 @@ class ManageErrors():
 
     @property
     def nr_mach(self):
+        """Number of random machines to be generated.
+
+        Returns:
+            Int: Number of machines
+        """
         return self._nr_mach
 
     @nr_mach.setter
@@ -417,6 +533,11 @@ class ManageErrors():
 
     @property
     def seed(self):
+        """Seed to generate random errors.
+
+        Returns:
+            Int: Seed number
+        """
         return self._seed
 
     @seed.setter
@@ -426,6 +547,11 @@ class ManageErrors():
 
     @property
     def error_configs(self):
+        """List with all error configurations to be used.
+
+        Returns:
+            List of objects: The objects are all derived by ConfigErrors class.
+        """
         return self._error_configs
 
     @error_configs.setter
@@ -434,6 +560,12 @@ class ManageErrors():
 
     @property
     def famdata(self):
+        """Dictionary with all information about the families present in the
+            model lattice.
+
+        Returns:
+            Dictionary: It contains information about the lattice families.
+        """
         return self._famdata
 
     @famdata.setter
@@ -442,6 +574,11 @@ class ManageErrors():
 
     @property
     def cutoff(self):
+        """Cut-off of the maximum values allowed for errors.
+
+        Returns:
+            float: in units of standard deviation.
+        """
         return self._cutoff
 
     @cutoff.setter
@@ -450,6 +587,11 @@ class ManageErrors():
 
     @property
     def fam_errors(self):
+        """Dictionary containing the errors for all families.
+
+        Returns:
+            dictionary: The keys are: family_name, error_type and index.
+        """
         return self._fam_errors
 
     @fam_errors.setter
@@ -458,6 +600,11 @@ class ManageErrors():
 
     @property
     def bba_idcs(self):
+        """Quadrupoles indexes where the bba will be performed.
+
+        Returns:
+            numpy array: array whose elements are the bba indexes.
+        """
         return self._bba_idcs
 
     @bba_idcs.setter
@@ -466,6 +613,11 @@ class ManageErrors():
 
     @property
     def models(self):
+        """List if lattice models with errors.
+
+        Returns:
+            List of pymodels objects: list with nr_mach elements.
+        """
         return self._models
 
     @models.setter
@@ -474,6 +626,11 @@ class ManageErrors():
 
     @property
     def nominal_model(self):
+        """Reference model to perform corrections.
+
+        Returns:
+            pymodels object: reference lattice.
+        """
         return self._nominal_model
 
     @nominal_model.setter
@@ -672,7 +829,7 @@ class ManageErrors():
                 for error_type in error_types:
                     if error_type != 'multipoles':
                         errors = family[error_type]
-                        self.functions[error_type](
+                        self._functions[error_type](
                             self.models[mach], inds,
                             rescale*errors[mach]/nr_steps)
 
@@ -696,7 +853,7 @@ class ManageErrors():
                 for error_type in error_types:
                     if error_type != 'multipoles':
                         errors = family[error_type]
-                        self.functions[error_type](
+                        self._functions[error_type](
                             self.models[mach], inds,
                             rescale*errors[mach]/nr_steps)
 
@@ -784,8 +941,7 @@ class ManageErrors():
     def _correct_orbit_iter(self, orb0, mach, nr_steps=1):
         orb_temp, kicks_temp = self._correct_orbit_once(orb0, mach)
         init_minsingval = _copy.copy(self.orbcorr_params.minsingval)
-        i = 0
-        while self.orbcorr_status == 2 and i < 50:
+        while self.orbcorr_status == 2:
             self.orbcorr.set_kicks(self.kicks_)
             self._restore_error_step(nr_steps, mach)
             self.orbcorr_params.minsingval += 0.05
@@ -799,7 +955,6 @@ class ManageErrors():
             print('min singval: ', self.orbcorr_params.minsingval)
             orb_temp, kicks_temp = self._correct_orbit_once(
                 orb0, mach)
-            i += 1
         self.orbf_, self.kicks_ = orb_temp, kicks_temp
         self.orbcorr_params.minsingval = init_minsingval
         return self.orbf_, self.kicks_
@@ -844,14 +999,14 @@ class ManageErrors():
             self.coupmat = jac
         else:
             self.coupmat = self.coup_corr.calc_jacobian_matrix(
-                model=self.nominal_model, weight_dispy=5)
+                model=self.nominal_model, weight_dispy=1e5)
         return self.coupmat
 
     def _correct_coupling(self, mach):
         self.coup_corr.model = self.models[mach]
         self.coup_corr.coupling_correction(
-                    jacobian_matrix=self.coupmat,
-                    tol=1e-8, weight_dispy=5)
+                    jacobian_matrix=self.coupmat, nr_max=10,
+                    nsv=80, tol=1e-8, weight_dispy=1e5)
 
     def _config_optics_corr(self, jac=None):
         self.opt_corr = OpticsCorr(self.nominal_model, 'SI')
@@ -897,7 +1052,7 @@ class ManageErrors():
         self._correct_coupling(mach)
         mintune = self._calc_coupling(mach)
         print('Minimum tune separation after corr: {:.3f} %'.format(
-                            100*mintune))
+                                100*mintune))
         print()
 
         ed_tang, *_ = _pyaccel.optics.calc_edwards_teng(self.models[mach])
