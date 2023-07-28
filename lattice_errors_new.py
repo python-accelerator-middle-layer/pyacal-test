@@ -31,7 +31,7 @@ class ConfigErrors:
 
     @property
     def fam_names(self):
-        """Families which the errors are to be applied.
+        """Families which the errors are going to be applied.
 
         Returns:
             list of string: List with the names of the families
@@ -164,7 +164,8 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def normal_multipoles_order(self):
-        """List with multipoles order in which the error are to be applied.
+        """List with multipoles order in which the error are going to be
+             applied.
 
         Returns:
             list of integers: no unit
@@ -177,7 +178,8 @@ class MultipolesErrors(ConfigErrors):
 
     @property
     def skew_multipoles_order(self):
-        """List with multipoles order in which the error are to be applied.
+        """List with multipoles order in which the error are going to be
+             applied.
 
         Returns:
             list of integers: no unit
@@ -517,7 +519,7 @@ class ManageErrors():
 
     @property
     def nr_mach(self):
-        """Number of random machines to be generated.
+        """Number of random machines.
 
         Returns:
             Int: Number of machines
@@ -547,7 +549,7 @@ class ManageErrors():
 
     @property
     def error_configs(self):
-        """List with all error configurations to be used.
+        """List with all error configurations.
 
         Returns:
             List of objects: The objects are all derived by ConfigErrors class.
@@ -639,28 +641,43 @@ class ManageErrors():
 
     @property
     def save_jacobians(self):
+        """Option to save the calculated jacobians.
+
+        Returns:
+            Boolean: If True the jacobians will be saved.
+        """
         return self._save_jacobians
 
     @save_jacobians.setter
     def save_jacobians(self, value):
         if type(value) != bool:
-            raise ValueError('Save jacobian must be boolean type')
+            raise ValueError('Save jacobian must be bool type')
         else:
             self._save_jacobians = value
 
     @property
     def load_jacobians(self):
+        """Option to load jacobians.
+
+        Returns:
+            Boolean: If True the jacobians will be loaded.
+        """
         return self._load_jacobians
 
     @load_jacobians.setter
     def load_jacobians(self, value):
         if type(value) != bool:
-            raise ValueError('Load jacobian must be boolean type')
+            raise ValueError('Load jacobian must be bool type')
         else:
             self._load_jacobians = value
 
     @property
     def orbcorr(self):
+        """Object of the class OrbitCorr.
+
+        Returns:
+            OrbitCorr object: Do orbit correction.
+        """
         return self._orbcorr
 
     @orbcorr.setter
@@ -669,6 +686,11 @@ class ManageErrors():
 
     @property
     def orbcorr_params(self):
+        """Object of the class CorrParams.
+
+        Returns:
+            CorrParams object: Parameters used in orbit correction.
+        """
         return self._orbcorr_params
 
     @orbcorr_params.setter
@@ -677,53 +699,89 @@ class ManageErrors():
 
     @property
     def ramp_with_ids(self):
+        """Option to ramp errors with ids.
+
+        Returns:
+            Boolean: If true all ids will be inseted in the random machines.
+        """
         return self._ramp_with_ids
 
     @ramp_with_ids.setter
     def ramp_with_ids(self, value):
         if type(value) != bool:
-            raise ValueError('ramp_with_ids must be boolean type')
+            raise ValueError('ramp_with_ids must be bool type')
         else:
             self._ramp_with_ids = value
 
     @property
     def do_opt_corr(self):
+        """Option to correct optics.
+
+        Returns:
+            Boolean: If true optics will be corrected.
+        """
         return self._do_opt_corr
 
     @do_opt_corr.setter
     def do_opt_corr(self, value):
         if type(value) != bool:
-            raise ValueError('do_opt_corr must be boolean type')
+            raise ValueError('do_opt_corr must be bool type')
         else:
             self._do_opt_corr = value
 
     @property
     def do_bba(self):
+        """Option to do bba.
+
+        Returns:
+            Boolean: If true bba will be executed.
+        """
         return self._do_bba
 
     @do_bba.setter
     def do_bba(self, value):
         if type(value) != bool:
-            raise ValueError('do_bba must be boolean type')
+            raise ValueError('do_bba must be bool type')
         else:
             self._do_bba = value
 
     @property
     def corr_multipoles(self):
+        """Option to correct the machine after the insertion of multipoles
+                errors.
+
+        Returns:
+            bool: If true orbit, optics, tune and coupling corrections will
+                 be done.
+        """
         return self._corr_multipoles
 
     @corr_multipoles.setter
     def corr_multipoles(self, value):
         if type(value) != bool:
-            raise ValueError('corr_multipoles must be boolean type')
+            raise ValueError('corr_multipoles must be bool type')
         else:
             self._corr_multipoles = value
 
     def reset_seed(self):
+        """Generate a random seed."""
         self.seed = int(_time.time_ns() % 1e6)
         print('New seed: ', self.seed)
 
     def _generate_normal_dist(self, sigma, dim, mean=0):
+        """_summary_
+
+        Args:
+            sigma (float): standart deviation of the errors.
+            dim (int): dimension of the error distribution, usually with
+                    will  be a tuple in which the first element is the number
+                    of machines and the second is the number of elements where
+                    the error will be applied.
+            mean (int, optional): mean value of the errors. Defaults to 0.
+
+        Returns:
+            numpy array: array with error distribution - same dimension as dim.
+        """
         dist = _np.random.normal(loc=mean, scale=sigma, size=dim)
         while _np.any(_np.abs(dist) > self.cutoff*sigma):
             idx = _np.argwhere(_np.abs(dist) > self.cutoff*sigma)
@@ -734,7 +792,28 @@ class ManageErrors():
                     loc=mean, scale=sigma, size=1)
         return dist
 
+    def _save_error_file(self, filename=None):
+        """Save errors distribution in a pickle.
+
+        Args:
+            filename (string, optional): Filename. Defaults to None.
+        """
+        if filename is None:
+            filename = str(self.nr_mach) + '_errors_seed_' + str(
+                self.seed)
+        save_pickle(self.fam_errors, filename, overwrite=True)
+
     def generate_errors(self, save_errors=False):
+        """Generate a dictionary with all errors separated by machine and
+             family.
+
+        Args:
+            save_errors (bool, optional): If true this dictionary will be
+                    saved. Defaults to False.
+
+        Returns:
+            dictionary: dictionary with all errors
+        """
         fam_errors = dict()
         for config in self.error_configs:
             for fam_name in config.fam_names:
@@ -770,13 +849,15 @@ class ManageErrors():
             self._save_error_file()
         return fam_errors
 
-    def _save_error_file(self, filename=None):
-        if filename is None:
-            filename = str(self.nr_mach) + '_errors_seed_' + str(
-                self.seed)
-        save_pickle(self.fam_errors, filename, overwrite=True)
-
     def load_error_file(self, filename):
+        """Load the dicionary error file.
+
+        Args:
+            filename (string): Filename
+
+        Returns:
+            dictionary: dictionary with all errors
+        """
         self.fam_errors = load_pickle(filename)
         fams = list(self.fam_errors.keys())
         nr_mach = len(self.fam_errors[fams[0]]['posx'])
@@ -784,6 +865,7 @@ class ManageErrors():
         return self.fam_errors
 
     def _create_models(self):
+        """Create the models in which the errors will be applied."""
         models_ = list()
         if self.ramp_with_ids:
             ids = self.ids
@@ -798,6 +880,7 @@ class ManageErrors():
         self.models = models_
 
     def _get_bba_idcs(self):
+        """Get the indexes where the bba will be done."""
         quaddevnames = list(BBAParams.QUADNAMES)
         quads = [famname for famname in self.famdata.keys()
                  if famname[0] == 'Q' and famname[1] != 'N']
@@ -811,7 +894,14 @@ class ManageErrors():
         self.bba_idcs = _np.sort(bba_idcs)
 
     def _apply_errors(self, nr_steps, mach):
+        """Apply errors from a load file in the models (except for multipole
+            errors).
 
+        Args:
+            nr_steps (int): Number of steps the ramp of errors and sextupoles
+                will be done.
+            mach (int): Index of the machine.
+        """
         print('Applying errors...', end='')
         for fam, family in self.fam_errors.items():
             if fam != 'girder':
@@ -836,6 +926,13 @@ class ManageErrors():
         print('Done!')
 
     def _restore_error_step(self, nr_steps, mach):
+        """Restore one step fraction of the errors.
+
+        Args:
+            nr_steps (int): Number of steps the ramp of errors and sextupoles
+                will be done.
+            mach (int): Index of the machine.
+        """
         print('Restoring machine...', end='')
         for fam, family in self.fam_errors.items():
             if fam != 'girder':
@@ -860,6 +957,13 @@ class ManageErrors():
         print('Done!')
 
     def _apply_multipoles_errors(self, nr_steps, mach):
+        """Apply multipoles errors
+
+        Args:
+            nr_steps (int): Number of steps the ramp of errors and sextupoles
+                will be done.
+            mach (int): Index of the machine.
+        """
         error_type = 'multipoles'
         for fam, family in self.fam_errors.items():
             inds = family['index']
@@ -883,6 +987,18 @@ class ManageErrors():
                     main_monom, Bn_norm, An_norm)
 
     def _get_girder_errors(self, nr_steps, step, idcs, mach):
+        """Get a fraction of the girder errors.
+
+        Args:
+            nr_steps (int): Number of steps the ramp of errors and sextupoles
+                will be done.
+            step (int): number of the current step
+            idcs (1D numpy array): List of indexes to get the girder errors
+            mach (int): Index of the machine.
+
+        Returns:
+            1D numpy array: Girder errors in the chosen indexes.
+        """
         girder_errorx = list()
         girder_errory = list()
         for i, girder in enumerate(self.fam_errors['girder']['index']):
@@ -896,6 +1012,17 @@ class ManageErrors():
         return step*girder_errors_idcs/nr_steps
 
     def _simulate_bba(self, nr_steps, step, mach):
+        """Simulate the bba method.
+
+        Args:
+            nr_steps (int): Number of steps the ramp of errors and sextupoles
+                will be done.
+            step (int): number of the current step
+            mach (int): Index of the machine.
+
+        Returns:
+            1D numpy array: Reference orbit
+        """
         bpms = _np.array(self.famdata['BPM']['index']).ravel()
         orb0 = _np.zeros(2*len(bpms))
         orb0[:len(bpms)] += _pyaccel.lattice.get_error_misalignment_x(
@@ -915,6 +1042,14 @@ class ManageErrors():
         return orb0
 
     def _config_orb_corr(self, jac=None):
+        """Configure orbcorr object.
+
+        Args:
+            jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
+
+        Returns:
+            2D numpy array: Orbit response matrix.
+        """
         self.orbcorr = OrbitCorr(
                 self.nominal_model, 'SI', '4d',
                 params=self.orbcorr_params)
@@ -925,6 +1060,15 @@ class ManageErrors():
         return self.orbmat
 
     def _correct_orbit_once(self, orb0, mach):
+        """Do one orbit correction.
+
+        Args:
+            orb0 (1D numpy array): Reference orbit
+            mach (int): Index of the machine.
+
+        Returns:
+            1D numpy array, 1D numpy array: Returns corrected orbit and kicks.
+        """
         print('Correcting orbit...', end='')
         self.orbcorr.respm.model = self.models[mach]
         self.orbcorr_status = self.orbcorr.correct_orbit(
@@ -938,7 +1082,18 @@ class ManageErrors():
 
         return self.orbcorr.get_orbit(), self.orbcorr.get_kicks()
 
-    def _correct_orbit_iter(self, orb0, mach, nr_steps=1):
+    def _correct_orbit_iter(self, orb0, mach, nr_steps):
+        """Correct orbit iteratively
+
+        Args:
+            orb0 (1D numpy array): Reference orbit
+            mach (int): Index of the machine.
+            nr_steps (int): Number of steps the ramp of errors and sextupoles
+                will be done.
+
+        Returns:
+            1D numpy array, 1D numpy array: Returns corrected orbit and kicks.
+        """
         orb_temp, kicks_temp = self._correct_orbit_once(orb0, mach)
         init_minsingval = _copy.copy(self.orbcorr_params.minsingval)
         while self.orbcorr_status == 2:
@@ -960,6 +1115,14 @@ class ManageErrors():
         return self.orbf_, self.kicks_
 
     def _config_tune_corr(self, jac=None):
+        """Configure TuneCorr object.
+
+        Args:
+            jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
+
+        Returns:
+            2D numpy array: Tune response matrix.
+        """
         self.tunecorr = TuneCorr(
                             self.nominal_model,
                             'SI', method='Proportional',
@@ -974,12 +1137,25 @@ class ManageErrors():
         return self.tunemat
 
     def _correct_tunes(self, mach):
+        """Correct tunes.
+
+        Args:
+            mach (int): Index of the machine.
+        """
         self.tunecorr.correct_parameters(
             model=self.models[mach],
             goal_parameters=self.goal_tunes,
             jacobian_matrix=self.tunemat)
 
     def _calc_coupling(self, mach):
+        """Calc minimum tune separation.
+
+        Args:
+            mach (int): Index of the machine.
+
+        Returns:
+            float: minimum tune separation [no unit]
+        """
         ed_tang, *_ = _pyaccel.optics.calc_edwards_teng(self.models[mach])
         min_tunesep, ratio =\
             _pyaccel.optics.estimate_coupling_parameters(ed_tang)
@@ -987,6 +1163,14 @@ class ManageErrors():
         return min_tunesep
 
     def _config_coupling_corr(self, jac=None):
+        """Config CouplingCorr object
+
+        Args:
+            jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
+
+        Returns:
+            2D numpy array: Coupling response matrix.
+        """
         idcs = list()
         for idx, sub in zip(
                 self.famdata['QS']['index'],
@@ -1003,12 +1187,25 @@ class ManageErrors():
         return self.coupmat
 
     def _correct_coupling(self, mach):
+        """Correct coupling.
+
+        Args:
+            mach (int): Index of the machine.
+        """
         self.coup_corr.model = self.models[mach]
         self.coup_corr.coupling_correction(
                     jacobian_matrix=self.coupmat, nr_max=10,
                     nsv=80, tol=1e-8, weight_dispy=1e5)
 
     def _config_optics_corr(self, jac=None):
+        """Config OpticsCorr object
+
+        Args:
+            jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
+
+        Returns:
+            2D numpy array: Optics response matrix.
+        """
         self.opt_corr = OpticsCorr(self.nominal_model, 'SI')
         if jac is not None:
             self.optmat = jac
@@ -1017,13 +1214,26 @@ class ManageErrors():
         return self.optmat
 
     def _correct_optics(self, mach):
+        """Correct optics.
+
+        Args:
+            mach (int): Index of the machine.
+        """
         self.opt_corr.model = self.models[mach]
         return self.opt_corr.optics_corr_loco(goal_model=self.nominal_model,
                                               nr_max=10, nsv=150,
                                               jacobian_matrix=self.optmat)
 
     def _do_all_opt_corrections(self, mach):
+        """Do all optics corrections - beta, tunes and coupling.
 
+        Args:
+            mach (int): Index of the machine.
+
+        Returns:
+            1D numpy array, 1D numpy array, 1D numpy array: twiss, ed tangs
+                 and twiss parameters of the nominal machine
+        """
         # Symmetrize optics
         print('Correcting optics...')
         for i in range(1):
@@ -1062,6 +1272,7 @@ class ManageErrors():
         return twiss, ed_tang, twiss0
 
     def configure_corrections(self):
+        """Configure all corrections - orbit and optics."""
         orbmat, optmat, tunemat, coupmat = None, None, None, None
         if self.load_jacobians:
             respmats = load_pickle('respmats')
@@ -1095,6 +1306,12 @@ class ManageErrors():
             save_pickle(respmats, 'respmats', overwrite=True)
 
     def save_machines(self, sulfix=None):
+        """Save all random machines in a pickle.
+
+        Args:
+            sulfix (string, optional): sulfix will be added in the filename.
+                Defaults to None.
+        """
         filename = str(self.nr_mach) + '_machines_seed_' + str(self.seed)
         if self.ramp_with_ids:
             filename += '_'
@@ -1109,12 +1326,26 @@ class ManageErrors():
         save_pickle(self.machines_data, filename, overwrite=True)
 
     def load_machines(self):
+        """Load random machines.
+
+        Returns:
+            Dictionary: Contains all random machines and its data.
+        """
         filename = str(self.nr_mach) + '_machines_seed_' + str(self.seed)
         data = load_pickle(filename)
         print('loading ' + filename)
         return data
 
-    def generate_machines(self, nr_steps=10):
+    def generate_machines(self, nr_steps=5):
+        """Generate all random machines.
+
+        Args:
+            nr_steps (int, optional): Number of steps the ramp of errors and
+                sextupoles will be done. Defaults to 5.
+
+        Returns:
+            Dictionary: Contains all random machines and its data.
+        """
         # Get quadrupoles near BPMs indexes
         self._get_bba_idcs()
 
@@ -1223,6 +1454,14 @@ class ManageErrors():
         return data
 
     def insert_kickmap(self, model):
+        """Insert a kickmap into the model
+
+        Args:
+            model (pymodels object): Lattice
+
+        Returns:
+            pymodels object: Lattice with kickmap
+        """
         kickmaps = _pymodels.si.lattice.create_id_kickmaps_dict(
             self.ids, energy=3e9)
         twiss, *_ = _pyaccel.optics.calc_twiss(model, indices='closed')
@@ -1246,7 +1485,13 @@ class ManageErrors():
         print()
         return model
 
-    def corr_ids(self):
+    def corr_ids(self, sulfix=None):
+        """Do all corrections after the ID insertion.
+
+        Args:
+            sulfix (string, optional): sulfix will be added in the filename.
+                Defaults to None.
+        """
         data_mach = self.load_machines()
         self.orbcorr_params = data_mach['orbcorr_params']
         # insert ID in each machine
@@ -1289,5 +1534,6 @@ class ManageErrors():
             model_dict['data'] = step_data
             data[mach] = model_dict
         self.machines_data = data
-        sulfix = '_' + self.ids[0].fam_name + '_symm'
+        sulfix_ = '_' + self.ids[0].fam_name + '_symm'
+        sulfix = sulfix_ + sulfix
         self.save_machines(sulfix=sulfix)
