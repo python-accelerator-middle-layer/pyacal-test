@@ -14,7 +14,12 @@ from mathphys.functions import save_pickle, load_pickle
 
 
 class ConfigErrors:
-    """Class for configure general types of errors."""
+    """Class to configure general types of errors."""
+
+    class Constants:
+        UM = 1e-6
+        MRAD = 1e-3
+        PERCENT = 1e-2
 
     def __init__(self):
         """Errors attributes"""
@@ -24,10 +29,10 @@ class ConfigErrors:
         self._sigma_roll = 0
         self._sigma_pitch = 0
         self._sigma_yaw = 0
-        self._sigmas = dict()
-        self._um = 1e-6
-        self._mrad = 1e-3
-        self._percent = 1e-2
+        self._sigmas_dict = dict()
+        self._um = self.Constants.UM
+        self._mrad = self.Constants.MRAD
+        self._percent = self.Constants.PERCENT
 
     @property
     def fam_names(self):
@@ -53,6 +58,11 @@ class ConfigErrors:
 
     @sigma_x.setter
     def sigma_x(self, value):
+        """Standard deviation of the x position errors.
+
+        Args:
+            value (float): The input value must be in [um].
+        """
         self._sigma_x = value * self._um
 
     @property
@@ -66,6 +76,11 @@ class ConfigErrors:
 
     @sigma_y.setter
     def sigma_y(self, value):
+        """Standard deviation of the y position errors.
+
+        Args:
+            value (float): The input value must be in [um].
+        """
         self._sigma_y = value * self._um
 
     @property
@@ -79,6 +94,11 @@ class ConfigErrors:
 
     @sigma_roll.setter
     def sigma_roll(self, value):
+        """Standard deviation of the roll errors.
+
+        Args:
+            value (float): The input value must be in [mrad]..
+        """
         self._sigma_roll = value * self._mrad
 
     @property
@@ -92,6 +112,11 @@ class ConfigErrors:
 
     @sigma_pitch.setter
     def sigma_pitch(self, value):
+        """Standard deviation of the roll errors.
+
+        Args:
+            value (float): The input value must be in [mrad]..
+        """
         self._sigma_pitch = value * self._mrad
 
     @property
@@ -105,30 +130,41 @@ class ConfigErrors:
 
     @sigma_yaw.setter
     def sigma_yaw(self, value):
+        """Standard deviation of the roll errors.
+
+        Args:
+            value (float): The input value must be in [mrad]..
+        """
         self._sigma_yaw = value * self._mrad
 
     @property
-    def sigmas(self):
+    def sigmas_dict(self):
         """Dictionary with names and values of the configured errors.
 
         Returns:
             dictionary: Keys are the types of the errors, values are the std.
         """
-        return self._sigmas
+        return self._sigmas_dict
 
-    @sigmas.setter
-    def sigmas(self, value):
-        self._sigmas = value
+    @sigmas_dict.setter
+    def sigmas_dict(self, value):
+        """Dictionary with names and values of the configured errors.
+
+        Args:
+            value (dict - key:string, value:float): Keys are the types of the
+                errors, values are the std.
+        """
+        self._sigmas_dict = value
 
 
 class MultipolesErrors(ConfigErrors):
-    """Class for configure multipole errors."""
+    """Class to configure multipole errors."""
 
     def __init__(self):
         """Multipole errors attributes."""
         super().__init__()
         self._sigma_excit = 0
-        self._r0 = 12e-3
+        self._r0 = 12e-3  # [m]
         self._multipoles_dict = None
         self._normal_multipoles_order = []
         self._skew_multipoles_order = []
@@ -140,12 +176,17 @@ class MultipolesErrors(ConfigErrors):
         """Standard deviation of the excitation errors.
 
         Returns:
-            float: percentual units
+            float: [%]
         """
         return self._sigma_excit
 
     @sigma_excit.setter
     def sigma_excit(self, value):
+        """Standard deviation of the excitation errors.
+
+        Args:
+            value (float): Must be in [%]
+        """
         self._sigma_excit = value * self._percent
 
     @property
@@ -160,6 +201,12 @@ class MultipolesErrors(ConfigErrors):
 
     @r0.setter
     def r0(self, value):
+        """Transverse horizontal position where
+            the multipoles are normalized.
+
+        Args:
+            value (float): [meter]
+        """
         self._r0 = value
 
     @property
@@ -246,12 +293,12 @@ class MultipolesErrors(ConfigErrors):
 
 
 class DipolesErrors(MultipolesErrors):
-    """Class for configure dipole errors."""
+    """Class to configure dipole errors."""
 
     def __init__(self):
         """Dipole errors attributes."""
         super().__init__()
-        self._sigma_kdip = 0
+        self._sigma_kdip = 0  # [%]
         self._set_default_dipole_config()
 
     @property
@@ -259,44 +306,49 @@ class DipolesErrors(MultipolesErrors):
         """Standard deviation of the field gradient errors.
 
         Returns:
-            float: percentual units
+            float: [%]
         """
         return self._sigma_kdip
 
     @sigma_kdip.setter
     def sigma_kdip(self, value):
+        """Standard deviation of the field gradient errors.
+
+        Args:
+            value (float): [%]
+        """
         self._sigma_kdip = value * self._percent
 
     def _set_default_dipole_config(self):
         """Create a default configuration for dipole errors."""
         self.fam_names = ['B1', 'B2', 'BC']
-        self.sigma_x = 40
-        self.sigma_y = 40
-        self.sigma_roll = 0.30
-        self.sigma_pitch = 0
-        self.sigma_yaw = 0
-        self.sigma_excit = 0.05
-        self.sigma_kdip = 0.10
+        self.sigma_x = 40  # [um]
+        self.sigma_y = 40  # [um]
+        self.sigma_roll = 0.30  # [mrad]
+        self.sigma_pitch = 0  # [mrad]
+        self.sigma_yaw = 0  # [mrad]
+        self.sigma_excit = 0.05  # [%]
+        self.sigma_kdip = 0.10  # [%]
         self.sigma_multipoles_n = _np.ones(4)*1.5e-4
         self.sigma_multipoles_s = _np.ones(4)*0.5e-4
         self.normal_multipoles_order = [3, 4, 5, 6]
         self.skew_multipoles_order = [3, 4, 5, 6]
         self.create_multipoles_dict()
 
-        sigmas = dict()
-        sigmas['posx'] = self.sigma_x
-        sigmas['posy'] = self.sigma_y
-        sigmas['roll'] = self.sigma_roll
-        sigmas['pitch'] = self.sigma_pitch
-        sigmas['yaw'] = self.sigma_yaw
-        sigmas['excit'] = self.sigma_excit
-        sigmas['kdip'] = self.sigma_kdip
-        sigmas['multipoles'] = self.multipoles_dict
-        self.sigmas = sigmas
+        sigmas_dict = dict()
+        sigmas_dict['posx'] = self.sigma_x
+        sigmas_dict['posy'] = self.sigma_y
+        sigmas_dict['roll'] = self.sigma_roll
+        sigmas_dict['pitch'] = self.sigma_pitch
+        sigmas_dict['yaw'] = self.sigma_yaw
+        sigmas_dict['excit'] = self.sigma_excit
+        sigmas_dict['kdip'] = self.sigma_kdip
+        sigmas_dict['multipoles'] = self.multipoles_dict
+        self.sigmas_dict = sigmas_dict
 
 
 class QuadsErrors(MultipolesErrors):
-    """Class for configure quadrupole errors."""
+    """Class to configure quadrupole errors."""
 
     def __init__(self):
         """Constructor."""
@@ -307,31 +359,31 @@ class QuadsErrors(MultipolesErrors):
         """Create a default configuration for quadrupole errors."""
         self.fam_names = ['QFA', 'QDA', 'Q1', 'Q2', 'Q3', 'Q4', 'QDB1',
                           'QFB',  'QDB2', 'QDP1', 'QFP', 'QDP2']
-        self.sigma_x = 40
-        self.sigma_y = 40
-        self.sigma_roll = 0.30
-        self.sigma_pitch = 0
-        self.sigma_yaw = 0
-        self.sigma_excit = 0.05
+        self.sigma_x = 40  # [um]
+        self.sigma_y = 40  # [um]
+        self.sigma_roll = 0.30  # [mrad]
+        self.sigma_pitch = 0  # [mrad]
+        self.sigma_yaw = 0  # [mrad]
+        self.sigma_excit = 0.05  # [%]
         self.sigma_multipoles_n = _np.ones(4)*1.5e-4
         self.sigma_multipoles_s = _np.ones(4)*0.5e-4
         self.normal_multipoles_order = [3, 4, 5, 6]
         self.skew_multipoles_order = [3, 4, 5, 6]
         self.create_multipoles_dict()
 
-        sigmas = dict()
-        sigmas['posx'] = self.sigma_x
-        sigmas['posy'] = self.sigma_y
-        sigmas['roll'] = self.sigma_roll
-        sigmas['pitch'] = self.sigma_pitch
-        sigmas['yaw'] = self.sigma_yaw
-        sigmas['excit'] = self.sigma_excit
-        sigmas['multipoles'] = self.multipoles_dict
-        self.sigmas = sigmas
+        sigmas_dict = dict()
+        sigmas_dict['posx'] = self.sigma_x
+        sigmas_dict['posy'] = self.sigma_y
+        sigmas_dict['roll'] = self.sigma_roll
+        sigmas_dict['pitch'] = self.sigma_pitch
+        sigmas_dict['yaw'] = self.sigma_yaw
+        sigmas_dict['excit'] = self.sigma_excit
+        sigmas_dict['multipoles'] = self.multipoles_dict
+        self.sigmas_dict = sigmas_dict
 
 
 class QuadsSkewErrors(MultipolesErrors):
-    """Class for configure skew quadrupole errors."""
+    """Class to configure skew quadrupole errors."""
 
     def __init__(self):
         """Constructor."""
@@ -341,31 +393,31 @@ class QuadsSkewErrors(MultipolesErrors):
     def _set_default_quad_config(self):
         """Create a default configuration for skew quadrupole errors."""
         self.fam_names = ['QS']
-        self.sigma_x = 0
-        self.sigma_y = 0
-        self.sigma_roll = 0
-        self.sigma_pitch = 0
-        self.sigma_yaw = 0
-        self.sigma_excit = 0.05
+        self.sigma_x = 0  # [um]
+        self.sigma_y = 0  # [um]
+        self.sigma_roll = 0  # [mrad]
+        self.sigma_pitch = 0  # [mrad]
+        self.sigma_yaw = 0  # [mrad]
+        self.sigma_excit = 0.05  # [%]
         self.sigma_multipoles_n = _np.ones(4)*1.5e-4
         self.sigma_multipoles_s = _np.ones(4)*0.5e-4
         self.normal_multipoles_order = [3, 4, 5, 6]
         self.skew_multipoles_order = [3, 4, 5, 6]
         self.create_multipoles_dict()
 
-        sigmas = dict()
-        sigmas['posx'] = self.sigma_x
-        sigmas['posy'] = self.sigma_y
-        sigmas['roll'] = self.sigma_roll
-        sigmas['pitch'] = self.sigma_pitch
-        sigmas['yaw'] = self.sigma_yaw
-        sigmas['excit'] = self.sigma_excit
-        sigmas['multipoles'] = self.multipoles_dict
-        self.sigmas = sigmas
+        sigmas_dict = dict()
+        sigmas_dict['posx'] = self.sigma_x
+        sigmas_dict['posy'] = self.sigma_y
+        sigmas_dict['roll'] = self.sigma_roll
+        sigmas_dict['pitch'] = self.sigma_pitch
+        sigmas_dict['yaw'] = self.sigma_yaw
+        sigmas_dict['excit'] = self.sigma_excit
+        sigmas_dict['multipoles'] = self.multipoles_dict
+        self.sigmas_dict = sigmas_dict
 
 
 class SextsErrors(MultipolesErrors):
-    """Class for configure sextupole errors."""
+    """Class to configure sextupole errors."""
 
     def __init__(self):
         """Constructor."""
@@ -378,31 +430,31 @@ class SextsErrors(MultipolesErrors):
                           'SFA2', 'SFB2', 'SDB3', 'SDB2', 'SFB1', 'SDB1',
                           'SDB0', 'SFB0', 'SFP2', 'SDP3', 'SDP2', 'SFP1',
                           'SDP1', 'SDP0', 'SFP0']
-        self.sigma_x = 40
-        self.sigma_y = 40
-        self.sigma_roll = 0.17
-        self.sigma_pitch = 0
-        self.sigma_yaw = 0
-        self.sigma_excit = 0.05
+        self.sigma_x = 40  # [um]
+        self.sigma_y = 40  # [um]
+        self.sigma_roll = 0.17  # [mrad]
+        self.sigma_pitch = 0  # [mrad]
+        self.sigma_yaw = 0  # [mrad]
+        self.sigma_excit = 0.05  # [%]
         self.sigma_multipoles_n = _np.ones(4)*1.5e-4
         self.sigma_multipoles_s = _np.ones(4)*0.5e-4
         self.normal_multipoles_order = [4, 5, 6, 7]
         self.skew_multipoles_order = [4, 5, 6, 7]
         self.create_multipoles_dict()
 
-        sigmas = dict()
-        sigmas['posx'] = self.sigma_x
-        sigmas['posy'] = self.sigma_y
-        sigmas['roll'] = self.sigma_roll
-        sigmas['pitch'] = self.sigma_pitch
-        sigmas['yaw'] = self.sigma_yaw
-        sigmas['excit'] = self.sigma_excit
-        sigmas['multipoles'] = self.multipoles_dict
-        self.sigmas = sigmas
+        sigmas_dict = dict()
+        sigmas_dict['posx'] = self.sigma_x
+        sigmas_dict['posy'] = self.sigma_y
+        sigmas_dict['roll'] = self.sigma_roll
+        sigmas_dict['pitch'] = self.sigma_pitch
+        sigmas_dict['yaw'] = self.sigma_yaw
+        sigmas_dict['excit'] = self.sigma_excit
+        sigmas_dict['multipoles'] = self.multipoles_dict
+        self.sigmas_dict = sigmas_dict
 
 
 class GirderErrors(ConfigErrors):
-    """Class for configure girder errors."""
+    """Class to configure girder errors."""
 
     def __init__(self):
         """Constructor"""
@@ -412,23 +464,23 @@ class GirderErrors(ConfigErrors):
     def _set_default_girder_config(self):
         """Create a default configuration for girder errors."""
         self.fam_names = ['girder']
-        self.sigma_x = 80
-        self.sigma_y = 80
-        self.sigma_roll = 0.30
-        self.sigma_pitch = 0
-        self.sigma_yaw = 0
+        self.sigma_x = 80  # [um]
+        self.sigma_y = 80  # [um]
+        self.sigma_roll = 0.30  # [mrad]
+        self.sigma_pitch = 0  # [mrad]
+        self.sigma_yaw = 0  # [mrad]
 
-        sigmas = dict()
-        sigmas['posx'] = self.sigma_x
-        sigmas['posy'] = self.sigma_y
-        sigmas['roll'] = self.sigma_roll
-        sigmas['pitch'] = self.sigma_pitch
-        sigmas['yaw'] = self.sigma_yaw
-        self.sigmas = sigmas
+        sigmas_dict = dict()
+        sigmas_dict['posx'] = self.sigma_x
+        sigmas_dict['posy'] = self.sigma_y
+        sigmas_dict['roll'] = self.sigma_roll
+        sigmas_dict['pitch'] = self.sigma_pitch
+        sigmas_dict['yaw'] = self.sigma_yaw
+        self.sigmas_dict = sigmas_dict
 
 
-class BpmsErrors(ConfigErrors):
-    """Class for configure bpm errors."""
+class BPMErrors(ConfigErrors):
+    """Class to configure bpm errors."""
 
     def __init__(self):
         """Constructor"""
@@ -438,23 +490,23 @@ class BpmsErrors(ConfigErrors):
     def _set_default_bpm_config(self):
         """Create a default configuration for bpm errors."""
         self.fam_names = ['BPM']
-        self.sigma_x = 20
-        self.sigma_y = 20
-        self.sigma_roll = 0.30
-        self.sigma_pitch = 0
-        self.sigma_yaw = 0
+        self.sigma_x = 20  # [um]
+        self.sigma_y = 20  # [um]
+        self.sigma_roll = 0.30  # [mrad]
+        self.sigma_pitch = 0  # [mrad]
+        self.sigma_yaw = 0  # [mrad]
 
-        sigmas = dict()
-        sigmas['posx'] = self.sigma_x
-        sigmas['posy'] = self.sigma_y
-        sigmas['roll'] = self.sigma_roll
-        sigmas['pitch'] = self.sigma_pitch
-        sigmas['yaw'] = self.sigma_yaw
-        self.sigmas = sigmas
+        sigmas_dict = dict()
+        sigmas_dict['posx'] = self.sigma_x
+        sigmas_dict['posy'] = self.sigma_y
+        sigmas_dict['roll'] = self.sigma_roll
+        sigmas_dict['pitch'] = self.sigma_pitch
+        sigmas_dict['yaw'] = self.sigma_yaw
+        self.sigmas_dict = sigmas_dict
 
 
 class ManageErrors():
-    """Class to generate errors and create machines with them."""
+    """Class to generate errors and create random machines with them."""
 
     def __init__(self):
         """Class attributes."""
@@ -465,8 +517,8 @@ class ManageErrors():
         self._cutoff = 1
         self._error_configs = []
         self._famdata = None
-        self._fam_errors = None
-        self._bba_idcs = None
+        self._fam_errors_dict = None
+        self._bba_quad_idcs = None
         self._nominal_model = None
         self._models = []
         self._functions = {'posx': _pyaccel.lattice.add_error_misalignment_x,
@@ -588,30 +640,30 @@ class ManageErrors():
         self._cutoff = value
 
     @property
-    def fam_errors(self):
+    def fam_errors_dict(self):
         """Dictionary containing the errors for all families.
 
         Returns:
             dictionary: The keys are: family_name, error_type and index.
         """
-        return self._fam_errors
+        return self._fam_errors_dict
 
-    @fam_errors.setter
-    def fam_errors(self, value):
-        self._fam_errors = value
+    @fam_errors_dict.setter
+    def fam_errors_dict(self, value):
+        self._fam_errors_dict = value
 
     @property
-    def bba_idcs(self):
-        """Quadrupoles indexes where the bba will be performed.
+    def bba_quad_idcs(self):
+        """Quadrupoles indices where the bba will be performed.
 
         Returns:
-            numpy array: array whose elements are the bba indexes.
+            numpy array: array whose elements are the bba indices.
         """
-        return self._bba_idcs
+        return self._bba_quad_idcs
 
-    @bba_idcs.setter
-    def bba_idcs(self, value):
-        self._bba_idcs = value
+    @bba_quad_idcs.setter
+    def bba_quad_idcs(self, value):
+        self._bba_quad_idcs = value
 
     @property
     def models(self):
@@ -801,7 +853,7 @@ class ManageErrors():
         if filename is None:
             filename = str(self.nr_mach) + '_errors_seed_' + str(
                 self.seed)
-        save_pickle(self.fam_errors, filename, overwrite=True)
+        save_pickle(self.fam_errors_dict, filename, overwrite=True)
 
     def generate_errors(self, save_errors=False):
         """Generate a dictionary with all errors separated by machine and
@@ -814,13 +866,13 @@ class ManageErrors():
         Returns:
             dictionary: dictionary with all errors
         """
-        fam_errors = dict()
+        fam_errors_dict = dict()
         for config in self.error_configs:
             for fam_name in config.fam_names:
                 idcs = _np.array(self.famdata[fam_name]['index'],
                                  dtype="object")
                 error_type_dict = dict()
-                for error_type, sigma in config.sigmas.items():
+                for error_type, sigma in config.sigmas_dict.items():
                     if error_type == 'multipoles':
                         error = dict()
                         multipole_dict_n = dict()
@@ -843,11 +895,11 @@ class ManageErrors():
                             sigma=sigma, dim=(2*self.nr_mach, len(idcs)))
                     error_type_dict[error_type] = error
                 error_type_dict['index'] = idcs
-                fam_errors[fam_name] = error_type_dict
-        self.fam_errors = fam_errors
+                fam_errors_dict[fam_name] = error_type_dict
+        self.fam_errors_dict = fam_errors_dict
         if save_errors:
             self._save_error_file()
-        return fam_errors
+        return fam_errors_dict
 
     def load_error_file(self, filename):
         """Load the dicionary error file.
@@ -858,11 +910,11 @@ class ManageErrors():
         Returns:
             dictionary: dictionary with all errors
         """
-        self.fam_errors = load_pickle(filename)
-        fams = list(self.fam_errors.keys())
-        nr_mach = len(self.fam_errors[fams[0]]['posx'])
+        self.fam_errors_dict = load_pickle(filename)
+        fams = list(self.fam_errors_dict.keys())
+        nr_mach = len(self.fam_errors_dict[fams[0]]['posx'])
         self.nr_mach = int(nr_mach/2)
-        return self.fam_errors
+        return self.fam_errors_dict
 
     def _create_models(self):
         """Create the models in which the errors will be applied."""
@@ -879,8 +931,8 @@ class ManageErrors():
             models_.append(model)
         self.models = models_
 
-    def _get_bba_idcs(self):
-        """Get the indexes where the bba will be done."""
+    def _get_bba_quad_idcs(self):
+        """Get the indices of the quadrupoles where the bba will be done."""
         quaddevnames = list(BBAParams.QUADNAMES)
         quads = [famname for famname in self.famdata.keys()
                  if famname[0] == 'Q' and famname[1] != 'N']
@@ -890,8 +942,8 @@ class ManageErrors():
                                     self.famdata[quadfam]['devnames']):
                 if devname in quaddevnames:
                     quads_idcs.append(idx)
-        bba_idcs = _np.array(quads_idcs).ravel()
-        self.bba_idcs = _np.sort(bba_idcs)
+        bba_quad_idcs = _np.array(quads_idcs).ravel()
+        self.bba_quad_idcs = _np.sort(bba_quad_idcs)
 
     def _apply_errors(self, nr_steps, mach):
         """Apply errors from a load file in the models (except for multipole
@@ -903,7 +955,7 @@ class ManageErrors():
             mach (int): Index of the machine.
         """
         print('Applying errors...', end='')
-        for fam, family in self.fam_errors.items():
+        for fam, family in self.fam_errors_dict.items():
             if fam != 'girder':
                 apply_flag = True
                 rescale = 1
@@ -934,7 +986,7 @@ class ManageErrors():
             mach (int): Index of the machine.
         """
         print('Restoring machine...', end='')
-        for fam, family in self.fam_errors.items():
+        for fam, family in self.fam_errors_dict.items():
             if fam != 'girder':
                 apply_flag = True
                 rescale = -1
@@ -965,7 +1017,7 @@ class ManageErrors():
             mach (int): Index of the machine.
         """
         error_type = 'multipoles'
-        for fam, family in self.fam_errors.items():
+        for fam, family in self.fam_errors_dict.items():
             inds = family['index']
             if error_type in family.keys():
                 main_monoms = {'B': 1, 'Q': 2, 'S': 3, 'QS': -2}
@@ -993,21 +1045,21 @@ class ManageErrors():
             nr_steps (int): Number of steps the ramp of errors and sextupoles
                 will be done.
             step (int): number of the current step
-            idcs (1D numpy array): List of indexes to get the girder errors
+            idcs (1D numpy array): List of indices to get the girder errors
             mach (int): Index of the machine.
 
         Returns:
-            1D numpy array: Girder errors in the chosen indexes.
+            1D numpy array: Girder errors in the chosen indices.
         """
         girder_errorx = list()
         girder_errory = list()
-        for i, girder in enumerate(self.fam_errors['girder']['index']):
+        for i, girder in enumerate(self.fam_errors_dict['girder']['index']):
             for idx in girder:
                 if _np.any(idcs == idx):
                     girder_errorx.append(
-                        self.fam_errors['girder']['posx'][mach][i])
+                        self.fam_errors_dict['girder']['posx'][mach][i])
                     girder_errory.append(
-                        self.fam_errors['girder']['posy'][mach][i])
+                        self.fam_errors_dict['girder']['posy'][mach][i])
         girder_errors_idcs = _np.array(girder_errorx + girder_errory).ravel()
         return step*girder_errors_idcs/nr_steps
 
@@ -1024,17 +1076,18 @@ class ManageErrors():
             1D numpy array: Reference orbit
         """
         bpms = _np.array(self.famdata['BPM']['index']).ravel()
-        orb0 = _np.zeros(2*len(bpms))
-        orb0[:len(bpms)] += _pyaccel.lattice.get_error_misalignment_x(
-                self.models[mach], self.bba_idcs).ravel()
-        orb0[:len(bpms)] += _pyaccel.lattice.get_error_misalignment_x(
+        orb_len = len(bpms)
+        orb0 = _np.zeros(2*orb_len)
+        orb0[:orb_len] += _pyaccel.lattice.get_error_misalignment_x(
+                self.models[mach], self.bba_quad_idcs).ravel()
+        orb0[:orb_len] += _pyaccel.lattice.get_error_misalignment_x(
                 self.models[mach], bpms).ravel()
-        orb0[len(bpms):] += _pyaccel.lattice.get_error_misalignment_y(
-                self.models[mach], self.bba_idcs).ravel()
-        orb0[len(bpms):] += _pyaccel.lattice.get_error_misalignment_y(
+        orb0[orb_len:] += _pyaccel.lattice.get_error_misalignment_y(
+                self.models[mach], self.bba_quad_idcs).ravel()
+        orb0[orb_len:] += _pyaccel.lattice.get_error_misalignment_y(
                 self.models[mach], bpms).ravel()
 
-        if 'girder' in self.fam_errors.keys() and self.apply_girder:
+        if 'girder' in self.fam_errors_dict.keys() and self.apply_girder:
             bpm_girder_errors = self.rescale_girder*self._get_girder_errors(
                 nr_steps, step, bpms, mach)
             orb0 -= bpm_girder_errors
@@ -1042,7 +1095,8 @@ class ManageErrors():
         return orb0
 
     def _config_orb_corr(self, jac=None):
-        """Configure orbcorr object.
+        """Configure orbcorr object. This is an object of the class
+             apsuite.orbcorr.orbit_correction.CorrParams.
 
         Args:
             jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
@@ -1115,7 +1169,8 @@ class ManageErrors():
         return self.orbf_, self.kicks_
 
     def _config_tune_corr(self, jac=None):
-        """Configure TuneCorr object.
+        """Configure TuneCorr object. This is an object of the class
+             apsuite.optics_analysis.tune_correction.TuneCorr.
 
         Args:
             jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
@@ -1163,7 +1218,8 @@ class ManageErrors():
         return min_tunesep
 
     def _config_coupling_corr(self, jac=None):
-        """Config CouplingCorr object
+        """Config CouplingCorr object. This is an object of the class
+             apsuite.optics_analysis.coupling_correction.CouplingCorr.
 
         Args:
             jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
@@ -1198,7 +1254,8 @@ class ManageErrors():
                     nsv=80, tol=1e-8, weight_dispy=1e5)
 
     def _config_optics_corr(self, jac=None):
-        """Config OpticsCorr object
+        """Config OpticsCorr object. This is an object of the class
+             apsuite.optics_analysis.optics_correction.OpticsCorr.
 
         Args:
             jac (2D numpy array, optional): Loaded jacobian. Defaults to None.
@@ -1346,8 +1403,8 @@ class ManageErrors():
         Returns:
             Dictionary: Contains all random machines and its data.
         """
-        # Get quadrupoles near BPMs indexes
-        self._get_bba_idcs()
+        # Get quadrupoles near BPMs indices
+        self._get_bba_quad_idcs()
 
         # Create SI models
         self._create_models()
@@ -1376,7 +1433,7 @@ class ManageErrors():
                 if self.do_bba:
                     orb0_ = self._simulate_bba(nr_steps, step+1, mach)
                 else:
-                    orb0_ = _np.zeros(2*len(self.bba_idcs))
+                    orb0_ = _np.zeros(2*len(self.bba_quad_idcs))
 
                 # Correct orbit
                 orbf_, kicks_ = self._correct_orbit_iter(orb0_, mach, nr_steps)
