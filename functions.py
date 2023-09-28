@@ -321,11 +321,12 @@ def _load_recursive_hdf5(fil):
     """."""
     typ = fil.attrs['type']
     if typ == 'list':
-        return [_load_recursive_hdf5(obj) for obj in fil.values()]
+        return [_load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))]
     elif typ == 'tuple':
-        return tuple([_load_recursive_hdf5(obj) for obj in fil.values()])
+        return tuple([
+            _load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))])
     elif typ == 'set':
-        return {_load_recursive_hdf5(obj) for obj in fil.values()}
+        return {_load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))}
     elif typ == 'dict':
         return {k: _load_recursive_hdf5(obj) for k, obj in fil.items()}
     elif typ == 'NoneType':
