@@ -8,8 +8,7 @@ import pkg_resources as _pkg_resources
 from types import ModuleType as _ModuleType
 
 import h5py as _h5py
-import gzip
-
+import gzip as _gzip
 import numpy as _np
 
 
@@ -117,7 +116,7 @@ def load_pickle(fname):
         data (any builtin type): content of file as a python object.
 
     """
-    func = gzip.open if is_gzip_file(fname) else open
+    func = _gzip.open if is_gzip_file(fname) else open
 
     if not fname.endswith('.pickle'):
         fname += '.pickle'
