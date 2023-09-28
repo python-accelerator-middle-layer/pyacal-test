@@ -116,10 +116,11 @@ def load_pickle(fname):
         data (any builtin type): content of file as a python object.
 
     """
-    func = _gzip.open if is_gzip_file(fname) else open
-
     if not fname.endswith('.pickle'):
         fname += '.pickle'
+
+    func = _gzip.open if is_gzip_file(fname) else open
+
     with func(fname, 'rb') as fil:
         data = _pickle.load(fil)
     return data
