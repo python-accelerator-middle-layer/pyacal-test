@@ -6,6 +6,8 @@ import pickle as _pickle
 import subprocess as _subprocess
 import pkg_resources as _pkg_resources
 from types import ModuleType as _ModuleType
+
+import h5py as _h5py
 import gzip
 
 import numpy as _np
@@ -124,6 +126,62 @@ def load_pickle(fname):
     return data
 
 
+def save_hdf5(data, fname, overwrite=False, makedirs=False, compress=False):
+    """Save data to HDF5 file.
+
+    Args:
+        data (any builtin type): python object to be saved
+        fname (str): name of the file to be saved. With or without ".h5".
+        overwrite (bool, optional): whether to overwrite existing file.
+            Defaults to False.
+        makedirs (bool, optional): create dir, if it does not exist.
+            Defaults to False.
+        compress (bool, optional): If True, the arrays in the file will be
+            saved in compressed format, using gzip library. Defaults to False.
+
+    Raises:
+        FileExistsError: in case `overwrite` is `False` and file exists.
+
+    """
+    comp_ = 'gzip' if compress else None
+
+    if not fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
+        fname += '.h5'
+
+    if not overwrite and _os.path.isfile(fname):
+        raise FileExistsError(f'file {fname} already exists.')
+    elif _os.path.isfile(fname):
+        _os.remove(fname)
+
+    if makedirs:
+        dirname = _os.path.dirname(fname)
+        if not _os.path.exists(dirname):
+            _os.makedirs(dirname)
+
+    with _h5py.File(fname, 'w') as fil:
+        _save_recursive_hdf5(fil, '/', data, comp_)
+
+
+def load_hdf5(fname):
+    """Load HDF5 file.
+
+    Args:
+        fname (str): Name of the file to load. If the extension of the file is
+            ".h5" fname may not contain the extension. In other cases, where
+            the extension may be ".hdf5", ".hdf", ".hd5", etc., it is
+            mandatory that fname has the extension of the file.
+
+    Returns:
+        data (any builtin type): content of file as a python object.
+
+    """
+    if not fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
+        fname += '.h5'
+
+    with _h5py.File(fname, 'r') as fil:
+        return _load_recursive_hdf5(fil)
+
+
 def repo_info(repo_path):
     """Get repository information.
 
@@ -222,3 +280,53 @@ def get_package_string(package):
     else:
         repo_str += f'{ver:s}'
     return repo_str
+
+
+# ------------------------- HELPER METHODS ------------------------------------
+_TYPES2SAVE = (int, float, complex, str, bytes, bool)
+_STRTYPES = {typ.__name__ for typ in _TYPES2SAVE}
+_NPTYPES = (_np.int_, _np.float, _np.complex_, _np.bool_)
+
+
+def _save_recursive_hdf5(fil, path, obj, compress):
+    typ = type(obj)
+    if isinstance(obj, _np.ndarray):
+        fil.create_dataset(path, data=obj, compression=compress)
+    elif isinstance(obj, _TYPES2SAVE + _NPTYPES):
+        fil[path] = obj
+    elif obj is None:
+        fil[path] = 'None'
+    elif typ in {list, tuple, set}:
+        path = path.strip('/') + '/'
+        for i, el in enumerate(obj):
+            _save_recursive_hdf5(fil, path + f'{i:d}', el, compress)
+    elif typ == dict:
+        path = path.strip('/') + '/'
+        for key, item in obj.items():
+            _save_recursive_hdf5(fil, path + key, item, compress)
+    else:
+        raise TypeError('Data type not valid: '+typ.__name__+'.')
+    fil[path].attrs['type'] = typ.__name__
+
+
+def _load_recursive_hdf5(fil):
+    """."""
+    typ = fil.attrs['type']
+    if typ == 'list':
+        return [_load_recursive_hdf5(obj) for obj in fil.values()]
+    elif typ == 'tuple':
+        return tuple([_load_recursive_hdf5(obj) for obj in fil.values()])
+    elif typ == 'set':
+        return {_load_recursive_hdf5(obj) for obj in fil.values()}
+    elif typ == 'dict':
+        return {k: _load_recursive_hdf5(obj) for k, obj in fil.items()}
+    elif typ == 'NoneType':
+        return None
+    elif typ == 'ndarray':
+        return fil[()]
+    elif typ in _STRTYPES:
+        exec('type_ = '+typ)
+        return locals()['type_'](fil[()])
+    else:
+        exec('type_ = _np.'+typ)
+        return locals()['type_'](fil[()])
