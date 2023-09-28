@@ -6,6 +6,7 @@ import pickle as _pickle
 import subprocess as _subprocess
 import pkg_resources as _pkg_resources
 from types import ModuleType as _ModuleType
+import gzip
 
 import numpy as _np
 
@@ -60,16 +61,36 @@ def get_namedtuple(name, field_names, values=None):
     return _namedtuple(name, field_names)(*values)
 
 
-def save_pickle(data, fname, overwrite=False, makedirs=False):
+def is_gzip_file(fname):
+    """Check if file is compressed with gzip.
+
+    Args:
+        fname (str): filename.
+
+    Returns:
+        bool: whether file is compressed with gzip.
+    """
+    # thanks to https://stackoverflow.com/questions/3703276/how-to-tell-if-a-file-is-gzip-compressed
+    with open(fname, 'rb') as fil:
+        return fil.read(2) == b'\x1f\x8b'
+
+
+def save_pickle(data, fname, overwrite=False, makedirs=False, compress=False):
     """Save data to file in pickle format.
 
-    Inputs:
-        data - python object to be saved.
-        fname - name of the file to be saved. With or without ".pickle"."
-        overwrite - whether to overwrite existing file (Optional).
-        makedirs - create dir, if it does not exist.
+    Args:
+        data (any builtin type): python object to be saved
+        fname (str): name of the file to be saved. With or without ".pickle"."
+        overwrite (bool, optional): whether to overwrite existing file.
+            Defaults to False.
+        makedirs (bool, optional): create dir, if it does not exist.
+            Defaults to False.
+        compress (bool, optional): If True, the file will be saved in
+            compressed format, using gzip library. Defaults to False.
 
-    Raises `FileExistsError` in case `overwrite` is `False` and file exists.
+    Raises:
+        FileExistsError: in case `overwrite` is `False` and file exists.
+
     """
     if not fname.endswith('.pickle'):
         fname += '.pickle'
@@ -86,15 +107,19 @@ def save_pickle(data, fname, overwrite=False, makedirs=False):
 def load_pickle(fname):
     """Load ".pickle" file.
 
-    Inputs:
-        fname - filename. May or may not contain the ".pickle" extension.
+    Args:
+        fname (str): Name of the file to load. May or may not contain the
+            ".pickle" extension.
 
-    Outputs:
-        data - content of file as a python object.
+    Returns:
+        data (any builtin type): content of file as a python object.
+
     """
+    func = gzip.open if is_gzip_file(fname) else open
+
     if not fname.endswith('.pickle'):
         fname += '.pickle'
-    with open(fname, 'rb') as fil:
+    with func(fname, 'rb') as fil:
         data = _pickle.load(fil)
     return data
 
