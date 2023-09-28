@@ -7,9 +7,9 @@ import pickle as _pickle
 import subprocess as _subprocess
 import pkg_resources as _pkg_resources
 from types import ModuleType as _ModuleType
+import gzip as _gzip
 
 import h5py as _h5py
-import gzip as _gzip
 import numpy as _np
 
 _HASSIRIUSPY = False
