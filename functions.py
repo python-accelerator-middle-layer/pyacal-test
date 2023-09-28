@@ -1,5 +1,6 @@
 """Useful functions."""
 import os as _os
+import importlib as _importlib
 from collections import namedtuple as _namedtuple
 from functools import partial as _partial
 import pickle as _pickle
@@ -10,6 +11,11 @@ from types import ModuleType as _ModuleType
 import h5py as _h5py
 import gzip as _gzip
 import numpy as _np
+
+_HASSIRIUSPY = False
+if _importlib.util.find_spec('siriuspy'):
+    from siriuspy.namesys import SiriusPVName as _SiriusPVName
+    _HASSIRIUSPY = True
 
 
 def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
@@ -292,6 +298,8 @@ def _save_recursive_hdf5(fil, path, obj, compress):
     typ = type(obj)
     if isinstance(obj, _np.ndarray):
         fil.create_dataset(path, data=obj, compression=compress)
+    elif isinstance(obj, str):  # Handle SiriusPVName
+        fil[path] = str(obj)
     elif isinstance(obj, _TYPES2SAVE + _NPTYPES):
         fil[path] = obj
     elif obj is None:
@@ -324,6 +332,10 @@ def _load_recursive_hdf5(fil):
         return None
     elif typ == 'ndarray':
         return fil[()]
+    elif typ == 'str':
+        return fil[()].decode()
+    elif _HASSIRIUSPY and typ == 'SiriusPVName':
+        return _SiriusPVName(fil[()].decode())
     elif typ in _STRTYPES:
         exec('type_ = '+typ)
         return locals()['type_'](fil[()])
