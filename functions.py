@@ -291,7 +291,7 @@ def get_package_string(package):
 # ------------------------- HELPER METHODS ------------------------------------
 _TYPES2SAVE = (int, float, complex, str, bytes, bool)
 _STRTYPES = {typ.__name__ for typ in _TYPES2SAVE}
-_NPTYPES = (_np.int_, _np.float, _np.complex_, _np.bool_)
+_NPTYPES = (_np.int_, _np.float_, _np.complex_, _np.bool_)
 
 
 def _save_recursive_hdf5(fil, path, obj, compress):
