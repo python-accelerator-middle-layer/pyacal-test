@@ -1,5 +1,6 @@
 """Useful functions."""
 import os as _os
+import builtins as _builtins
 import importlib as _importlib
 from collections import namedtuple as _namedtuple
 from functools import partial as _partial
@@ -290,8 +291,8 @@ def get_package_string(package):
 
 
 # ------------------------- HELPER METHODS ------------------------------------
-_TYPES2SAVE = (int, float, complex, str, bytes, bool)
-_STRTYPES = {typ.__name__ for typ in _TYPES2SAVE}
+_BUILTINTYPES = (int, float, complex, str, bytes, bool)
+_BUILTINNAMES = {typ.__name__ for typ in _BUILTINTYPES}
 _NPTYPES = (_np.int_, _np.float_, _np.complex_, _np.bool_)
 
 
@@ -301,7 +302,7 @@ def _save_recursive_hdf5(fil, path, obj, compress):
         fil.create_dataset(path, data=obj, compression=compress)
     elif isinstance(obj, str):  # Handle SiriusPVName
         fil[path] = str(obj)
-    elif isinstance(obj, _TYPES2SAVE + _NPTYPES):
+    elif isinstance(obj, _BUILTINTYPES + _NPTYPES):
         fil[path] = obj
     elif obj is None:
         fil[path] = 'None'
@@ -338,9 +339,9 @@ def _load_recursive_hdf5(fil):
         return fil[()].decode()
     elif _HASSIRIUSPY and typ == 'SiriusPVName':
         return _SiriusPVName(fil[()].decode())
-    elif typ in _STRTYPES:
-        exec('type_ = '+typ)
-        return locals()['type_'](fil[()])
+    elif typ in _BUILTINNAMES:
+        type_ = getattr(_builtins, typ)
+        return type_(fil[()])
     else:
-        exec('type_ = _np.'+typ)
-        return locals()['type_'](fil[()])
+        type_ = getattr(_np, typ)
+        return type_(fil[()])
