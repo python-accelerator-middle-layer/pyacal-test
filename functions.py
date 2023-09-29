@@ -143,7 +143,8 @@ def save_hdf5(data, fname, overwrite=False, makedirs=False, compress=False):
         makedirs (bool, optional): create dir, if it does not exist.
             Defaults to False.
         compress (bool, optional): If True, the arrays in the file will be
-            saved in compressed format, using gzip library. Defaults to False.
+            saved in compressed format, using hdf5 standard compression with
+            the `gzip` filter. Defaults to False.
 
     Raises:
         FileExistsError: in case `overwrite` is `False` and file exists.
@@ -169,7 +170,7 @@ def save_hdf5(data, fname, overwrite=False, makedirs=False, compress=False):
 
 
 def load_hdf5(fname):
-    """Load HDF5 file.
+    """Load a HDF5 file as whole to the memory as a python object.
 
     Args:
         fname (str): Name of the file to load. If the extension of the file is
