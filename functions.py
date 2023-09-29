@@ -97,13 +97,17 @@ def save_pickle(data, fname, overwrite=False, makedirs=False, compress=False):
     """
     if not fname.endswith('.pickle'):
         fname += '.pickle'
+
     if not overwrite and _os.path.isfile(fname):
         raise FileExistsError(f'file {fname} already exists.')
+
     if makedirs:
         dirname = _os.path.dirname(fname)
         if not _os.path.exists(dirname):
             _os.makedirs(dirname)
-    with open(fname, 'wb') as fil:
+
+    func = _gzip.open if compress else open
+    with func(fname, 'wb') as fil:
         _pickle.dump(data, fil)
 
 
