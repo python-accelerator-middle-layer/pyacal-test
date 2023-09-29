@@ -13,11 +13,6 @@ import gzip as _gzip
 import h5py as _h5py
 import numpy as _np
 
-_HASSIRIUSPY = False
-if _importlib.util.find_spec('siriuspy'):
-    from siriuspy.namesys import SiriusPVName as _SiriusPVName
-    _HASSIRIUSPY = True
-
 
 def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
     """Generate random numbers with a cutted off dist_type distribution.
@@ -337,8 +332,8 @@ def _load_recursive_hdf5(fil):
         return fil[()]
     elif typ == 'str':
         return fil[()].decode()
-    elif _HASSIRIUSPY and typ == 'SiriusPVName':
-        return _SiriusPVName(fil[()].decode())
+    elif typ == 'SiriusPVName':
+        return fil[()].decode()
     elif typ in _BUILTINNAMES:
         type_ = getattr(_builtins, typ)
         return type_(fil[()])
