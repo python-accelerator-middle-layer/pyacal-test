@@ -342,5 +342,5 @@ def _load_recursive_hdf5(fil):
         type_ = getattr(_builtins, typ)
         return type_(fil[()])
     else:
-        type_ = getattr(_np, typ)
-        return type_(fil[()])
+        # h5py automatically handles convertion of scalar numpy types
+        return fil[()]
