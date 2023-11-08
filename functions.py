@@ -78,6 +78,50 @@ def is_gzip_file(fname):
         return fil.read(2) == b'\x1f\x8b'
 
 
+def save(data, fname, overwrite=False, makedirs=False, compress=False):
+    """Save data to pickle or HDF5 file.
+
+    Args:
+        fname (str): name of the file. If extension is not provided,
+            '.pickle' will be added and a pickle file will be assumed.
+            If provided, must be {'.pickle', .pkl} for pickle files or
+            {'.h5', '.hdf5', '.hdf', '.hd5'} for HDF5 files.
+        overwrite (bool, optional): Whether to overwrite existing file.
+            Defaults to False.
+        makedirs (bool, optional): create dir, if it does not exist.
+            Defaults to False.
+        compress (bool, optional): If True, the file will be saved in
+            compressed format, using gzip library. Defaults to False.
+
+    Raises:
+        FileExistsError: in case `overwrite` is `False` and file exists.
+
+    """
+    _save = save_pickle
+    if fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
+        _save = save_hdf5
+    _save(data, fname, overwrite, makedirs, compress)
+
+
+def load(fname):
+    """Load and return data from pickle or HDF5 file.
+
+    Args:
+        fname (str): name of the file. If extension is not provided,
+            '.pickle' will be added and a pickle file will be assumed.
+            If provided, must be {'.pickle', '.pkl'} for pickle files or
+            {'.h5', '.hdf5', '.hdf', '.hd5'} for HDF5 files.
+
+    Returns:
+         data (any builtin type): content of file as a python object.
+
+    """
+    _load = load_pickle
+    if fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
+        _load = load_hdf5
+    return _load(fname)
+
+
 def save_pickle(data, fname, overwrite=False, makedirs=False, compress=False):
     """Save data to file in pickle format.
 
