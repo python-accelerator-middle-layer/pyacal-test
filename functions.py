@@ -95,7 +95,7 @@ def save_pickle(data, fname, overwrite=False, makedirs=False, compress=False):
         FileExistsError: in case `overwrite` is `False` and file exists.
 
     """
-    if not fname.endswith('.pickle'):
+    if not fname.endswith(('.pickle', '.pkl')):
         fname += '.pickle'
 
     if not overwrite and _os.path.isfile(fname):
@@ -122,7 +122,7 @@ def load_pickle(fname):
         data (any builtin type): content of file as a python object.
 
     """
-    if not fname.endswith('.pickle'):
+    if not fname.endswith(('.pickle', '.pkl')):
         fname += '.pickle'
 
     func = _gzip.open if is_gzip_file(fname) else open
