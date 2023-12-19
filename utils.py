@@ -6,8 +6,7 @@ from copy import deepcopy as _dcopy
 
 from epics.ca import CAThread as _Thread
 
-from mathphys.functions import save_pickle as _save_pickle, \
-    load_pickle as _load_pickle
+from mathphys.functions import save as _save, load as _load
 
 import apsuite.commisslib as _commisslib
 
@@ -49,42 +48,51 @@ class DataBaseClass:
             print('Some keys were not used in params')
         return keys_not_used
 
-    def save_data(self, fname: str, overwrite=False):
-        """Save `data` and `params` to pickle file.
+    def save_data(self, fname: str, overwrite=False, compress=False):
+        """Save `data` and `params` to pickle or HDF5 file.
 
         Args:
-            fname (str): name of the pickle file. Extension is not needed.
+            fname (str): name of the file. If extension is not provided,
+                '.pickle' will be added and a pickle file will be assumed.
+                If provided, must be '.pickle' for pickle files or
+                {'.h5', '.hdf5', '.hdf', '.hd5'} for HDF5 files.
             overwrite (bool, optional): Whether to overwrite existing file.
                 Defaults to False.
 
         """
-        _save_pickle(self.to_dict(), fname, overwrite=overwrite)
+        _save(self.to_dict(), fname, overwrite=overwrite, compress=compress)
 
     def load_and_apply(self, fname: str):
-        """Load and apply `data` and `params` from pickle file.
+        """Load and apply `data` and `params` from pickle or HDF5 file.
 
         Args:
-            fname (str): name of the pickle file. Extension is not needed.
+            fname (str): name of the pickle file. If extension is not provided,
+                '.pickle' will be added and a pickle file will be assumed.
+                If provided, must be {'.pickle', '.pkl'} for pickle files or
+                {'.h5', '.hdf5', '.hdf', '.hd5'} for HDF5 files.
 
         """
         self.from_dict(self.load_data(fname))
 
     @staticmethod
     def load_data(fname: str):
-        """Load and return `data` and `params` from pickle file.
+        """Load and return `data` and `params` from pickle or HDF5 file.
 
         Args:
-            fname (str): name of the pickle file. Extension is not needed.
+            fname (str): name of the pickle file. If extension is not provided,
+                '.pickle' will be added and a pickle file will be assumed.
+                If provided, must be {'.pickle', '.pkl'} for pickle files or
+                {'.h5', '.hdf5', '.hdf', '.hd5'} for HDF5 files.
 
         Returns:
             data (dict): Dictionary with keys: `data` and `params`.
 
         """
         try:
-            data = _load_pickle(fname)
+            data = _load(fname)
         except ModuleNotFoundError:
             _sys.modules['apsuite.commissioning_scripts'] = _commisslib
-            data = _load_pickle(fname)
+            data = _load(fname)
         return data
 
 
