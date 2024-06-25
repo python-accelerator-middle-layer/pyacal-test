@@ -1,17 +1,18 @@
 """Sirius PV class."""
 
-from ... import ALIAS_MAP
+from ... import FACILITY
 
+
+ALL_CONNECTIONS = {}
 
 class PV():
     """."""
 
-    def __init__(self, devname, property, **kwargs):
+    def __init__(self, devname, propty, **kwargs):
         """."""
-        if devname not in ALIAS_MAP:
-            raise ValueError(f'Devname {devname} does not exist.')
-        elif property not in ALIAS_MAP[devname]:
-            raise ValueError(f'Property {property} not valid.')
+        self.devname = devname
+        self.propty = propty
+        ALL_CONNECTIONS[(devname, propty)] = self
 
     @property
     def connected(self):

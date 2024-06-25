@@ -2,6 +2,6 @@
 import epics
 
 
-class CAThread(epics.ca.CAThread):
+class Thread(epics.ca.CAThread):
     """."""
     pass

@@ -1,0 +1,3 @@
+"""."""
+
+SimulatorOptions = ("pyaccel", "pyat")

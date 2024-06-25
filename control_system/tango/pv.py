@@ -1,16 +1,21 @@
 """Sirius PV class."""
 
-
 import tango as _tango
+
+
+ALL_CONNECTIONS = {}
 
 
 # NOTE: I know nothing about tango. This class must be implemented.
 class PV(_tango.DeviceProxy):
     """."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, devname, propty, **kwargs):
         """."""
-        super().__init__(*args, **kwargs)
+        self.devname = devname
+        self.propty = propty
+        super().__init__(devname, propty, **kwargs)  # NOTE: not sure...
+        ALL_CONNECTIONS[(devname, propty)] = self
 
     @property
     def connected(self):

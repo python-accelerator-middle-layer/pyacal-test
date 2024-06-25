@@ -7,7 +7,7 @@ from functools import partial as _partial
 
 import numpy as _np
 
-from ..control import CONNECTION_TIMEOUT as _CONN_TIMEOUT, \
+from ..control_system import CONNECTION_TIMEOUT as _CONN_TIMEOUT, \
     GET_TIMEOUT as _GET_TIMEOUT, PV as _PV
 
 # from ..simul import SimPV as _PVSim
@@ -206,16 +206,11 @@ class Device:
 
     # --- private methods ---
     def _create_pv(self, propty):
-        pvname = self._get_pvname(propty)
-        auto_monitor = self._auto_monitor
-        if pvname.endswith(('-Mon', 'Data')):
-            auto_monitor = self._auto_monitor_mon
-        # in_sim = _Simulation.pv_check(pvname)
-        # pvclass = _PVSim if in_sim else _PV
-        pvclass = _PV
-        return pvclass(
-            pvname, auto_monitor=auto_monitor,
-            connection_timeout=Device.CONNECTION_TIMEOUT)
+        return _PV(
+            self.devname,
+            propty,
+            connection_timeout=Device.CONNECTION_TIMEOUT
+        )
 
     def _wait(self, propty, value, timeout=None, comp='eq'):
         """."""
@@ -258,14 +253,6 @@ class Device:
             if not self._wait(propty, value, timeout=timeout_left, comp=comp):
                 return False
         return True
-
-    def _get_pvname(self, propty):
-        dev = self._devname
-        if dev:
-            pvname = dev + propty
-        else:
-            pvname = propty
-        return pvname
 
     def _enum_setter(self, propty, value, enums):
         value = self._enum_selector(value, enums)

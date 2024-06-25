@@ -7,7 +7,7 @@ from epics import ca as _ca
 
 # NOTE: I have to rederive epics.CAProcess here to ensure the process will be
 # launched with the spawn method.
-class CAProcessSpawn(_mp.get_context('spawn').Process):
+class ProcessSpawn(_mp.get_context('spawn').Process):
     """A Channel-Access aware (and safe) subclass of multiprocessing.
 
     Process use CAProcess in place of multiprocessing.Process if your Process
