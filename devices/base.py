@@ -7,11 +7,7 @@ from functools import partial as _partial
 
 import numpy as _np
 
-from ..control_system import CONNECTION_TIMEOUT as _CONN_TIMEOUT, \
-    GET_TIMEOUT as _GET_TIMEOUT, PV as _PV
-
-# from ..simul import SimPV as _PVSim
-# from ..simul import Simulation as _Simulation
+from .. import CONTROL_SYSTEM
 
 _DEF_TIMEOUT = 10  # s
 _TINY_INTERVAL = 0.050  # s
@@ -42,8 +38,8 @@ class Device:
 
     """
 
-    CONNECTION_TIMEOUT = _CONN_TIMEOUT
-    GET_TIMEOUT = _GET_TIMEOUT
+    CONNECTION_TIMEOUT = 0.050  # [s]
+    GET_TIMEOUT = 5.0  # [s]
     PROPERTIES_DEFAULT = ()
 
     def __init__(
@@ -80,8 +76,7 @@ class Device:
 
     @property
     def properties_added(self):
-        """Return properties that were added to the PV list that are not in
-        PROPERTIES_DEFAULT."""
+        """Return properties added to PV list not in PROPERTIES_DEFAULT."""
         return tuple(sorted(
             set(self.properties_in_use) - set(self.PROPERTIES_DEFAULT)))
 
@@ -90,14 +85,6 @@ class Device:
         """Return all properties of the device, connected or not."""
         return tuple(sorted(
             set(self.PROPERTIES_DEFAULT + self.properties_in_use)))
-
-    # @property
-    # def simulators(self):
-    #     """Return simulator."""
-    #     sims = set()
-    #     for pvname in self.pvnames:
-    #         sims.update(_Simulation.simulator_find(pvname))
-    #     return sims
 
     @property
     def pvnames(self):
@@ -206,13 +193,13 @@ class Device:
 
     # --- private methods ---
     def _create_pv(self, propty):
-        return _PV(
+        return CONTROL_SYSTEM.PV(
             self.devname,
             propty,
             connection_timeout=Device.CONNECTION_TIMEOUT
         )
 
-    def _wait(self, propty, value, timeout=None, comp='eq'):
+    def wait(self, propty, value, timeout=None, comp='eq'):
         """."""
         def comp_(val):
             boo = comp(self[propty], val)
@@ -236,14 +223,15 @@ class Device:
             _time.sleep(_TINY_INTERVAL)
         return True
 
-    def _wait_float(
+    def wait_float(
             self, propty, value, rel_tol=0.0, abs_tol=0.1, timeout=None):
         """Wait until float value gets close enough of desired value."""
         isc = _np.isclose if isinstance(value, _np.ndarray) else _math.isclose
         func = _partial(isc, abs_tol=abs_tol, rel_tol=rel_tol)
         return self._wait(propty, value, comp=func, timeout=timeout)
 
-    def _wait_set(self, props_values, timeout=None, comp='eq'):
+    def wait_set(self, props_values, timeout=None, comp='eq'):
+        """."""
         timeout = _DEF_TIMEOUT if timeout is None else timeout
         t0_ = _time.time()
         for propty, value in props_values.items():

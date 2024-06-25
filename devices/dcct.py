@@ -1,4 +1,6 @@
-from .. import ALIAS_MAP
+"""."""
+
+from .. import FACILITY
 
 from .base import Device
 
@@ -14,7 +16,7 @@ class DCCT(Device):
         """."""
         super().__init__(devname, props2init=DCCT.PROPERTIES_DEFAULT)
 
-        if "DCCT" not in ALIAS_MAP[devname]["info"]:
+        if "DCCT" not in FACILITY.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for a DCCT.")
 
     @property

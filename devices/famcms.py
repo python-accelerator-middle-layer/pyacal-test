@@ -1,20 +1,18 @@
-from .. import ALIAS_MAP
+from .. import FACILITY
 
 from .base import DeviceSet
-from .power_supply import PowerSupply
+from . import get_device_class as _get_class
 
 
 class FamCMs(DeviceSet):
     """."""
 
-    PROPERTIES_DEFAULT = PowerSupply.PROPERTIES_DEFAULT
-
     def __init__(
-        self, accelerator=DEFAULT_ACCELERATOR, cmnames=None, plane="HV"
+        self, accelerator=None, cmnames=None, plane="HV"
     ):
         """."""
         cmidcs = []
-        self.accelerator = accelerator
+        self.accelerator = accelerator or FACILITY.default_accelerator
         if cmnames is None:
             cmnames = []
             plane = plane.upper()
@@ -31,7 +29,8 @@ class FamCMs(DeviceSet):
                 cmnames.extend(vcmnames)
                 cmidcs.extend(vcmidcs)
 
-        cmdevs = [PowerSupply(dev, auto_monitor_mon=False) for dev in cmnames]
+        _ps_class = _get_class('PowerSupply')
+        cmdevs = [_ps_class(dev, auto_monitor_mon=False) for dev in cmnames]
         super().__init__(cmdevs)
         self._cm_names = cmnames
         self._cm_idcs = cmidcs
@@ -40,9 +39,9 @@ class FamCMs(DeviceSet):
         cmidcs, cmnames = zip(
             *sorted(
                 (amap["sim_info"]["indices"], alias)
-                for alias, amap in ALIAS_MAP.items()
+                for alias, amap in FACILITY.alias_map.items()
                 if amap["accelerator"] == self.accelerator
-                and amap["cs_devtype"] == devtype
+                and devtype in amap["cs_devtype"]
             )
         )
         return list(cmidcs), list(cmnames)

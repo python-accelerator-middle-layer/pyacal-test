@@ -17,14 +17,14 @@ def define_si(alias_map):
     alias_map[alias] = {
         'cs_devname': devname,
         'cs_devtype': 'DCCT',
+        'accelerator': 'SI',
         'sim_info': {
-            'accelerator': 'SI',
             'indices': famdata['DCCT']['index'][0],
         },
         'cs_propties': {
-            'posx': {
+            'current': {
                 'name': ':Current-Mon',
-                'conv_cs2sim': 1e-9,  # from [mA] to [A]
+                'conv_cs2sim': 1e-3,  # from [mA] to [A]
             }
         },
     }
@@ -54,11 +54,11 @@ def define_si(alias_map):
         }
 
     props = {
-        'pwrstate_sp': {'name': ':PwrState-Sel', 'conv_cs2si': None},
-        'pwrstate_rb': {'name': ':PwrState-Sts', 'conv_cs2si': None},
-        'current_sp': {'name': ':Current-SP', 'conv_cs2si': 1.0},
-        'current_rb': {'name': ':CurrentRef-Mon', 'conv_cs2si': 1.0},
-        'current_mon': {'name': ':Current-Mon', 'conv_cs2si': 1.0},
+        'pwrstate_sp': {'name': ':PwrState-Sel', 'conv_cs2sim': None},
+        'pwrstate_rb': {'name': ':PwrState-Sts', 'conv_cs2sim': None},
+        'current_sp': {'name': ':Current-SP', 'conv_cs2sim': 1.0},
+        'current_rb': {'name': ':CurrentRef-Mon', 'conv_cs2sim': 1.0},
+        'current_mon': {'name': ':Current-Mon', 'conv_cs2sim': 1.0},
     }
     typs = ['QN', 'QS', 'CH', 'CV']
     typ_names = [

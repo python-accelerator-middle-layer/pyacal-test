@@ -634,15 +634,15 @@ class DoBBA(_BaseClass):
                 probmaxorb |= _np.max(_np.abs(dorby)) < maxorb
 
             prob = False
-            if 'std'in probtype:
+            if 'std' in probtype:
                 prob |= probs
             if 'ext' in probtype:
                 prob |= probe
-            if 'conc'in probtype:
+            if 'conc' in probtype:
                 prob |= probc
-            if 'rms'in probtype:
+            if 'rms' in probtype:
                 prob |= probmaxrms
-            if 'orb'in probtype:
+            if 'orb' in probtype:
                 prob |= probmaxorb
             if 'all' in probtype:
                 prob = probs and probe and probc and probmaxrms and probmaxorb
@@ -1183,11 +1183,6 @@ class DoBBA(_BaseClass):
 
         sofb = self.devices['sofb']
         sofb.nr_points = self.params.sofb_nrpoints
-        loop_on = False
-        if sofb.autocorrsts:
-            loop_on = True
-            print('SOFB feedback is enable, disabling it...')
-            sofb.cmd_turn_off_autocorr()
 
         for i, bpm in enumerate(self._bpms2dobba):
             if self._stopevt.is_set():
@@ -1201,10 +1196,6 @@ class DoBBA(_BaseClass):
             print('Ok!')
             print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
             self._dobba_single_bpm(bpm)
-
-        if loop_on:
-            print('SOFB feedback was enable, restoring original state...')
-            sofb.cmd_turn_on_autocorr()
 
         tfin = _datetime.datetime.fromtimestamp(_time.time())
         dtime = str(tfin - tini)

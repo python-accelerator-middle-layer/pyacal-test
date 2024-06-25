@@ -1,29 +1,30 @@
-from .. import ALIAS_MAP
+"""."""
+from .. import FACILITY
 
 from .base import DeviceSet
-from .bpm import BPM
+from . import get_device_class as _get_class
 
 
 class FamBPMs(DeviceSet):
     """."""
 
-    PROPERTIES_DEFAULT = BPM.PROPERTIES_DEFAULT
-
-    def __init__(self, accelerator=DEFAULT_ACCELERATOR, bpmnames=None):
+    def __init__(self, accelerator=None, bpmnames=None):
         """."""
         bpmidcs = None
+        accelerator = accelerator or FACILITY.default_accelerator
         if bpmnames is None:
             bpmidcs, bpmnames = zip(
                 *sorted(
                     (amap["sim_info"]["indices"], alias)
-                    for alias, amap in ALIAS_MAP.items()
+                    for alias, amap in FACILITY.alias_map.items()
                     if amap["accelerator"] == accelerator
-                    and amap["cs_devtype"] == "BPM"
+                    and "BPM" in amap["cs_devtype"]
                 )
             )
             bpmidcs, bpmnames = list(bpmidcs), list(bpmnames)
 
-        bpmdevs = [BPM(dev, auto_monitor_mon=False) for dev in bpmnames]
+        _bpm_class = _get_class('BPM')
+        bpmdevs = [_bpm_class(dev, auto_monitor_mon=False) for dev in bpmnames]
         super().__init__(bpmdevs)
         self._bpm_names = bpmnames
         self._bpm_idcs = bpmidcs

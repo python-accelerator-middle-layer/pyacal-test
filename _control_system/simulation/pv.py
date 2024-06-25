@@ -2,10 +2,10 @@
 
 from ... import FACILITY
 
-
 ALL_CONNECTIONS = {}
 
-class PV():
+
+class PV:
     """."""
 
     def __init__(self, devname, propty, **kwargs):

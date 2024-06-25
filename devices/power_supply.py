@@ -1,4 +1,4 @@
-from .. import ALIAS_MAP
+from .. import FACILITY
 
 from .base import Device
 
@@ -17,7 +17,7 @@ class PowerSupply(Device):
         """."""
         super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
 
-        if "PowerSupply" not in ALIAS_MAP[devname]["info"]:
+        if "PowerSupply" not in FACILITY.alias_map[devname]["cs_devtype"]:
             raise ValueError(
                 f"Device name: {devname} not valid for a PowerSupply."
             )

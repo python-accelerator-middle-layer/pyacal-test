@@ -1,4 +1,6 @@
-from .. import ALIAS_MAP
+"""."""
+
+from .. import FACILITY
 
 from .base import Device
 
@@ -16,7 +18,7 @@ class BPM(Device):
             auto_monitor_mon=auto_monitor_mon,
         )
 
-        if "BPM" not in ALIAS_MAP[devname]["info"]:
+        if "BPM" not in FACILITY.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for a BPM.")
 
     @property
