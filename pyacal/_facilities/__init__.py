@@ -1,8 +1,6 @@
 """."""
 
-import os
-
-FacilityOptions = [fac for fac in os.listdir(__file__) if os.path.isdir(fac)]
+FacilityOptions = ('esrf', 'sirius', 'soleil')
 
 
 class FacilityBase:
