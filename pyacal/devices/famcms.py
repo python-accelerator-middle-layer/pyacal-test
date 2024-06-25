@@ -1,52 +1,44 @@
-from .. import FACILITY
+"""."""
 
+import numpy as _np
+
+from .. import FACILITY
 from .base import DeviceSet
-from . import get_device_class as _get_class
+from .power_supply import PowerSupply as _PowerSupply
 
 
 class FamCMs(DeviceSet):
     """."""
 
-    def __init__(
-        self, accelerator=None, cmnames=None, plane="HV"
-    ):
+    def __init__(self, accelerator=None, cmnames=None, plane="HV"):
         """."""
-        cmidcs = []
         self.accelerator = accelerator or FACILITY.default_accelerator
         if cmnames is None:
             cmnames = []
             plane = plane.upper()
             if "H" in plane:
-                hcmidcs, hcmnames = self._get_cm_names(
-                    devtype="Corrector Horizontal"
-                )
+                hcmnames = self._get_cm_names(devtype="Corrector Horizontal")
                 cmnames.extend(hcmnames)
-                cmidcs.extend(hcmidcs)
                 self.nhcms = len(hcmnames)
             if "V" in plane.upper():
-                vcmidcs, vcmnames = self._get_cm_names(
-                    devtype="Corrector Vertical"
-                )
+                vcmnames = self._get_cm_names(devtype="Corrector Vertical")
                 cmnames.extend(vcmnames)
-                cmidcs.extend(vcmidcs)
                 self.nvcms = len(vcmnames)
 
-        _ps_class = _get_class('PowerSupply')
-        cmdevs = [_ps_class(dev, auto_monitor_mon=False) for dev in cmnames]
+        cmdevs = [_PowerSupply(dev) for dev in cmnames]
         super().__init__(cmdevs)
         self._cm_names = cmnames
-        self._cm_idcs = cmidcs
 
     def _get_cm_names(self, devtype):
-        cmidcs, cmnames = zip(
-            *sorted(
-                (amap["sim_info"]["indices"], alias)
-                for alias, amap in FACILITY.alias_map.items()
-                if amap["accelerator"] == self.accelerator
-                and devtype in amap["cs_devtype"]
-            )
+        cmnames = [
+            alias
+            for alias, amap in FACILITY.alias_map.items()
+            if amap["accelerator"] == self.accelerator
+            and devtype in amap["cs_devtype"]
+        ]
+        return cmnames.sort(
+            key=lambda alias: FACILITY.alias_map[alias]["sim_info"]["indices"]
         )
-        return list(cmidcs), list(cmnames)
 
     @property
     def cm_names(self):
@@ -54,14 +46,9 @@ class FamCMs(DeviceSet):
         return self._cm_names
 
     @property
-    def cm_indices(self):
-        """."""
-        return self._cm_idcs
-
-    @property
     def hcms(self):
         """."""
-        return self.devices[:self.nhcms]
+        return self.devices[: self.nhcms]
 
     @property
     def vcms(self):
@@ -70,7 +57,7 @@ class FamCMs(DeviceSet):
 
     def get_currents(self):
         """."""
-        return [cm.current for cm in self.devices]
+        return _np.array([cm.current for cm in self.devices])
 
     def set_currents(self, currents):
         """."""

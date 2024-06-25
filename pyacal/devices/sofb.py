@@ -1,8 +1,9 @@
-from .. import ALIAS_MAP
+"""."""
 
+from .. import FACILITY
 from .base import Device
-from .fambpms import FamBPMs
-from .famcms import FamCMs
+from .fambpms import FamBPMs as _FamBPMs
+from .famcms import FamCMs as _FamCMs
 
 
 class SOFB(Device):
@@ -18,15 +19,15 @@ class SOFB(Device):
         "kickcv",
     )
 
-    def __init__(self, devname):
+    def __init__(self, devname, accelerator=None):
         """."""
         super().__init__(
             devname,
             props2init=SOFB.PROPERTIES_DEFAULT,
         )
-
-        self.fambpms = FamBPMs()
-        self.famcms = FamCMs()
+        self.accelerator = accelerator or FACILITY.default_accelerator
+        self.fambpms = _FamBPMs(accelerator=accelerator)
+        self.famcms = _FamCMs(accelerator=accelerator)
         self.nbpms = len(self.fambpms.devices)
         self.nhcms = self.famcms.nhcms
         self.nvcms = self.famcms.nvcms

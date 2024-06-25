@@ -1,7 +1,6 @@
 """."""
 
 from .. import FACILITY
-
 from .base import Device
 
 MIN_CURRENT = 0.01  # [mA]

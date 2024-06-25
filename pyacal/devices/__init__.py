@@ -7,11 +7,11 @@ from .power_supply import PowerSupply
 from .sofb import SOFB
 
 _DEVICES = {
-    'BPM': BPM,
-    'DCCT': DCCT,
-    'FamBPMs': FamBPMs,
-    'PowerSupply': PowerSupply,
-    'SOFB': SOFB,
+    "BPM": BPM,
+    "DCCT": DCCT,
+    "FamBPMs": FamBPMs,
+    "PowerSupply": PowerSupply,
+    "SOFB": SOFB,
 }
 
 

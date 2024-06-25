@@ -1,7 +1,6 @@
 """."""
 
 from .. import FACILITY
-
 from .base import Device
 
 
