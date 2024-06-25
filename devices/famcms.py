@@ -22,12 +22,14 @@ class FamCMs(DeviceSet):
                 )
                 cmnames.extend(hcmnames)
                 cmidcs.extend(hcmidcs)
+                self.nhcms = len(hcmnames)
             if "V" in plane.upper():
                 vcmidcs, vcmnames = self._get_cm_names(
                     devtype="Corrector Vertical"
                 )
                 cmnames.extend(vcmnames)
                 cmidcs.extend(vcmidcs)
+                self.nvcms = len(vcmnames)
 
         _ps_class = _get_class('PowerSupply')
         cmdevs = [_ps_class(dev, auto_monitor_mon=False) for dev in cmnames]
@@ -55,6 +57,16 @@ class FamCMs(DeviceSet):
     def cm_indices(self):
         """."""
         return self._cm_idcs
+
+    @property
+    def hcms(self):
+        """."""
+        return self.devices[:self.nhcms]
+
+    @property
+    def vcms(self):
+        """."""
+        return self.devices[self.nhcms : self.nhcms + self.nvcms]
 
     def get_currents(self):
         """."""
