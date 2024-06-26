@@ -30,7 +30,7 @@ def define_si(alias_map):
     }
 
     # --------- Define BPMs ------------
-    for i, idcs in famdata['BPM']['index']:
+    for i, idcs in enumerate(famdata['BPM']['index']):
         devname = famdata['BPM']['devnames'][i]
         alias = devname.dev + devname.get_nickname()
         if alias in alias_map:
@@ -70,7 +70,7 @@ def define_si(alias_map):
         'Corrector Vertical',
     ]
     for typ, name in zip(typs, typ_names):
-        for i, idcs in famdata[typ]['index']:
+        for i, idcs in enumerate(famdata[typ]['index']):
             devname = famdata[typ]['devnames'][i]
             alias = devname.dev + devname.get_nickname()
             if alias in alias_map:
@@ -90,29 +90,29 @@ def define_si(alias_map):
 
 def define_bo(alias_map):
     """."""
-    model = pymodels.tb.create_accelerator()
-    famdata = pymodels.tb.get_family_data(model)
+    model = pymodels.bo.create_accelerator()
+    famdata = pymodels.bo.get_family_data(model)
     return model
 
 
 def define_tb(alias_map):
     """."""
-    model = pymodels.tb.create_accelerator()
+    model, _ = pymodels.tb.create_accelerator()
     famdata = pymodels.tb.get_family_data(model)
     return model
 
 
 def define_ts(alias_map):
     """."""
-    model = pymodels.tb.create_accelerator()
-    famdata = pymodels.tb.get_family_data(model)
+    model, _ = pymodels.ts.create_accelerator()
+    famdata = pymodels.ts.get_family_data(model)
     return model
 
 
 def define_li(alias_map):
     """."""
-    model = pymodels.tb.create_accelerator()
-    famdata = pymodels.tb.get_family_data(model)
+    model, _ = pymodels.li.create_accelerator()
+    famdata = pymodels.li.get_family_data(model)
     return model
 
 

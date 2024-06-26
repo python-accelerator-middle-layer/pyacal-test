@@ -1,7 +1,7 @@
 import numpy as _np
 import pyaccel as pa
 
-from .. import ACCELERATORS
+from .. import FACILITY
 
 
 def get_positions(indices, acc=None):
@@ -16,7 +16,8 @@ def get_positions(indices, acc=None):
     Returns:
         numpy.ndarray: position in [m] along the accelerator.
     """
-    return _np.array(pa.lattice.find_spos(ACCELERATORS[acc], indices=indices))
+    accel = FACILITY.accelerators[acc]
+    return _np.array(pa.lattice.find_spos(accel, indices=indices))
 
 
 def get_orbit(indices, acc=None):
@@ -31,7 +32,8 @@ def get_orbit(indices, acc=None):
     Returns:
         tuple: (orbx, orby) in [m].
     """
-    orb = pa.tracking.find_orbit6(ACCELERATORS[acc], indices=indices)
+    accel = FACILITY.accelerators[acc]
+    orb = pa.tracking.find_orbit6(accel, indices=indices)
     return orb[0], orb[2]
 
 
@@ -49,7 +51,8 @@ def get_twiss(indices, acc=None):
             'betax', 'betay', 'alphax', 'alphay', 'mux', 'muy',
             'etax', 'etay', 'etapx', 'etapy'.
     """
-    twi, *_ = pa.optics.calc_twiss(ACCELERATORS[acc], indices=indices)
+    accel = FACILITY.accelerators[acc]
+    twi, *_ = pa.optics.calc_twiss(accel, indices=indices)
     return {
         'betax': twi.betax,
         'betay': twi.betay,
@@ -76,7 +79,8 @@ def get_beamsizes(indices, acc=None):
     Returns:
         dict: Dictionary containg 'sigmax' and 'sigmay'.
     """
-    eqpar = pa.optics.EqParamsFromBeamEnvelope(ACCELERATORS[acc])
+    accel = FACILITY.accelerators[acc]
+    eqpar = pa.optics.EqParamsFromBeamEnvelope(accel)
     return {
         'sigmax': eqpar.sigma_rx[indices],
         'sigmay': eqpar.sigma_ry[indices],
@@ -104,7 +108,8 @@ def get_attribute(propty, indices, acc=None):
     if propty not in ('KL', 'SL', 'hkick', 'vkick'):
         raise ValueError(f'Wrong value for propty ({propty})')
     propty += '_polynom' if propty.endsqith('kick') else ''
-    return pa.lattice.get_attribute(ACCELERATORS[acc], propty, indices)
+    accel = FACILITY.accelerators[acc]
+    return pa.lattice.get_attribute(accel, propty, indices)
 
 
 def set_attribute(propty, indices, values, acc=None):
@@ -130,4 +135,5 @@ def set_attribute(propty, indices, values, acc=None):
     if propty not in ('KL', 'SL', 'hkick', 'vkick'):
         raise ValueError(f'Wrong value for propty ({propty})')
     propty += '_polynom' if propty.endsqith('kick') else ''
-    pa.lattice.set_attribute(ACCELERATORS[acc], propty, indices, values)
+    accel = FACILITY.accelerators[acc]
+    pa.lattice.set_attribute(accel, propty, indices, values)

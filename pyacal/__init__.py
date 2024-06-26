@@ -3,7 +3,7 @@ import importlib as _importlib
 
 from ._facilities import FacilityOptions
 from ._simulators import SimulatorOptions
-from ._control_system import ControlSystemOptions
+from ._control_systems import ControlSystemOptions
 
 FACILITY = None
 SIMULATOR = None
@@ -22,7 +22,7 @@ def set_facility(fac_name='sirius'):
     if fac_name.lower() not in FacilityOptions:
         raise ValueError(f'Wrong value for fac_name ({fac_name}).')
     global FACILITY
-    fac_module = _importlib.import_module('._facilities', fac_name)
+    fac_module = _importlib.import_module('._facilities.' + fac_name, __name__)
     FACILITY = fac_module.Facility
     _set_simulator(FACILITY.simulator)
     _set_control_system(FACILITY.control_system)
@@ -63,7 +63,7 @@ def _set_simulator(simulator):
     global SIMULATOR
     if simulator.lower() not in SimulatorOptions:
         raise ValueError(f'Wrong value for simulator ({simulator}).')
-    SIMULATOR = _importlib.import_module('._simulator', simulator)
+    SIMULATOR = _importlib.import_module('._simulators.' + simulator, __name__)
 
 
 def _set_control_system(control_system):
@@ -74,11 +74,12 @@ def _set_control_system(control_system):
 
     if CONTROL_SYSTEM is None:
         CONTROL_SYSTEM = _importlib.import_module(
-            '._control_system', control_system)
+            '._control_systems.' + control_system, __name__)
         return
     elif control_system == CONTROL_SYSTEM.Name:
         return
-    cs_new = _importlib.import_module('._control_system', control_system)
+    cs_new = _importlib.import_module(
+        '._control_systems.' + control_system, __name__)
 
     for key in CONTROL_SYSTEM.ALL_CONNECTIONS:
         cs_new.PV(*key)
