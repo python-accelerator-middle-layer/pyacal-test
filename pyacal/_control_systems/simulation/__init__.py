@@ -5,7 +5,7 @@ import multiprocessing as _mp
 
 from .pv import PV, ALL_CONNECTIONS
 
-del pv, multiprocessing
+del pv
 
 Name = 'simulation'
 ProcessSpawn = _mp.get_context('spawn').Process
