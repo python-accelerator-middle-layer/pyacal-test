@@ -1,191 +1,28 @@
 """Main module."""
-import time as _time
-import datetime as _datetime
 
+import datetime as _datetime
+import time as _time
 from copy import deepcopy as _dcopy
+
+import matplotlib.cm as _cmap
+import matplotlib.gridspec as _mpl_gs
+import matplotlib.pyplot as _plt
 import numpy as _np
 from scipy.optimize import least_squares as _least_squares
 
-import matplotlib.pyplot as _plt
-import matplotlib.gridspec as _mpl_gs
-import matplotlib.cm as _cmap
+from .. import FACILITY, SIMULATOR
+from .. import get_alias_from_devtype as _get_alias_from_devtype, \
+    get_alias_from_indices as _get_alias_from_indices, \
+    get_alias_map as _get_alias_map, \
+    get_indices_from_key as _get_indices_from_key
 
-from ..devices import SOFB as _SOFB, PowerSupply as _PowerSupply, \
-    CurrInfoSI as _CurrInfoSI
-
-import pyaccel as _pyacc
-
-from .base import ThreadedMeasBaseClass as _BaseClass, \
-    ParamsBaseClass as _ParamsBaseClass
+from ..devices import DCCT as _DCCT, PowerSupply as _PowerSupply, SOFB as _SOFB
+from .base import ParamsBaseClass as _ParamsBaseClass, \
+    ThreadedMeasBaseClass as _BaseClass
 
 
 class BBAParams(_ParamsBaseClass):
     """."""
-
-    BPMNAMES = (
-        'SI-01M2:DI-BPM', 'SI-01C1:DI-BPM-1',
-        'SI-01C1:DI-BPM-2', 'SI-01C2:DI-BPM',
-        'SI-01C3:DI-BPM-1', 'SI-01C3:DI-BPM-2',
-        'SI-01C4:DI-BPM', 'SI-02M1:DI-BPM',
-        'SI-02M2:DI-BPM', 'SI-02C1:DI-BPM-1',
-        'SI-02C1:DI-BPM-2', 'SI-02C2:DI-BPM',
-        'SI-02C3:DI-BPM-1', 'SI-02C3:DI-BPM-2',
-        'SI-02C4:DI-BPM', 'SI-03M1:DI-BPM',
-        'SI-03M2:DI-BPM', 'SI-03C1:DI-BPM-1',
-        'SI-03C1:DI-BPM-2', 'SI-03C2:DI-BPM',
-        'SI-03C3:DI-BPM-1', 'SI-03C3:DI-BPM-2',
-        'SI-03C4:DI-BPM', 'SI-04M1:DI-BPM',
-        'SI-04M2:DI-BPM', 'SI-04C1:DI-BPM-1',
-        'SI-04C1:DI-BPM-2', 'SI-04C2:DI-BPM',
-        'SI-04C3:DI-BPM-1', 'SI-04C3:DI-BPM-2',
-        'SI-04C4:DI-BPM', 'SI-05M1:DI-BPM',
-        'SI-05M2:DI-BPM', 'SI-05C1:DI-BPM-1',
-        'SI-05C1:DI-BPM-2', 'SI-05C2:DI-BPM',
-        'SI-05C3:DI-BPM-1', 'SI-05C3:DI-BPM-2',
-        'SI-05C4:DI-BPM', 'SI-06M1:DI-BPM',
-        'SI-06M2:DI-BPM', 'SI-06C1:DI-BPM-1',
-        'SI-06C1:DI-BPM-2', 'SI-06C2:DI-BPM',
-        'SI-06C3:DI-BPM-1', 'SI-06C3:DI-BPM-2',
-        'SI-06C4:DI-BPM', 'SI-07M1:DI-BPM',
-        'SI-07M2:DI-BPM', 'SI-07C1:DI-BPM-1',
-        'SI-07C1:DI-BPM-2', 'SI-07C2:DI-BPM',
-        'SI-07C3:DI-BPM-1', 'SI-07C3:DI-BPM-2',
-        'SI-07C4:DI-BPM', 'SI-08M1:DI-BPM',
-        'SI-08M2:DI-BPM', 'SI-08C1:DI-BPM-1',
-        'SI-08C1:DI-BPM-2', 'SI-08C2:DI-BPM',
-        'SI-08C3:DI-BPM-1', 'SI-08C3:DI-BPM-2',
-        'SI-08C4:DI-BPM', 'SI-09M1:DI-BPM',
-        'SI-09M2:DI-BPM', 'SI-09C1:DI-BPM-1',
-        'SI-09C1:DI-BPM-2', 'SI-09C2:DI-BPM',
-        'SI-09C3:DI-BPM-1', 'SI-09C3:DI-BPM-2',
-        'SI-09C4:DI-BPM', 'SI-10M1:DI-BPM',
-        'SI-10M2:DI-BPM', 'SI-10C1:DI-BPM-1',
-        'SI-10C1:DI-BPM-2', 'SI-10C2:DI-BPM',
-        'SI-10C3:DI-BPM-1', 'SI-10C3:DI-BPM-2',
-        'SI-10C4:DI-BPM', 'SI-11M1:DI-BPM',
-        'SI-11M2:DI-BPM', 'SI-11C1:DI-BPM-1',
-        'SI-11C1:DI-BPM-2', 'SI-11C2:DI-BPM',
-        'SI-11C3:DI-BPM-1', 'SI-11C3:DI-BPM-2',
-        'SI-11C4:DI-BPM', 'SI-12M1:DI-BPM',
-        'SI-12M2:DI-BPM', 'SI-12C1:DI-BPM-1',
-        'SI-12C1:DI-BPM-2', 'SI-12C2:DI-BPM',
-        'SI-12C3:DI-BPM-1', 'SI-12C3:DI-BPM-2',
-        'SI-12C4:DI-BPM', 'SI-13M1:DI-BPM',
-        'SI-13M2:DI-BPM', 'SI-13C1:DI-BPM-1',
-        'SI-13C1:DI-BPM-2', 'SI-13C2:DI-BPM',
-        'SI-13C3:DI-BPM-1', 'SI-13C3:DI-BPM-2',
-        'SI-13C4:DI-BPM', 'SI-14M1:DI-BPM',
-        'SI-14M2:DI-BPM', 'SI-14C1:DI-BPM-1',
-        'SI-14C1:DI-BPM-2', 'SI-14C2:DI-BPM',
-        'SI-14C3:DI-BPM-1', 'SI-14C3:DI-BPM-2',
-        'SI-14C4:DI-BPM', 'SI-15M1:DI-BPM',
-        'SI-15M2:DI-BPM', 'SI-15C1:DI-BPM-1',
-        'SI-15C1:DI-BPM-2', 'SI-15C2:DI-BPM',
-        'SI-15C3:DI-BPM-1', 'SI-15C3:DI-BPM-2',
-        'SI-15C4:DI-BPM', 'SI-16M1:DI-BPM',
-        'SI-16M2:DI-BPM', 'SI-16C1:DI-BPM-1',
-        'SI-16C1:DI-BPM-2', 'SI-16C2:DI-BPM',
-        'SI-16C3:DI-BPM-1', 'SI-16C3:DI-BPM-2',
-        'SI-16C4:DI-BPM', 'SI-17M1:DI-BPM',
-        'SI-17M2:DI-BPM', 'SI-17C1:DI-BPM-1',
-        'SI-17C1:DI-BPM-2', 'SI-17C2:DI-BPM',
-        'SI-17C3:DI-BPM-1', 'SI-17C3:DI-BPM-2',
-        'SI-17C4:DI-BPM', 'SI-18M1:DI-BPM',
-        'SI-18M2:DI-BPM', 'SI-18C1:DI-BPM-1',
-        'SI-18C1:DI-BPM-2', 'SI-18C2:DI-BPM',
-        'SI-18C3:DI-BPM-1', 'SI-18C3:DI-BPM-2',
-        'SI-18C4:DI-BPM', 'SI-19M1:DI-BPM',
-        'SI-19M2:DI-BPM', 'SI-19C1:DI-BPM-1',
-        'SI-19C1:DI-BPM-2', 'SI-19C2:DI-BPM',
-        'SI-19C3:DI-BPM-1', 'SI-19C3:DI-BPM-2',
-        'SI-19C4:DI-BPM', 'SI-20M1:DI-BPM',
-        'SI-20M2:DI-BPM', 'SI-20C1:DI-BPM-1',
-        'SI-20C1:DI-BPM-2', 'SI-20C2:DI-BPM',
-        'SI-20C3:DI-BPM-1', 'SI-20C3:DI-BPM-2',
-        'SI-20C4:DI-BPM', 'SI-01M1:DI-BPM',
-        )
-    QUADNAMES = (
-        'SI-01M2:PS-QS', 'SI-01C1:PS-Q1',
-        'SI-01C1:PS-QS', 'SI-01C2:PS-QS',
-        'SI-01C3:PS-Q4', 'SI-01C3:PS-QS',
-        'SI-01C4:PS-Q1', 'SI-02M1:PS-QDB2',
-        'SI-02M2:PS-QDB2', 'SI-02C1:PS-Q1',
-        'SI-02C1:PS-QS', 'SI-02C2:PS-QS',
-        'SI-02C3:PS-Q4', 'SI-02C3:PS-QS',
-        'SI-02C4:PS-Q1', 'SI-03M1:PS-QDP2',
-        'SI-03M2:PS-QDP2', 'SI-03C1:PS-Q1',
-        'SI-03C1:PS-QS', 'SI-03C2:PS-QS',
-        'SI-03C3:PS-Q4', 'SI-03C3:PS-QS',
-        'SI-03C4:PS-Q1', 'SI-04M1:PS-QDB2',
-        'SI-04M2:PS-QDB2', 'SI-04C1:PS-Q1',
-        'SI-04C1:PS-QS', 'SI-04C2:PS-QS',
-        'SI-04C3:PS-Q4', 'SI-04C3:PS-QS',
-        'SI-04C4:PS-Q1', 'SI-05M1:PS-QS',
-        'SI-05M2:PS-QS', 'SI-05C1:PS-Q1',
-        'SI-05C1:PS-QS', 'SI-05C2:PS-QS',
-        'SI-05C3:PS-Q4', 'SI-05C3:PS-QS',
-        'SI-05C4:PS-Q1', 'SI-06M1:PS-QDB2',
-        'SI-06M2:PS-QDB2', 'SI-06C1:PS-Q1',
-        'SI-06C1:PS-QS', 'SI-06C2:PS-QS',
-        'SI-06C3:PS-Q4', 'SI-06C3:PS-QS',
-        'SI-06C4:PS-Q1', 'SI-07M1:PS-QDP2',
-        'SI-07M2:PS-QDP2', 'SI-07C1:PS-Q1',
-        'SI-07C1:PS-QS', 'SI-07C2:PS-QS',
-        'SI-07C3:PS-Q4', 'SI-07C3:PS-QS',
-        'SI-07C4:PS-Q1', 'SI-08M1:PS-QDB2',
-        'SI-08M2:PS-QDB2', 'SI-08C1:PS-Q1',
-        'SI-08C1:PS-QS', 'SI-08C2:PS-QS',
-        'SI-08C3:PS-Q4', 'SI-08C3:PS-QS',
-        'SI-08C4:PS-Q1', 'SI-09M1:PS-QS',
-        'SI-09M2:PS-QS', 'SI-09C1:PS-Q1',
-        'SI-09C1:PS-QS', 'SI-09C2:PS-QS',
-        'SI-09C3:PS-Q4', 'SI-09C3:PS-QS',
-        'SI-09C4:PS-Q1', 'SI-10M1:PS-QDB2',
-        'SI-10M2:PS-QDB2', 'SI-10C1:PS-Q1',
-        'SI-10C1:PS-QS', 'SI-10C2:PS-QS',
-        'SI-10C3:PS-Q4', 'SI-10C3:PS-QS',
-        'SI-10C4:PS-Q1', 'SI-11M1:PS-QDP2',
-        'SI-11M2:PS-QDP2', 'SI-11C1:PS-Q1',
-        'SI-11C1:PS-QS', 'SI-11C2:PS-QS',
-        'SI-11C3:PS-Q4', 'SI-11C3:PS-QS',
-        'SI-11C4:PS-Q1', 'SI-12M1:PS-QDB2',
-        'SI-12M2:PS-QDB2', 'SI-12C1:PS-Q1',
-        'SI-12C1:PS-QS', 'SI-12C2:PS-QS',
-        'SI-12C3:PS-Q4', 'SI-12C3:PS-QS',
-        'SI-12C4:PS-Q1', 'SI-13M1:PS-QS',
-        'SI-13M2:PS-QS', 'SI-13C1:PS-Q1',
-        'SI-13C1:PS-QS', 'SI-13C2:PS-QS',
-        'SI-13C3:PS-Q4', 'SI-13C3:PS-QS',
-        'SI-13C4:PS-Q1', 'SI-14M1:PS-QDB2',
-        'SI-14M2:PS-QDB2', 'SI-14C1:PS-Q1',
-        'SI-14C1:PS-QS', 'SI-14C2:PS-QS',
-        'SI-14C3:PS-Q4', 'SI-14C3:PS-QS',
-        'SI-14C4:PS-Q1', 'SI-15M1:PS-QDP2',
-        'SI-15M2:PS-QDP2', 'SI-15C1:PS-Q1',
-        'SI-15C1:PS-QS', 'SI-15C2:PS-QS',
-        'SI-15C3:PS-Q4', 'SI-15C3:PS-QS',
-        'SI-15C4:PS-Q1', 'SI-16M1:PS-QDB2',
-        'SI-16M2:PS-QDB2', 'SI-16C1:PS-Q1',
-        'SI-16C1:PS-QS', 'SI-16C2:PS-QS',
-        'SI-16C3:PS-Q4', 'SI-16C3:PS-QS',
-        'SI-16C4:PS-Q1', 'SI-17M1:PS-QS',
-        'SI-17M2:PS-QS', 'SI-17C1:PS-Q1',
-        'SI-17C1:PS-QS', 'SI-17C2:PS-QS',
-        'SI-17C3:PS-Q4', 'SI-17C3:PS-QS',
-        'SI-17C4:PS-Q1', 'SI-18M1:PS-QDB2',
-        'SI-18M2:PS-QDB2', 'SI-18C1:PS-Q1',
-        'SI-18C1:PS-QS', 'SI-18C2:PS-QS',
-        'SI-18C3:PS-Q4', 'SI-18C3:PS-QS',
-        'SI-18C4:PS-Q1', 'SI-19M1:PS-QDP2',
-        'SI-19M2:PS-QDP2', 'SI-19C1:PS-Q1',
-        'SI-19C1:PS-QS', 'SI-19C2:PS-QS',
-        'SI-19C3:PS-Q4', 'SI-19C3:PS-QS',
-        'SI-19C4:PS-Q1', 'SI-20M1:PS-QDB2',
-        'SI-20M2:PS-QDB2', 'SI-20C1:PS-Q1',
-        'SI-20C1:PS-QS', 'SI-20C2:PS-QS',
-        'SI-20C3:PS-Q4', 'SI-20C3:PS-QS',
-        'SI-20C4:PS-Q1', 'SI-01M1:PS-QS',
-        )
 
     def __init__(self):
         """."""
@@ -193,7 +30,9 @@ class BBAParams(_ParamsBaseClass):
         self.deltaorbx = 100  # [um]
         self.deltaorby = 100  # [um]
         self.meas_nrsteps = 8
-        self.quad_deltakl = 0.01  # [1/m]
+        self.quad_deltacurr = 1  # [A]
+        self.quad_maxcurr = 200  # [A]
+        self.quad_mincurr = 0  # [A]
         self.quad_nrcycles = 1
         self.wait_correctors = 0.3  # [s]
         self.wait_quadrupole = 0.3  # [s]
@@ -209,7 +48,7 @@ class BBAParams(_ParamsBaseClass):
         st = ftmp('deltaorbx [um]', self.deltaorbx, '')
         st += ftmp('deltaorby [um]', self.deltaorby, '')
         st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
-        st += ftmp('quad_deltakl [1/m]', self.quad_deltakl, '')
+        st += ftmp('quad_deltacurr [A]', self.quad_deltacurr, '')
         st += ftmp('quad_nrcycles', self.quad_nrcycles, '')
         st += ftmp('wait_correctors [s]', self.wait_correctors, '')
         st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
@@ -224,21 +63,27 @@ class BBAParams(_ParamsBaseClass):
 class DoBBA(_BaseClass):
     """."""
 
-    def __init__(self, isonline=True):
+    def __init__(self, accelerator=None, isonline=True):
         """."""
         super().__init__(
-            params=BBAParams(), target=self._do_bba, isonline=isonline)
+            params=BBAParams(), target=self._do_bba, isonline=isonline
+        )
         self._bpms2dobba = list()
-        self.data['bpmnames'] = list(BBAParams.BPMNAMES)
-        self.data['quadnames'] = list(BBAParams.QUADNAMES)
-        self.data['scancenterx'] = _np.zeros(len(BBAParams.BPMNAMES))
-        self.data['scancentery'] = _np.zeros(len(BBAParams.BPMNAMES))
-        self.data['measure'] = dict()
+        self.data["measure"] = dict()
 
+        self.accelerator = accelerator or FACILITY.default_accelerator
         if self.isonline:
-            self.devices['sofb'] = _SOFB(_SOFB.DEVICES.SI)
-            self.devices['currinfosi'] = _CurrInfoSI()
+            self.devices["sofb"] = _SOFB(self.accelerator)
+            dcct_alias = _get_alias_from_devtype("DCCT", self.accelerator)[0]
+            self.devices["dcct"] = _DCCT(dcct_alias)
+
+            self.data["bpmnames"] = self.devices["sofb"].fambpms.bpm_names
+            self.data["quadnames"] = self.get_default_quads()
             self.connect_to_quadrupoles()
+
+        if "bpmnames" in self.data:
+            self.data["scancenterx"] = _np.zeros(len(self.data["bpmnames"]))
+            self.data["scancentery"] = _np.zeros(len(self.data["bpmnames"]))
 
     def __str__(self):
         """."""
@@ -358,7 +203,9 @@ class DoBBA(_BaseClass):
 
         dorbx = dorb[usepts, :nbpms]
         dorby = dorb[usepts, nbpms:]
-        if '-QS' in self.data['quadnames'][idx]:
+        amap = _get_alias_map()
+        devtype = amap[self.data["quadnames"][idx]]["cs_devtype"]
+        if "skew" in devtype.lower():
             dorbx, dorby = dorby, dorbx
         anl['xpos'] = xpos
         anl['ypos'] = ypos
@@ -487,38 +334,33 @@ class DoBBA(_BaseClass):
             prop[idx] = res[propty]
         return prop
 
-    @staticmethod
-    def get_default_quads(model, fam_data):
+    def get_default_quads(self):
         """."""
-        quads_idx = _dcopy(fam_data['QN']['index'])
-        qs_idx = [idx for idx in fam_data['QS']['index']]
-        quads_idx.extend(qs_idx)
-        quads_idx = _np.array([idx[len(idx)//2] for idx in quads_idx])
-        quads_pos = _np.array(_pyacc.lattice.find_spos(model, quads_idx))
+        bpmnames = self.data["bpmnames"]
+        quads_idx = _get_indices_from_key("cs_devtype", "Quadrupole Normal")
+        qs_idx = _get_indices_from_key("cs_devtype", "Quadrupole Skew")
+        bpms_idx = []
+        amap = _get_alias_map()
+        for bpmname in bpmnames:
+            bpms_idx.append(
+                [idx for idx in amap[bpmname]["sim_info"]["indices"]]
+            )
 
-        bpms_idx = _np.array([idx[0] for idx in fam_data['BPM']['index']])
-        bpms_pos = _np.array(_pyacc.lattice.find_spos(model, bpms_idx))
+        quads_idx.extend(qs_idx)
+        quads_idx = _np.array([idx[len(idx) // 2] for idx in quads_idx])
+
+        quads_pos = _np.array(SIMULATOR.get_positions(
+            acc=self.accelerator, indices=quads_idx)).ravel()
+        bpms_pos = _np.array(SIMULATOR.get_positions(
+            acc=self.accelerator, indices=bpms_idx)).ravel()
 
         diff = _np.abs(bpms_pos[:, None] - quads_pos[None, :])
         bba_idx = _np.argmin(diff, axis=1)
         quads_bba_idx = quads_idx[bba_idx]
-        bpmnames = list()
         qnames = list()
-        for i, qidx in enumerate(quads_bba_idx):
-            name = model[qidx].fam_name
-            idc = fam_data[name]['index'].index([qidx, ])
-            sub = fam_data[name]['subsection'][idc]
-            inst = fam_data[name]['instance'][idc]
-            name = 'QS' if name.startswith(('S', 'F')) else name
-            qname = 'SI-{0:s}:PS-{1:s}-{2:s}'.format(sub, name, inst)
-            qnames.append(qname.strip('-'))
-
-            sub = fam_data['BPM']['subsection'][i]
-            inst = fam_data['BPM']['instance'][i]
-            bname = 'SI-{0:s}:DI-BPM-{1:s}'.format(sub, inst)
-            bname = bname.strip('-')
-            bpmnames.append(bname.strip('-'))
-        return bpmnames, qnames, quads_bba_idx
+        for qidx in quads_bba_idx:
+            qnames.append(_get_alias_from_indices(qidx)[0])
+        return qnames
 
     @staticmethod
     def _calc_fitting_error(fit_params):
@@ -701,15 +543,15 @@ class DoBBA(_BaseClass):
         yini = self.data['scancentery'][idx]
         qname = self.data['quadnames'][idx]
 
-        klpos = self.data['measure'][bpm].get('klpos')
-        klneg = self.data['measure'][bpm].get('klneg')
-        if klpos is not None and klneg is not None:
-            deltakl = klpos - klneg
+        currpos = self.data['measure'][bpm].get('currpos')
+        currneg = self.data['measure'][bpm].get('currneg')
+        if currpos is not None and currneg is not None:
+            deltacurr = currpos - currneg
         else:
-            deltakl = self.data['measure'][bpm]['deltakl']
+            deltacurr = self.data['measure'][bpm]['deltacurr']
 
         tmp = '{:6.1f} ' + r'$\pm$' + ' {:<6.1f}'
-        st = 'Quad: {:15s} (dKL={:.4f} 1/m)\n'.format(qname, deltakl)
+        st = 'Quad: {:15s} (dcurr={:.4f} A)\n'.format(qname, deltacurr)
         st += '\nInitial Search values = ({:.2f}, {:.2f})\n'.format(xini, yini)
         st += 'BBA Results:\n'
         x0s = tmp.format(xl0, stdxl0)
@@ -1223,12 +1065,12 @@ class DoBBA(_BaseClass):
             print('    exiting...')
             return
 
-        korig = quad.strength
-        deltakl = self.params.quad_deltakl
+        curr0 = quad.current
+        deltacurr = self.params.quad_deltacurr
         cycling_curve = DoBBA.get_cycling_curve()
 
-        upp = quad.pv_object('KL-SP').upper_disp_limit
-        low = quad.pv_object('KL-SP').lower_disp_limit
+        upp = self.params.quad_maxcurr
+        low = self.params.quad_mincurr
         # Limits are interchanged in some quads:
         upplim = max(upp, low) - 0.0005
         lowlim = min(upp, low) + 0.0005
@@ -1237,8 +1079,8 @@ class DoBBA(_BaseClass):
         for _ in range(self.params.quad_nrcycles):
             print('.', end='')
             for fac in cycling_curve:
-                newkl = min(max(korig + deltakl*fac, lowlim), upplim)
-                quad.strength = newkl
+                newcurr = min(max(curr0 + deltacurr*fac, lowlim), upplim)
+                quad.current = newcurr
                 _time.sleep(self.params.wait_quadrupole)
         print(' Ok!')
 
@@ -1257,7 +1099,7 @@ class DoBBA(_BaseClass):
         orbini, orbpos, orbneg = [], [], []
         npts = 2*(nrsteps//2) + 1
         tmpl = '{:25s}'.format
-        klpos = klneg = 0.0
+        currpos = currneg = 0.0
         for i in range(npts):
             if self._stopevt.is_set() or not self.havebeam:
                 print('   exiting...')
@@ -1276,27 +1118,30 @@ class DoBBA(_BaseClass):
             orbini.append(self.get_orbit())
 
             for j, fac in enumerate(cycling_curve):
-                newkl = min(max(korig + deltakl*fac, lowlim), upplim)
-                quad.strength = newkl
+                newcurr = min(max(curr0 + deltacurr*fac, lowlim), upplim)
+                quad.current = newcurr
                 _time.sleep(self.params.wait_quadrupole)
                 if j == 0:
                     orbpos.append(self.get_orbit())
-                    klpos = quad.strength
+                    currpos = quad.current
                 elif j == 1:
                     orbneg.append(self.get_orbit())
-                    klneg = quad.strength
+                    currneg = quad.current
 
             dorb = orbpos[-1] - orbneg[-1]
             dorbx = dorb[:len(self.data['bpmnames'])]
             dorby = dorb[len(self.data['bpmnames']):]
             rmsx = _np.sqrt(_np.sum(dorbx*dorbx) / dorbx.shape[0])
             rmsy = _np.sqrt(_np.sum(dorby*dorby) / dorby.shape[0])
-            print('rmsx = {:5.1f} rmsy = {:5.1f} um dkl = {:.1g}'.format(
-                rmsx, rmsy, klpos - klneg))
+            print('rmsx = {:5.1f} rmsy = {:5.1f} um dcurr = {:.1g}'.format(
+                rmsx, rmsy, currpos - currneg))
 
         self.data['measure'][bpmname] = {
-            'orbini': _np.array(orbini), 'orbpos': _np.array(orbpos),
-            'orbneg': _np.array(orbneg), 'klpos': klpos, 'klneg': klneg}
+            'orbini': _np.array(orbini),
+            'orbpos': _np.array(orbpos),
+            'orbneg': _np.array(orbneg),
+            'currpos': currpos,
+            'currneg': currneg}
 
         print('    restoring initial conditions.')
         sofb.refx, sofb.refy = refx0, refy0
