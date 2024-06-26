@@ -105,6 +105,17 @@ def get_indices_from_alias(alias):
     return [idx for idx in FACILITY.alias_map[alias]["sim_info"]["indices"]]
 
 
+def get_alias_from_indices(indices, accelerator=None):
+    """."""
+    acc = accelerator or FACILITY.default_accelerator
+    return [
+        alias
+        for alias, amap in FACILITY.alias_map.items()
+        if indices in amap["sim_info"]["indices"]
+        and acc == amap.get("accelerator")
+    ]
+
+
 def _check_key(key):
     if not any(key in amap for amap in FACILITY.alias_map.values()):
         raise ValueError(f"Key '{key}' not found in any alias_map entry.")
