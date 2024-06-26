@@ -1,6 +1,6 @@
 """."""
 
-FacilityOptions = ('esrf', 'sirius', 'soleil')
+FacilityOptions = ("esrf", "sirius", "soleil")
 
 
 class FacilityBase:
@@ -13,4 +13,4 @@ class FacilityBase:
         self.simulator = simulator
         self.alias_map = dict()
         self.accelerators = dict()
-        self.default_accelerator = ''
+        self.default_accelerator = ""

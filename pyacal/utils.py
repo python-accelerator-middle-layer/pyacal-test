@@ -1,4 +1,5 @@
 """Useful functions."""
+
 import os as _os
 import builtins as _builtins
 import importlib as _importlib
@@ -14,7 +15,7 @@ import h5py as _h5py
 import numpy as _np
 
 
-def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
+def generate_random_numbers(n_part, dist_type="exp", cutoff=3):
     """Generate random numbers with a cutted off dist_type distribution.
 
     Inputs:
@@ -23,14 +24,14 @@ def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
         cutoff = where to cut the distribution tail.
     """
     dist_type = dist_type.lower()
-    if dist_type in 'exponential':
+    if dist_type in "exponential":
         func = _partial(_np.random.exponential, 1)
-    elif dist_type in 'normal':
+    elif dist_type in "normal":
         func = _np.random.randn
-    elif dist_type in 'uniform':
+    elif dist_type in "uniform":
         func = _np.random.rand
     else:
-        raise NotImplementedError('Distribution type not implemented yet.')
+        raise NotImplementedError("Distribution type not implemented yet.")
 
     numbers = func(n_part)
     above, *_ = _np.asarray(_np.abs(numbers) > cutoff).nonzero()
@@ -40,8 +41,40 @@ def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
         numbers[above[~indcs]] = parts[~indcs]
         above = above[indcs]
 
-    if dist_type in 'uniform':
-        numbers -= 1/2
+    if dist_type in "uniform":
+        numbers -= 1 / 2
+        numbers *= 2
+    return numbers
+
+
+def generate_random_numbers(n_part, dist_type="exp", cutoff=3):
+    """Generate random numbers with a cutted off dist_type distribution.
+
+    Inputs:
+        n_part = size of the array with random numbers
+        dist_type = assume values 'exponential', 'normal' or 'uniform'.
+        cutoff = where to cut the distribution tail.
+    """
+    dist_type = dist_type.lower()
+    if dist_type in "exponential":
+        func = _partial(_np.random.exponential, 1)
+    elif dist_type in "normal":
+        func = _np.random.randn
+    elif dist_type in "uniform":
+        func = _np.random.rand
+    else:
+        raise NotImplementedError("Distribution type not implemented yet.")
+
+    numbers = func(n_part)
+    above, *_ = _np.asarray(_np.abs(numbers) > cutoff).nonzero()
+    while above.size:
+        parts = func(above.size)
+        indcs = _np.abs(parts) > cutoff
+        numbers[above[~indcs]] = parts[~indcs]
+        above = above[indcs]
+
+    if dist_type in "uniform":
+        numbers -= 1 / 2
         numbers *= 2
     return numbers
 
@@ -60,7 +93,7 @@ def get_namedtuple(name, field_names, values=None):
     """
     if values is None:
         values = range(len(field_names))
-    field_names = [f.replace(' ', '_') for f in field_names]
+    field_names = [f.replace(" ", "_") for f in field_names]
     return _namedtuple(name, field_names)(*values)
 
 
@@ -74,8 +107,8 @@ def is_gzip_file(fname):
         bool: whether file is compressed with gzip.
     """
     # thanks to https://stackoverflow.com/questions/3703276/how-to-tell-if-a-file-is-gzip-compressed
-    with open(fname, 'rb') as fil:
-        return fil.read(2) == b'\x1f\x8b'
+    with open(fname, "rb") as fil:
+        return fil.read(2) == b"\x1f\x8b"
 
 
 def save(data, fname, overwrite=False, makedirs=False, compress=False):
@@ -98,7 +131,7 @@ def save(data, fname, overwrite=False, makedirs=False, compress=False):
 
     """
     _save = save_pickle
-    if fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
+    if fname.endswith((".h5", ".hd5", ".hdf5", ".hdf")):
         _save = save_hdf5
     _save(data, fname, overwrite, makedirs, compress)
 
@@ -117,7 +150,7 @@ def load(fname):
 
     """
     _load = load_pickle
-    if fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
+    if fname.endswith((".h5", ".hd5", ".hdf5", ".hdf")):
         _load = load_hdf5
     return _load(fname)
 
@@ -139,11 +172,11 @@ def save_pickle(data, fname, overwrite=False, makedirs=False, compress=False):
         FileExistsError: in case `overwrite` is `False` and file exists.
 
     """
-    if not fname.endswith(('.pickle', '.pkl')):
-        fname += '.pickle'
+    if not fname.endswith((".pickle", ".pkl")):
+        fname += ".pickle"
 
     if not overwrite and _os.path.isfile(fname):
-        raise FileExistsError(f'file {fname} already exists.')
+        raise FileExistsError(f"file {fname} already exists.")
 
     if makedirs:
         dirname = _os.path.dirname(fname)
@@ -151,7 +184,7 @@ def save_pickle(data, fname, overwrite=False, makedirs=False, compress=False):
             _os.makedirs(dirname)
 
     func = _gzip.open if compress else open
-    with func(fname, 'wb') as fil:
+    with func(fname, "wb") as fil:
         _pickle.dump(data, fil)
 
 
@@ -166,12 +199,12 @@ def load_pickle(fname):
         data (any builtin type): content of file as a python object.
 
     """
-    if not fname.endswith(('.pickle', '.pkl')):
-        fname += '.pickle'
+    if not fname.endswith((".pickle", ".pkl")):
+        fname += ".pickle"
 
     func = _gzip.open if is_gzip_file(fname) else open
 
-    with func(fname, 'rb') as fil:
+    with func(fname, "rb") as fil:
         data = _pickle.load(fil)
     return data
 
@@ -194,13 +227,13 @@ def save_hdf5(data, fname, overwrite=False, makedirs=False, compress=False):
         FileExistsError: in case `overwrite` is `False` and file exists.
 
     """
-    comp_ = 'gzip' if compress else None
+    comp_ = "gzip" if compress else None
 
-    if not fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
-        fname += '.h5'
+    if not fname.endswith((".h5", ".hd5", ".hdf5", ".hdf")):
+        fname += ".h5"
 
     if not overwrite and _os.path.isfile(fname):
-        raise FileExistsError(f'file {fname} already exists.')
+        raise FileExistsError(f"file {fname} already exists.")
     elif _os.path.isfile(fname):
         _os.remove(fname)
 
@@ -209,8 +242,8 @@ def save_hdf5(data, fname, overwrite=False, makedirs=False, compress=False):
         if not _os.path.exists(dirname):
             _os.makedirs(dirname)
 
-    with _h5py.File(fname, 'w') as fil:
-        _save_recursive_hdf5(fil, '/', data, comp_)
+    with _h5py.File(fname, "w") as fil:
+        _save_recursive_hdf5(fil, "/", data, comp_)
 
 
 def load_hdf5(fname):
@@ -226,10 +259,10 @@ def load_hdf5(fname):
         data (any builtin type): content of file as a python object.
 
     """
-    if not fname.endswith(('.h5', '.hd5', '.hdf5', '.hdf')):
-        fname += '.h5'
+    if not fname.endswith((".h5", ".hd5", ".hdf5", ".hdf")):
+        fname += ".h5"
 
-    with _h5py.File(fname, 'r') as fil:
+    with _h5py.File(fname, "r") as fil:
         return _load_recursive_hdf5(fil)
 
 
@@ -251,32 +284,32 @@ def repo_info(repo_path):
     init_dir = _os.getcwd()
     _os.chdir(repo_path)
     try:
-        cmd = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
+        cmd = ["git", "rev-parse", "--abbrev-ref", "HEAD"]
         active_branch = out(cmd, universal_newlines=True).strip()
     except err:
-        print(f'Repository path not found: {repo_path}.')
+        print(f"Repository path not found: {repo_path}.")
         return info
     try:
-        cmd = ['git', 'describe', '--tags', '--abbrev=0']
+        cmd = ["git", "describe", "--tags", "--abbrev=0"]
         last_tag = out(cmd, universal_newlines=True).strip()
-        cmd = ['git', 'rev-list', '-n', '1', last_tag]
+        cmd = ["git", "rev-list", "-n", "1", last_tag]
         last_tag_commit = out(cmd, universal_newlines=True).strip()[:7]
     except err:
-        last_tag = ''
-        last_tag_commit = ''
-    cmd = ['git', 'rev-parse', 'HEAD']
+        last_tag = ""
+        last_tag_commit = ""
+    cmd = ["git", "rev-parse", "HEAD"]
     last_commit = out(cmd, universal_newlines=True).strip()[:7]
-    cmd = ['git', 'status', '--short']
-    is_dirty = out(cmd, universal_newlines=True).strip() != ''
+    cmd = ["git", "status", "--short"]
+    is_dirty = out(cmd, universal_newlines=True).strip() != ""
     # return to initial directory
     _os.chdir(init_dir)
 
-    info['path'] = repo_path
-    info['active_branch'] = active_branch
-    info['last_tag'] = last_tag
-    info['last_tag_commit'] = last_tag_commit
-    info['last_commit'] = last_commit
-    info['is_dirty'] = is_dirty
+    info["path"] = repo_path
+    info["active_branch"] = active_branch
+    info["last_tag"] = last_tag
+    info["last_tag_commit"] = last_tag_commit
+    info["last_commit"] = last_commit
+    info["is_dirty"] = is_dirty
     return info
 
 
@@ -299,7 +332,7 @@ def get_path_from_package(package):
     elif isinstance(package, _ModuleType):
         pkg = package.__package__
     else:
-        raise ValueError('Invalid package type, must be str or module')
+        raise ValueError("Invalid package type, must be str or module")
     dist = _pkg_resources.get_distribution(pkg)
     return dist.location, dist.version
 
@@ -307,7 +340,7 @@ def get_path_from_package(package):
 def is_git_repo(path):
     """."""
     try:
-        cmd = ['git', 'rev-parse', '--is-inside-work-tree']
+        cmd = ["git", "rev-parse", "--is-inside-work-tree"]
         null = _subprocess.DEVNULL
         _subprocess.run(cmd, cwd=path, check=True, stdout=null, stderr=null)
         return True
@@ -318,18 +351,18 @@ def is_git_repo(path):
 def get_package_string(package):
     """."""
     path, ver = get_path_from_package(package)
-    repo_str = ''
+    repo_str = ""
     if is_git_repo(path):
         info = repo_info(path)
-        if info['last_tag']:
+        if info["last_tag"]:
             repo_str += f"{info['last_tag']:s}"
-        if info['last_tag_commit'] != info['last_commit']:
-            repo_str += '+' if info['last_tag'] else ''
+        if info["last_tag_commit"] != info["last_commit"]:
+            repo_str += "+" if info["last_tag"] else ""
             repo_str += f"{info['last_commit']:s}"
-        if info['is_dirty']:
+        if info["is_dirty"]:
             repo_str += f"+dirty"
     else:
-        repo_str += f'{ver:s}'
+        repo_str += f"{ver:s}"
     return repo_str
 
 
@@ -348,39 +381,40 @@ def _save_recursive_hdf5(fil, path, obj, compress):
     elif isinstance(obj, _BUILTINTYPES + _NPTYPES):
         fil[path] = obj
     elif obj is None:
-        fil[path] = 'None'
+        fil[path] = "None"
     elif typ in {list, tuple, set}:
-        path = path.strip('/') + '/'
+        path = path.strip("/") + "/"
         for i, el in enumerate(obj):
-            _save_recursive_hdf5(fil, path + f'{i:d}', el, compress)
+            _save_recursive_hdf5(fil, path + f"{i:d}", el, compress)
     elif typ == dict:
-        path = path.strip('/') + '/'
+        path = path.strip("/") + "/"
         for key, item in obj.items():
             _save_recursive_hdf5(fil, path + key, item, compress)
     else:
-        raise TypeError('Data type not valid: '+typ.__name__+'.')
-    fil[path].attrs['type'] = typ.__name__
+        raise TypeError("Data type not valid: " + typ.__name__ + ".")
+    fil[path].attrs["type"] = typ.__name__
 
 
 def _load_recursive_hdf5(fil):
     """."""
-    typ = fil.attrs['type']
-    if typ == 'list':
+    typ = fil.attrs["type"]
+    if typ == "list":
         return [_load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))]
-    elif typ == 'tuple':
-        return tuple([
-            _load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))])
-    elif typ == 'set':
+    elif typ == "tuple":
+        return tuple(
+            [_load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))]
+        )
+    elif typ == "set":
         return {_load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))}
-    elif typ == 'dict':
+    elif typ == "dict":
         return {k: _load_recursive_hdf5(obj) for k, obj in fil.items()}
-    elif typ == 'NoneType':
+    elif typ == "NoneType":
         return None
-    elif typ == 'ndarray':
+    elif typ == "ndarray":
         return fil[()]
-    elif typ == 'str':
+    elif typ == "str":
         return fil[()].decode()
-    elif typ == 'SiriusPVName':
+    elif typ == "SiriusPVName":
         return fil[()].decode()
     elif typ in _BUILTINNAMES:
         type_ = getattr(_builtins, typ)
