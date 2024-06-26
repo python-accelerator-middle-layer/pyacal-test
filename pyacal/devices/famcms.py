@@ -19,13 +19,14 @@ class FamCMs(DeviceSet):
             if "H" in plane:
                 hcmnames = self._get_cm_names(devtype="Corrector Horizontal")
                 cmnames.extend(hcmnames)
-                self.nhcms = len(hcmnames)
+                self.nr_hcms = len(hcmnames)
             if "V" in plane.upper():
                 vcmnames = self._get_cm_names(devtype="Corrector Vertical")
                 cmnames.extend(vcmnames)
-                self.nvcms = len(vcmnames)
+                self.nr_vcms = len(vcmnames)
 
         cmdevs = [_PowerSupply(dev) for dev in cmnames]
+
         super().__init__(cmdevs)
         self._cm_names = cmnames
 
@@ -48,12 +49,22 @@ class FamCMs(DeviceSet):
     @property
     def hcms(self):
         """."""
-        return self.devices[: self.nhcms]
+        return self.devices[:self.nr_hcms]
 
     @property
     def vcms(self):
         """."""
-        return self.devices[self.nhcms : self.nhcms + self.nvcms]
+        return self.devices[self.nr_hcms :]
+
+    @property
+    def kicks_hcm(self):
+        """."""
+        return _np.array([cm.current for cm in self.hcms])
+
+    @property
+    def kicks_vcm(self):
+        """."""
+        return _np.array([cm.current for cm in self.vcms])
 
     def get_currents(self):
         """."""

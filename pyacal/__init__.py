@@ -40,12 +40,12 @@ def get_model(acc):
 
 def switch2online():
     """Switch ACAL to online mode."""
-    _set_control_system('simulation')
+    _set_control_system(FACILITY.control_system)
 
 
 def switch2simulation():
     """Switch ACAL to simulation mode."""
-    _set_control_system(FACILITY.control_system)
+    _set_control_system('simulation')
 
 
 def is_online():
@@ -54,7 +54,7 @@ def is_online():
     Returns:
         bool: whether ACAL is in online or simulation mode.
     """
-    return CONTROL_SYSTEM.Name == 'simulation'
+    return CONTROL_SYSTEM.Name != 'simulation'
 
 
 # ---------------------------- helper methods ------------------------------

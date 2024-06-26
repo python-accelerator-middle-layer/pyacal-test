@@ -35,10 +35,17 @@ class FamBPMs(DeviceSet):
         """."""
         return self._bpm_names
 
-    def get_orbit(self):
+    @property
+    def bpm_indices(self):
         """."""
-        orbx, orby = [], []
-        for bpm in self.devices:
-            orbx.append(bpm.posx)
-            orby.append(bpm.posy)
-        return _np.array(orbx), _np.array(orby)
+        return self._bpm_idcs
+
+    @property
+    def orbx(self):
+        """."""
+        return _np.array([bpm.posx for bpm in self.devices])
+
+    @property
+    def orby(self):
+        """."""
+        return _np.array([bpm.posy for bpm in self.devices])

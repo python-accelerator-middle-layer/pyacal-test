@@ -29,6 +29,7 @@ def define_si(alias_map):
         },
     }
 
+    # --------- Define BPMs ------------
     for i, idcs in famdata['BPM']['index']:
         devname = famdata['BPM']['devnames'][i]
         alias = devname.dev + devname.get_nickname()
@@ -53,6 +54,7 @@ def define_si(alias_map):
             },
         }
 
+    # --------- Define magnets (power supplies) ------------
     props = {
         'pwrstate_sp': {'name': ':PwrState-Sel', 'conv_cs2sim': None},
         'pwrstate_rb': {'name': ':PwrState-Sts', 'conv_cs2sim': None},
