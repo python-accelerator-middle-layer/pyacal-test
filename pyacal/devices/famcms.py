@@ -31,15 +31,16 @@ class FamCMs(DeviceSet):
         self._cm_names = cmnames
 
     def _get_cm_names(self, devtype):
-        cmnames = [
+        names = [
             alias
             for alias, amap in FACILITY.alias_map.items()
             if amap["accelerator"] == self.accelerator
             and devtype in amap["cs_devtype"]
         ]
-        return cmnames.sort(
+        names.sort(
             key=lambda alias: FACILITY.alias_map[alias]["sim_info"]["indices"]
         )
+        return names
 
     @property
     def cm_names(self):
@@ -49,7 +50,7 @@ class FamCMs(DeviceSet):
     @property
     def hcms(self):
         """."""
-        return self.devices[:self.nr_hcms]
+        return self.devices[: self.nr_hcms]
 
     @property
     def vcms(self):

@@ -77,7 +77,7 @@ def define_si(alias_map):
                 raise KeyError(f'Alias {alias} already defined.')
             alias_map[alias] = {
                 'cs_devname': devname,
-                'cs_devtype': name,
+                'cs_devtype': (name, "PowerSupply"),
                 'accelerator': 'SI',
                 'sim_info': {
                     'indices': idcs,

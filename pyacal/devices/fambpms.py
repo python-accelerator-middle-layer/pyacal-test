@@ -36,11 +36,6 @@ class FamBPMs(DeviceSet):
         return self._bpm_names
 
     @property
-    def bpm_indices(self):
-        """."""
-        return self._bpm_idcs
-
-    @property
     def orbx(self):
         """."""
         return _np.array([bpm.posx for bpm in self.devices])

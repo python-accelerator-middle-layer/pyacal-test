@@ -36,7 +36,7 @@ def get_model(acc):
         (paccel.accelerator.Accelerator | pyat.Accelerator): Model of the
             accelerator being abstracted.
     """
-    return FACILITY.accelerators[acc]["model"]
+    return FACILITY.accelerators[acc]
 
 
 def switch2online():
