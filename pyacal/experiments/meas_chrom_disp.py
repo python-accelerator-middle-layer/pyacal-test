@@ -1,18 +1,17 @@
-"""Main module."""
+"""."""
+
 import time as _time
-from math import log10 as _log10, floor as _floor
+from math import floor as _floor, log10 as _log10
 
-import numpy as _np
-import matplotlib.pyplot as _plt
 import matplotlib.gridspec as _mpl_gs
-
-from siriuspy.devices import SOFB, RFGen, Tune, BunchbyBunch
-from pymodels import si as _si
+import matplotlib.pyplot as _plt
+import numpy as _np
 import pyaccel as _pyacc
+from pymodels import si as _si
 
-from .. import asparams as _asparams
-from ..utils import ThreadedMeasBaseClass as _BaseClass, \
-    ParamsBaseClass as _ParamsBaseClass
+from ..devices import RFGen, SOFB, Tune
+from .base import ParamsBaseClass as _ParamsBaseClass, \
+    ThreadedMeasBaseClass as _BaseClass
 
 
 class MeasParams(_ParamsBaseClass):
@@ -25,7 +24,7 @@ class MeasParams(_ParamsBaseClass):
         self.min_delta_freq = -200  # [Hz]
         self.meas_nrsteps = 8
         self.npoints = 5
-        self.wait_tune = 5  # [s]
+        self.wait_tune = 5          # [s]
         self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
 
@@ -38,7 +37,8 @@ class MeasParams(_ParamsBaseClass):
         stg += dtmp('meas_nrsteps', self.meas_nrsteps, '')
         stg += ftmp('wait_tune [s]', self.wait_tune, '')
         stg += ftmp(
-            'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)')
+            'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)'
+        )
         stg += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
         return stg
 
@@ -46,19 +46,17 @@ class MeasParams(_ParamsBaseClass):
 class MeasDispChrom(_BaseClass):
     """."""
 
-    MOM_COMPACT = _asparams.SI_MOM_COMPACT
-
-    def __init__(self, isonline=True):
+    def __init__(self, isonline=True, mom_compact=None):
         """."""
         super().__init__(
             params=MeasParams(), target=self._do_meas, isonline=isonline)
 
+        self.mom_compact = mom_compact
+
         if self.isonline:
-            self.devices['sofb'] = SOFB(SOFB.DEVICES.SI)
-            self.devices['tune'] = Tune(Tune.DEVICES.SI)
+            self.devices['sofb'] = SOFB()
+            self.devices['tune'] = Tune()
             self.devices['rf'] = RFGen()
-            self.devices['bbbh'] = BunchbyBunch(BunchbyBunch.DEVICES.H)
-            self.devices['bbbv'] = BunchbyBunch(BunchbyBunch.DEVICES.V)
 
     def __str__(self):
         """."""
@@ -73,20 +71,11 @@ class MeasDispChrom(_BaseClass):
         sofb = self.devices['sofb']
         rfgen = self.devices['rf']
         tune = self.devices['tune']
-        bbbh, bbbv = self.devices['bbbh'], self.devices['bbbv']
-
-        loop_on = False
-        if sofb.autocorrsts:
-            loop_on = True
-            print('SOFB feedback is enable, disabling it...')
-            sofb.cmd_turn_off_autocorr()
 
         npoints = self.params.meas_nrsteps
-        sofb.nr_points = self.params.sofb_nrpoints
+        sofb.nr_points = self.params.sofb_nrpoints  # to be adapted
         freq0 = rfgen.frequency
         tunex0, tuney0 = tune.tunex, tune.tuney
-        tunex0_bbb = bbbh.sram.spec_marker1_tune
-        tuney0_bbb = bbbv.sram.spec_marker1_tune
         orbx0, orby0 = sofb.orbx, sofb.orby
 
         min_df = self.params.min_delta_freq
@@ -95,7 +84,6 @@ class MeasDispChrom(_BaseClass):
 
         freq = []
         tunex, tuney = [], []
-        tunex_bbb, tuney_bbb = [], []
         orbx, orby = [], []
         for frq in span:
             if self._stopevt.is_set():
@@ -110,16 +98,11 @@ class MeasDispChrom(_BaseClass):
             orby.append(sofb.orby)
             tunex.append(tune.tunex)
             tuney.append(tune.tuney)
-            tunex_bbb.append(bbbh.sram.spec_marker1_tune)
-            tuney_bbb.append(bbbv.sram.spec_marker1_tune)
             print('delta frequency: {} Hz'.format((
                 rfgen.frequency-freq0)))
             dtunex = tunex[-1] - tunex0
             dtuney = tuney[-1] - tuney0
-            dtunex_bbb = tunex_bbb[-1] - tunex0_bbb
-            dtuney_bbb = tuney_bbb[-1] - tuney0_bbb
             print(f'(Spec. Analy.) dtune x: {dtunex:} y: {dtuney:}')
-            print(f'(BunchbyBunch) dtune x: {dtunex_bbb:} y: {dtuney_bbb:}')
             print('')
 
         print('Restoring RF frequency...')
@@ -127,24 +110,17 @@ class MeasDispChrom(_BaseClass):
         self.data['freq0'] = freq0
         self.data['tunex0'] = tunex0
         self.data['tuney0'] = tuney0
-        self.data['tunex0_bbb'] = tunex0_bbb
-        self.data['tuney0_bbb'] = tuney0_bbb
         self.data['orbx0'] = _np.array(orbx0)
         self.data['orby0'] = _np.array(orby0)
         self.data['freq'] = _np.array(freq)
         self.data['tunex'] = _np.array(tunex)
         self.data['tuney'] = _np.array(tuney)
-        self.data['tunex_bbb'] = _np.array(tunex_bbb)
-        self.data['tuney_bbb'] = _np.array(tuney_bbb)
         self.data['orbx'] = _np.array(orbx)
         self.data['orby'] = _np.array(orby)
 
-        if loop_on:
-            print('SOFB feedback was enable, restoring original state...')
-            sofb.cmd_turn_on_autocorr()
         print('Finished!')
 
-    def process_data(self, fitorder=1, discardpoints=None, tunes_from='spec'):
+    def process_data(self, fitorder=1, discardpoints=None):
         """."""
         data = self.data
 
@@ -154,11 +130,9 @@ class MeasDispChrom(_BaseClass):
         usepts = sorted(usepts)
 
         freq0 = data['freq0']
-        den = -(data['freq'] - freq0)/freq0/self.MOM_COMPACT
+        den = -(data['freq'] - freq0)/freq0/self.mom_compact
         den = den[usepts]
         suffix = ''
-        if tunes_from.lower() == 'bbb':
-            suffix = '_bbb'
         tunex = data['tunex' + suffix][usepts]
         tuney = data['tuney' + suffix][usepts]
         orbx = data['orbx'][usepts, :]
