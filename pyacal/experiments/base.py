@@ -5,6 +5,7 @@ from copy import deepcopy as _dcopy
 from threading import Event as _Event
 
 from .. import CONTROL_SYSTEM as _CS
+from ..utils import load as _load, save as _save
 
 
 class DataBaseClass:
@@ -57,7 +58,7 @@ class DataBaseClass:
             compress (bool, optional): Whether to compress data before saving.
 
         """
-        save(self.to_dict(), fname, overwrite=overwrite, compress=compress)
+        _save(self.to_dict(), fname, overwrite=overwrite, compress=compress)
 
     def load_and_apply(self, fname: str):
         """Load and apply `data` and `params` from pickle or HDF5 file.
@@ -85,7 +86,7 @@ class DataBaseClass:
             data (dict): Dictionary with keys: `data` and `params`.
 
         """
-        return load(fname)
+        return _load(fname)
 
 
 class ParamsBaseClass:
