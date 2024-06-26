@@ -108,6 +108,27 @@ def define_si(alias_map):
         },
     }
 
+    # -------- Define Tunes --------
+
+    devname =  # ?
+    alias = devname.dev + devname.get_nickname()
+    if alias in alias_map:
+        raise KeyError(f'Alias {alias} already defined.')
+    alias_map[alias] = {
+        'cs_devname': 'SI-Glob:DI-Tune',
+        'cs_devtype': 'Tune',
+        'accelerator': 'SI',
+        'sim_info': {},
+        'cs_propties': {
+            'tunex': {
+                'name': '-H',
+            },
+            'tuney': {
+                'name': '-V'
+            }
+        },
+    }
+
     return model
 
 
