@@ -25,8 +25,8 @@ class SOFB(DeviceSet):
         super().__init__([self.fambpms, self.famcms])
 
         self.nr_bpms = len(self.fambpms.devices)
-        self.nr_hcms = self.famcms.nhcms
-        self.nr_vcms = self.famcms.nvcms
+        self.nr_hcms = self.famcms.nr_hcms
+        self.nr_vcms = self.famcms.nr_vcms
         self.nr_cors = self.nr_hcms + self.nr_vcms + 1
 
         self.bpmx_enbl = _np.ones(self.nr_bpms, dtype=float)
@@ -61,7 +61,7 @@ class SOFB(DeviceSet):
     def kicks_hcm(self):
         """."""
         _kicks = self.famcms.get_currents()
-        return _kicks[: self.nhcms]
+        return _kicks[: self.nr_hcms]
 
     @kicks_hcm.setter
     def kicks_hcm(self, values):
@@ -72,7 +72,7 @@ class SOFB(DeviceSet):
     def kicks_vcm(self):
         """."""
         _kicks = self.famcms.get_currents()
-        return _kicks[self.nhcms : self.nhcms + self.nvcms]
+        return _kicks[self.nr_hcms : self.nr_hcms + self.nr_vcms]
 
     @kicks_vcm.setter
     def kicks_vcm(self, values):
