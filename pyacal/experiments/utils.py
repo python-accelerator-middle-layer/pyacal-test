@@ -1,13 +1,11 @@
 """."""
+
 import logging as _log
-import sys as _sys
 from copy import deepcopy as _dcopy
 from threading import Event as _Event
 
-from epics.ca import CAThread as _Thread
-from mathphys.functions import load as _load, save as _save
-
-import apsuite.commisslib as _commisslib
+from .. import CONTROL_SYSTEM as _CS
+from ..utils import load as _load, save as _save
 
 
 class DataBaseClass:
@@ -88,12 +86,7 @@ class DataBaseClass:
             data (dict): Dictionary with keys: `data` and `params`.
 
         """
-        try:
-            data = _load(fname)
-        except ModuleNotFoundError:
-            _sys.modules['apsuite.commissioning_scripts'] = _commisslib
-            data = _load(fname)
-        return data
+        return _load(fname)
 
 
 class ParamsBaseClass:
@@ -164,7 +157,7 @@ class ThreadedMeasBaseClass(MeasBaseClass):
         self._stopevt = _Event()
         self._finished = _Event()
         self._finished.set()
-        self._thread = _Thread(target=self._run, daemon=True)
+        self._thread = _CS.Thread(target=self._run, daemon=True)
 
     @property
     def target(self):
@@ -183,7 +176,7 @@ class ThreadedMeasBaseClass(MeasBaseClass):
             return
         self._stopevt.clear()
         self._finished.clear()
-        self._thread = _Thread(target=self._run, daemon=True)
+        self._thread = _CS.Thread(target=self._run, daemon=True)
         self._thread.start()
 
     def stop(self):
