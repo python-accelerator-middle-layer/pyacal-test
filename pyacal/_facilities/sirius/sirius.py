@@ -85,6 +85,29 @@ def define_si(alias_map):
                 'cs_propties': _dcopy(props),
             }
 
+    # -------- Define RF --------
+
+    devname = famdata['SRFCav']['devnames'][0]  # ?
+    alias = devname.dev + devname.get_nickname()
+    if alias in alias_map:
+        raise KeyError(f'Alias {alias} already defined.')
+    alias_map[alias] = {
+        'cs_devname': 'RF-Gen',
+        'cs_devtype': 'RFGen',
+        'accelerator': 'SI',
+        'sim_info': {
+            'indices': famdata['SRFCav']['devnames'][0],
+        },
+        'cs_propties': {
+            'frequency-RB': {
+                'name': ':GeneralFreq-RB',
+            },
+            'frequency-SP': {
+                'name': ':GeneralFreq-SP'
+            }
+        },
+    }
+
     return model
 
 
