@@ -218,9 +218,11 @@ class Device:
 
         if isinstance(comp, str):
             if comp.lower().endswith('close'):
-                isc = _np if isinstance(value, _np.ndarray) else _math
-                isc = isc.isclose
-                comp = _partial(isc, abs_tol=abs_tol, rel_tol=rel_tol)
+                if isinstance(value, _np.ndarray):
+                    comp = _partial(_np.isclose, atol=abs_tol, rtol=rel_tol)
+                else:
+                    comp = _partial(
+                        _math.isclose, abs_tol=abs_tol, rel_tol=rel_tol)
             else:
                 comp = getattr(_opr, comp)
 
