@@ -73,6 +73,7 @@ class SOFB(DeviceSet):
         """."""
         return self.famcms.kicks_vcm
 
+    @property
     def delta_currents_hcm(self):
         """."""
         return self._delta_currents_hcm
@@ -84,6 +85,7 @@ class SOFB(DeviceSet):
             raise ValueError('Wrong shape for value.')
         self._delta_currents_hcm = value.copy()
 
+    @property
     def delta_currents_vcm(self):
         """."""
         return self._delta_currents_vcm
@@ -95,6 +97,7 @@ class SOFB(DeviceSet):
             raise ValueError('Wrong shape for value.')
         self._delta_currents_vcm = value.copy()
 
+    @property
     def delta_frequency_rfg(self):
         """."""
         return self._delta_frequency_rfg
