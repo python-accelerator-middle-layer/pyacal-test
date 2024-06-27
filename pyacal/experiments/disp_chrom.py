@@ -45,7 +45,7 @@ class DispChrom(_BaseClass):
     def __init__(self, isonline=True, mom_compact=None):
         """."""
         super().__init__(
-            params=MeasParams(), target=self._do_meas, isonline=isonline
+            params=DispChromParams(), target=self._do_meas, isonline=isonline
         )
 
         self.mom_compact = mom_compact
@@ -210,8 +210,8 @@ class DispChrom(_BaseClass):
         chromy = _np.flip(chromy)
         chromy_err = _np.flip(chromy_err)
 
-        stx = MeasDispChrom.polynomial_to_latex(chromx, chromx_err)
-        sty = MeasDispChrom.polynomial_to_latex(chromy, chromy_err)
+        stx = DispChrom.polynomial_to_latex(chromx, chromx_err)
+        sty = DispChrom.polynomial_to_latex(chromy, chromy_err)
 
         stg = r'$\Delta\nu_x = $' + stx + '\n'
         stg += r'$\Delta\nu_y = $' + sty
