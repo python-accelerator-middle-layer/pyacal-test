@@ -85,6 +85,52 @@ def define_si(alias_map):
                 'cs_propties': _dcopy(props),
             }
 
+    # -------- Define RF --------
+
+    devname = "SI-RFGen"  # ?
+    alias = "RFGen"  # ?
+    if alias in alias_map:
+        raise KeyError(f'Alias {alias} already defined.')
+    alias_map[alias] = {
+        'cs_devname': 'RF-Gen',
+        'cs_devtype': 'RFGen',
+        'accelerator': 'SI',
+        'sim_info': {
+            'indices': famdata['SRFCav']['index'][0],
+        },
+        'cs_propties': {
+            'frequency-RB': {
+                'name': ':GeneralFreq-RB',
+            },
+            'frequency-SP': {
+                'name': ':GeneralFreq-SP'
+            }
+        },
+    }
+
+    # -------- Define Tune Measurement Device --------
+
+    devname = "SI-Tune"
+    alias = "Tune"
+    if alias in alias_map:
+        raise KeyError(f'Alias {alias} already defined.')
+    alias_map[alias] = {
+        'cs_devname': 'SI-Glob:DI-Tune',
+        'cs_devtype': 'Tune',
+        'accelerator': 'SI',
+        'sim_info': {
+            'indices': None
+        },
+        'cs_propties': {
+            'tunex': {
+                'name': '-H:TuneFrac-Mon',
+            },
+            'tuney': {
+                'name': '-V:TuneFrac-Mon'
+            }
+        },
+    }
+
     return model
 
 
