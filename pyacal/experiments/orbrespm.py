@@ -3,15 +3,12 @@
 import datetime as _datetime
 import time as _time
 
-from .. import _get_facility
-from .. import get_alias_from_devtype as _get_alias_from_devtype
-from ..devices import DCCT as _DCCT, SOFB as _SOFB
-from .base import (
-    ParamsBaseClass as _ParamsBaseClass,
-    ThreadedMeasBaseClass as _BaseClass,
-)
-
 import numpy as _np
+
+from .. import _get_facility, get_alias_from_devtype as _get_alias_from_devtype
+from ..devices import DCCT as _DCCT, SOFB as _SOFB
+from .base import ParamsBaseClass as _ParamsBaseClass, \
+    ThreadedMeasBaseClass as _BaseClass
 
 
 class OrbRespmParams(_ParamsBaseClass):
@@ -88,14 +85,15 @@ class OrbRespm(_BaseClass):
             if not self._ok_to_continue():
                 break
             print("\n{0:03d}/{1:03d}".format(i + 1, nr_enbl))
-            if enbl:
-                cmname = sofb.famcms.cm_names[i]
-                cmtype = "hcm" if "h" in cmname.lower() else "vcm"
-                success, respm_col = self._meas_respm_single_cm(cmname, cmtype)
-                if success:
-                    respm[:, i] = respm_col
-            else:
+            if not enbl:
                 print("     CM not enabled at SOFB. Skipping.")
+                continue
+
+            cmname = sofb.famcms.cm_names[i]
+            cmtype = "hcm" if "h" in cmname.lower() else "vcm"
+            success, respm_col = self._meas_respm_single_cm(cmname, cmtype)
+            if success:
+                respm[:, i] = respm_col
 
         # rf frequency
         if sofb.rfg_enbl:
