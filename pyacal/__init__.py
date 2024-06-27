@@ -24,7 +24,7 @@ def set_facility(fac_name="sirius"):
         raise ValueError(f"Wrong value for fac_name ({fac_name}).")
     global FACILITY
     fac_module = _importlib.import_module('._facilities.' + fac_name, __name__)
-    FACILITY = fac_module.Facility
+    FACILITY = fac_module.facility
     _set_simulator(FACILITY.simulator)
     _set_control_system(FACILITY.control_system)
 

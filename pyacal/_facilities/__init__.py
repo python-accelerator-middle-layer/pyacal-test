@@ -3,7 +3,7 @@
 FacilityOptions = ("esrf", "sirius", "soleil")
 
 
-class FacilityBase:
+class Facility:
     """."""
 
     def __init__(self, name, control_system, simulator):

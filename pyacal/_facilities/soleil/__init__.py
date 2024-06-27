@@ -1,1 +1,1 @@
-from .soleil import Facility
+from .soleil import facility

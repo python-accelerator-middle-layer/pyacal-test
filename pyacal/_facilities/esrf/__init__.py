@@ -1,1 +1,1 @@
-from .esrf import Facility
+from .esrf import facility

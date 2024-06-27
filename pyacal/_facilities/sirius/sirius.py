@@ -2,7 +2,7 @@ from copy import deepcopy as _dcopy
 
 import pymodels
 
-from .. import FacilityBase
+from .. import Facility
 
 
 def define_si(alias_map):
@@ -162,12 +162,12 @@ def define_li(alias_map):
     return model
 
 
-Facility = FacilityBase('sirius', 'epics', 'pyaccel')
-Facility.default_accelerator = 'SI'
-Facility.accelerators = {
-    'SI': define_si(Facility.alias_map),
-    'BO': define_bo(Facility.alias_map),
-    'TB': define_tb(Facility.alias_map),
-    'TS': define_ts(Facility.alias_map),
-    'LI': define_li(Facility.alias_map),
+facility = Facility('sirius', 'epics', 'pyaccel')
+facility.default_accelerator = 'SI'
+facility.accelerators = {
+    'SI': define_si(facility.alias_map),
+    'BO': define_bo(facility.alias_map),
+    'TB': define_tb(facility.alias_map),
+    'TS': define_ts(facility.alias_map),
+    'LI': define_li(facility.alias_map),
 }

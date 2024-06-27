@@ -1,1 +1,1 @@
-from .sirius import Facility
+from .sirius import facility

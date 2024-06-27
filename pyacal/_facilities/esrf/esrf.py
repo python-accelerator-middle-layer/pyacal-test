@@ -1,4 +1,4 @@
 
-from .. import FacilityBase
+from .. import Facility
 
-Facility = FacilityBase('esrf', 'epics', 'pyaccel')
+facility = Facility('esrf', 'epics', 'pyaccel')
