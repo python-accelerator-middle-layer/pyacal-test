@@ -3,7 +3,7 @@
 import datetime as _datetime
 import time as _time
 
-from .. import FACILITY
+from .. import _get_facility
 from .. import get_alias_from_devtype as _get_alias_from_devtype
 from ..devices import DCCT as _DCCT, SOFB as _SOFB
 from .base import (
@@ -48,10 +48,8 @@ class OrbRespm(_BaseClass):
         super().__init__(
             params=OrbRespmParams(), target=self._meas_respm, isonline=isonline
         )
-        self.accelerator = accelerator or FACILITY.default_accelerator
 
-        self._cms2meas = list()
-
+        self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
             self.devices["sofb"] = _SOFB(self.accelerator)
             dcct_alias = _get_alias_from_devtype("DCCT", self.accelerator)[0]
