@@ -13,7 +13,7 @@ class RFGen(Device):
         """."""
         super().__init__(devname, props2init=RFGen.PROPERTIES_DEFAULT)
 
-        if "RfGen" not in FACILITY.alias_map[devname]["cs_devtype"]:
+        if "RFGen" not in FACILITY.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for a RFGen")
 
     @property

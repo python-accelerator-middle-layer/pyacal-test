@@ -87,8 +87,8 @@ def define_si(alias_map):
 
     # -------- Define RF --------
 
-    devname = famdata['SRFCav']['devnames'][0]  # ?
-    alias = devname.dev + devname.get_nickname()
+    devname = "SI-RFGen"  # ?
+    alias = "RFGen"  # ?
     if alias in alias_map:
         raise KeyError(f'Alias {alias} already defined.')
     alias_map[alias] = {
@@ -96,7 +96,7 @@ def define_si(alias_map):
         'cs_devtype': 'RFGen',
         'accelerator': 'SI',
         'sim_info': {
-            'indices': famdata['SRFCav']['devnames'][0],
+            'indices': famdata['SRFCav']['index'][0],
         },
         'cs_propties': {
             'frequency-RB': {
@@ -108,23 +108,25 @@ def define_si(alias_map):
         },
     }
 
-    # -------- Define Tunes --------
+    # -------- Define Tune Measurement Device --------
 
-    devname =  # ?
-    alias = devname.dev + devname.get_nickname()
+    devname = "SI-Tune"
+    alias = "Tune"
     if alias in alias_map:
         raise KeyError(f'Alias {alias} already defined.')
     alias_map[alias] = {
         'cs_devname': 'SI-Glob:DI-Tune',
         'cs_devtype': 'Tune',
         'accelerator': 'SI',
-        'sim_info': {},
+        'sim_info': {
+            'indices': None
+        },
         'cs_propties': {
             'tunex': {
-                'name': '-H',
+                'name': '-H:TuneFrac-Mon',
             },
             'tuney': {
-                'name': '-V'
+                'name': '-V:TuneFrac-Mon'
             }
         },
     }
