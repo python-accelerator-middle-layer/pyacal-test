@@ -23,8 +23,8 @@ class DispChromParams(_ParamsBaseClass):
         super().__init__()
         self.max_delta_freq = +200  # [Hz]
         self.min_delta_freq = -200  # [Hz]
-        self.meas_nrsteps = 8
-        self.npoints = 5
+        self.rf_timeout = 10        # [s]
+        self.rffreq_tol = 1         # [%]
         self.wait_tune = 5          # [s]
         self.sofb_nrpoints = 10
 
@@ -95,7 +95,10 @@ class DispChrom(_BaseClass):
             if self._stopevt.is_set():
                 print('   exiting...')
                 break
-            rfgen.frequency = frq
+            rfgen.set_frequency(
+                frq, tol=self.params.rffreq_tol,
+                timeout=self.params.rf_timeout
+            )
             t0 = _time.time()
             concat_orb = sofb.get_orbit()
             et = _time.time() - t0
@@ -115,7 +118,10 @@ class DispChrom(_BaseClass):
             print('')
 
         print('Restoring RF frequency...')
-        rfgen.frequency = freq0
+        rfgen.set_frequency(
+                freq0, tol=self.params.rffreq_tol,
+                timeout=self.params.rf_timeout
+        )
         self.data['freq0'] = freq0
         self.data['tunex0'] = tunex0
         self.data['tuney0'] = tuney0
