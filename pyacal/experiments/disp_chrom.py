@@ -10,7 +10,7 @@ import numpy as _np
 from .. import _get_facility, _get_simulator, \
     get_indices_from_key, get_alias_from_devtype
 
-from ..devices import RFGen, SOFB, Tune
+from ..devices import SOFB, Tune
 from .base import ParamsBaseClass as _ParamsBaseClass, \
     ThreadedMeasBaseClass as _BaseClass
 
@@ -54,6 +54,7 @@ class DispChrom(_BaseClass):
         self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
             self.devices['sofb'] = SOFB(self.accelerator)
+            self.devices['rf'] = self.devices["sofb"].rfgen
             tune_alias = get_alias_from_devtype("Tune", self.accelerator)
             self.devices['tune'] = Tune(tune_alias)
             rf_alias = get_alias_from_devtype(
