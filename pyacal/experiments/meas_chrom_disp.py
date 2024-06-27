@@ -6,8 +6,8 @@ from math import floor as _floor, log10 as _log10
 import matplotlib.gridspec as _mpl_gs
 import matplotlib.pyplot as _plt
 import numpy as _np
-import pyaccel as _pyacc
-from pymodels import si as _si
+
+from .. import _get_facility, _get_simulator, get_indices_from_key
 
 from ..devices import RFGen, SOFB, Tune
 from .base import ParamsBaseClass as _ParamsBaseClass, \
@@ -242,11 +242,9 @@ class MeasDispChrom(_BaseClass):
         if analysis is None:
             analysis = self.analysis
 
-        simod = _si.create_accelerator()
-        fam = _si.get_family_data(simod)
-        spos = _pyacc.lattice.find_spos(simod, indices='open')
-        bpmidx = _np.array(fam['BPM']['index']).ravel()
-        sposbpm = spos[bpmidx]
+        fac, sim = _get_facility(), _get_simulator()
+        bpmidx = get_indices_from_key("cs_devtype", "BPM")
+        sposbpm = sim.get_positions(bpmidx, fac.default_accelerator)
 
         fitorder_anlys = analysis['dispx'].shape[0] - 1
         if disporder > fitorder_anlys:
