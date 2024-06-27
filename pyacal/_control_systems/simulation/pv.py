@@ -1,8 +1,6 @@
 """Sirius PV class."""
 
-from ... import _get_facility
-
-ALL_CONNECTIONS = {}
+from ... import _get_connections_dict, _get_facility
 
 
 class PV:
@@ -12,7 +10,7 @@ class PV:
         """."""
         self.devname = devname
         self.propty = propty
-        ALL_CONNECTIONS[(devname, propty)] = self
+        _get_connections_dict()[(devname, propty)] = self
 
     @property
     def connected(self):

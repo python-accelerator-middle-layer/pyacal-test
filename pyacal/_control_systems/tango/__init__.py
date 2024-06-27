@@ -3,9 +3,9 @@
 from threading import Thread
 import multiprocessing as _mp
 
-from .pv import PV, ALL_CONNECTIONS
+from .pv import PV
 
-del pv, multiprocessing
+del pv
 
 Name = 'tango'
 ProcessSpawn = _mp.get_context('spawn').Process

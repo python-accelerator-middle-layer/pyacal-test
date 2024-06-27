@@ -3,7 +3,7 @@
 import tango as _tango
 
 
-ALL_CONNECTIONS = {}
+from ... import _get_connections_dict
 
 
 # NOTE: I know nothing about tango. This class must be implemented.
@@ -15,7 +15,7 @@ class PV(_tango.DeviceProxy):
         self.devname = devname
         self.propty = propty
         super().__init__(devname, propty, **kwargs)  # NOTE: not sure...
-        ALL_CONNECTIONS[(devname, propty)] = self
+        _get_connections_dict()[(devname, propty)] = self
 
     @property
     def connected(self):

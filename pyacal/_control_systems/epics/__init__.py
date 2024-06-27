@@ -1,6 +1,6 @@
 """Epics-related subpackage."""
 
-from .pv import PV, ALL_CONNECTIONS
+from .pv import PV
 from .multiprocessing import ProcessSpawn
 from .threading import Thread
 
