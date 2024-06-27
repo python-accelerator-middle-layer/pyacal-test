@@ -1,6 +1,6 @@
 import pyat as _pyat
 
-from .. import FACILITY
+from .. import _get_facility
 
 
 def get_positions(indices):

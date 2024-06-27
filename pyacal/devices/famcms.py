@@ -2,7 +2,7 @@
 
 import numpy as _np
 
-from .. import FACILITY
+from .. import _get_facility
 from .base import DeviceSet
 from .power_supply import PowerSupply as _PowerSupply
 
@@ -12,7 +12,8 @@ class FamCMs(DeviceSet):
 
     def __init__(self, accelerator=None, cmnames=None, plane="HV"):
         """."""
-        self.accelerator = accelerator or FACILITY.default_accelerator
+        facil = _get_facility()
+        self.accelerator = accelerator or facil.default_accelerator
         if cmnames is None:
             cmnames = []
             plane = plane.upper()
@@ -31,14 +32,15 @@ class FamCMs(DeviceSet):
         self._cm_names = cmnames
 
     def _get_cm_names(self, devtype):
+        facil = _get_facility()
         names = [
             alias
-            for alias, amap in FACILITY.alias_map.items()
+            for alias, amap in facil.alias_map.items()
             if amap["accelerator"] == self.accelerator
             and devtype in amap["cs_devtype"]
         ]
         names.sort(
-            key=lambda alias: FACILITY.alias_map[alias]["sim_info"]["indices"]
+            key=lambda alias: facil.alias_map[alias]["sim_info"]["indices"]
         )
         return names
 

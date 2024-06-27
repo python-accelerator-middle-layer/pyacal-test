@@ -1,6 +1,6 @@
 """Sirius PV class."""
 
-from ... import FACILITY
+from ... import _get_facility
 
 ALL_CONNECTIONS = {}
 

@@ -10,10 +10,10 @@ import matplotlib.pyplot as _plt
 import numpy as _np
 from scipy.optimize import least_squares as _least_squares
 
-from .. import FACILITY, get_alias_from_devtype as _get_alias_from_devtype, \
+from .. import get_alias_from_devtype as _get_alias_from_devtype, \
     get_alias_from_indices as _get_alias_from_indices, \
-    get_alias_map as _get_alias_map, \
-    get_indices_from_key as _get_indices_from_key, SIMULATOR
+    get_alias_map as _get_alias_map, _get_facility, \
+    get_indices_from_key as _get_indices_from_key, _get_simulator
 from ..devices import DCCT as _DCCT, PowerSupply as _PowerSupply, SOFB as _SOFB
 from .base import ParamsBaseClass as _ParamsBaseClass, \
     ThreadedMeasBaseClass as _BaseClass
@@ -69,7 +69,7 @@ class DoBBA(_BaseClass):
         self._bpms2dobba = list()
         self.data["measure"] = dict()
 
-        self.accelerator = accelerator or FACILITY.default_accelerator
+        self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
             self.devices["sofb"] = _SOFB(self.accelerator)
             dcct_alias = _get_alias_from_devtype("DCCT", self.accelerator)[0]
@@ -347,9 +347,10 @@ class DoBBA(_BaseClass):
         quads_idx.extend(qs_idx)
         quads_idx = _np.array([idx[len(idx) // 2] for idx in quads_idx])
 
-        quads_pos = _np.array(SIMULATOR.get_positions(
+        simul = _get_simulator()
+        quads_pos = _np.array(simul.get_positions(
             acc=self.accelerator, indices=quads_idx)).ravel()
-        bpms_pos = _np.array(SIMULATOR.get_positions(
+        bpms_pos = _np.array(simul.get_positions(
             acc=self.accelerator, indices=bpms_idx)).ravel()
 
         diff = _np.abs(bpms_pos[:, None] - quads_pos[None, :])

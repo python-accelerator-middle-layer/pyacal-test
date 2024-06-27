@@ -4,7 +4,7 @@ import time as _time
 
 import numpy as _np
 
-from .. import FACILITY, get_alias_from_devtype
+from .. import get_alias_from_devtype, _get_facility
 from .base import Device
 
 
@@ -26,7 +26,8 @@ class RFGen(Device):
 
         super().__init__(devname, props2init=RFGen.PROPERTIES_DEFAULT)
 
-        if "RF Generator" not in FACILITY.alias_map[devname]["cs_devtype"]:
+        facil = _get_facility()
+        if "RF Generator" not in facil.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for a RFGen")
 
     @property
