@@ -14,7 +14,7 @@ from .base import ParamsBaseClass as _ParamsBaseClass, \
     ThreadedMeasBaseClass as _BaseClass
 
 
-class MeasParams(_ParamsBaseClass):
+class DispChromParams(_ParamsBaseClass):
     """."""
 
     def __init__(self):
@@ -39,7 +39,7 @@ class MeasParams(_ParamsBaseClass):
         return stg
 
 
-class MeasDispChrom(_BaseClass):
+class DispChrom(_BaseClass):
     """."""
 
     def __init__(self, isonline=True, mom_compact=None):
