@@ -43,33 +43,34 @@ class BBAParams(_ParamsBaseClass):
         """."""
         ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
-        st = ftmp('deltaorbx [um]', self.deltaorbx, '')
-        st += ftmp('deltaorby [um]', self.deltaorby, '')
-        st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
-        st += ftmp('quad_deltacurr [A]', self.quad_deltacurr, '')
-        st += ftmp('quad_maxcurr [A]', self.quad_maxcurr, '')
-        st += ftmp('quad_mincurr [A]', self.quad_mincurr, '')
-        st += ftmp('quad_nrcycles', self.quad_nrcycles, '')
-        st += ftmp('wait_correctors [s]', self.wait_correctors, '')
-        st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
-        st += ftmp(
+        stg = ftmp('deltaorbx [um]', self.deltaorbx, '')
+        stg += ftmp('deltaorby [um]', self.deltaorby, '')
+        stg += dtmp('meas_nrsteps', self.meas_nrsteps, '')
+        stg += ftmp('quad_deltacurr [A]', self.quad_deltacurr, '')
+        stg += ftmp('quad_maxcurr [A]', self.quad_maxcurr, '')
+        stg += ftmp('quad_mincurr [A]', self.quad_mincurr, '')
+        stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
+        stg += ftmp('wait_correctors [s]', self.wait_correctors, '')
+        stg += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
+        stg += ftmp(
             'timeout_wait_orbit [s]', self.timeout_wait_orbit, '(get orbit)')
-        st += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
-        st += dtmp('sofb_maxcorriter', self.sofb_maxcorriter, '')
-        st += ftmp('sofb_maxorberr [um]', self.sofb_maxorberr, '')
-        return st
+        stg += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
+        stg += dtmp('sofb_maxcorriter', self.sofb_maxcorriter, '')
+        stg += ftmp('sofb_maxorberr [um]', self.sofb_maxorberr, '')
+        return stg
 
 
-class DoBBA(_BaseClass):
+class BBA(_BaseClass):
     """."""
 
     def __init__(self, accelerator=None, isonline=True):
         """."""
         super().__init__(
-            params=BBAParams(), target=self._do_bba, isonline=isonline
+            params=BBAParams(), target=self._meas_bba, isonline=isonline
         )
         self._bpms2dobba = list()
         self.data["measure"] = dict()
+        self._amap = _get_alias_map()
 
         self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
@@ -195,8 +196,7 @@ class DoBBA(_BaseClass):
 
         dorbx = dorb[usepts, :nbpms]
         dorby = dorb[usepts, nbpms:]
-        amap = _get_alias_map()
-        devtype = amap[self.data["quadnames"][idx]]["cs_devtype"]
+        devtype = self._amap[self.data["quadnames"][idx]]["cs_devtype"]
         if "skew" in devtype.lower():
             dorbx, dorby = dorby, dorbx
         anl['xpos'] = xpos
@@ -332,10 +332,9 @@ class DoBBA(_BaseClass):
         quads_idx = _get_indices_from_key("cs_devtype", "Quadrupole Normal")
         qs_idx = _get_indices_from_key("cs_devtype", "Quadrupole Skew")
         bpms_idx = []
-        amap = _get_alias_map()
         for bpmname in bpmnames:
             bpms_idx.append(
-                [idx for idx in amap[bpmname]["sim_info"]["indices"]]
+                [idx for idx in self._amap[bpmname]["sim_info"]["indices"]]
             )
 
         quads_idx.extend(qs_idx)
@@ -402,7 +401,7 @@ class DoBBA(_BaseClass):
     def combine_bbas(self, bbalist):
         """."""
         items = ['quadnames', 'scancenterx', 'scancentery']
-        dobba = DoBBA()
+        dobba = BBA()
         dobba.params = self.params
         dobba.data = _dcopy(self.data)
         for bba in bbalist:
@@ -1011,7 +1010,17 @@ class DoBBA(_BaseClass):
             f.show()
 
     # #### private methods ####
-    def _do_bba(self):
+
+    def _ok_to_continue(self):
+        if self._stopevt.is_set():
+            print("stopped!")
+            return False
+        if not self.havebeam:
+            print("Beam lost!")
+            return False
+        return True
+
+    def _meas_bba(self):
         tini = _datetime.datetime.fromtimestamp(_time.time())
         print('Starting measurement at {:s}'.format(
             tini.strftime('%Y-%m-%d %Hh%Mm%Ss')))
@@ -1020,24 +1029,20 @@ class DoBBA(_BaseClass):
         sofb.orb_nrpoints = self.params.sofb_nrpoints
 
         for i, bpm in enumerate(self._bpms2dobba):
-            if self._stopevt.is_set():
-                print('stopped!')
-                break
-            if not self.havebeam:
-                print('Beam was Lost')
+            if not self._ok_to_continue():
                 break
             print('\nCorrecting Orbit...', end='')
             self.correct_orbit()
             print('Ok!')
             print('\n{0:03d}/{1:03d}'.format(i+1, len(self._bpms2dobba)))
-            self._dobba_single_bpm(bpm)
+            self._meas_bba_single_bpm(bpm)
 
         tfin = _datetime.datetime.fromtimestamp(_time.time())
         dtime = str(tfin - tini)
         dtime = dtime.split('.')[0]
         print('finished! Elapsed time {:s}'.format(dtime))
 
-    def _dobba_single_bpm(self, bpmname):
+    def _meas_bba_single_bpm(self, bpmname):
         """."""
         idx = self.data['bpmnames'].index(bpmname)
 
@@ -1060,7 +1065,7 @@ class DoBBA(_BaseClass):
 
         curr0 = quad.current
         deltacurr = self.params.quad_deltacurr
-        cycling_curve = DoBBA.get_cycling_curve()
+        cycling_curve = BBA.get_cycling_curve()
 
         upp = self.params.quad_maxcurr
         low = self.params.quad_mincurr
@@ -1083,7 +1088,7 @@ class DoBBA(_BaseClass):
 
         refx0, refy0 = sofb.ref_orbx.copy(), sofb.ref_orby.copy()
         enblx0, enbly0 = sofb.bpmx_enbl.copy(), sofb.bpmy_enbl.copy()
-        ch0, cv0 = sofb.kicks_hcm.copy(), sofb.kicks_vcm.copy()
+        ch0, cv0 = sofb.currents_hcm.copy(), sofb.currents_vcm.copy()
 
         enblx, enbly = 0*enblx0, 0*enbly0
         enblx[idx], enbly[idx] = 1, 1
@@ -1142,16 +1147,16 @@ class DoBBA(_BaseClass):
 
         # restore correctors gently to do not kill the beam.
         factch, factcv = sofb.corr_gain_hcm, sofb.corr_gain_vcm
-        chn, cvn = sofb.kicks_hcm, sofb.kicks_vcm
+        chn, cvn = sofb.currents_hcm, sofb.currents_vcm
         dch, dcv = ch0 - chn, cv0 - cvn
-        sofb.deltakickch, sofb.deltakickcv = dch, dcv
+        sofb.delta_currents_hcm, sofb.delta_currents_vcm = dch, dcv
         nrsteps = _np.ceil(max(_np.abs(dch).max(), _np.abs(dcv).max()) / 1.0)
         for i in range(int(nrsteps)):
             sofb.corr_gain_hcm = (i+1)/nrsteps * 100
             sofb.corr_gain_vcm = (i+1)/nrsteps * 100
-            sofb.cmd_applycorr_all()
+            sofb.apply_correction()
             _time.sleep(self.params.wait_correctors)
-        sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
+        sofb.delta_currents_hcm, sofb.delta_currents_vcm = dch*0, dcv*0
         sofb.corr_gain_hcm, sofb.corr_gain_vcm = factch, factcv
 
         tfin = _datetime.datetime.fromtimestamp(_time.time())
