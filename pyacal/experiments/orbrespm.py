@@ -21,8 +21,6 @@ class OrbRespmParams(_ParamsBaseClass):
         self.delta_curr_hcm = 1  # [A]
         self.delta_curr_vcm = 1  # [A]
         self.sofb_nrpoints = 10
-        self.sofb_maxcorriter = 5
-        self.sofb_maxorberr = 5  # [um]
 
     def __str__(self):
         """."""
@@ -32,8 +30,6 @@ class OrbRespmParams(_ParamsBaseClass):
         stg = ftmp("delta_curr_hcm [A]", self.delta_curr_hcm, "")
         stg = ftmp("delta_curr_vcm [A]", self.delta_curr_vcm, "")
         stg += dtmp("sofb_nrpoints", self.sofb_nrpoints, "")
-        stg += dtmp("sofb_maxcorriter", self.sofb_maxcorriter, "")
-        stg += ftmp("sofb_maxorberr [um]", self.sofb_maxorberr, "")
         return stg
 
 
@@ -68,13 +64,6 @@ class OrbRespm(_BaseClass):
 
         sofb = self.devices["sofb"]
         sofb.orb_nrpoints = self.params.sofb_nrpoints
-        sofb.corr_gain_hcm = 100
-        sofb.corr_gain_vcm = 100
-        sofb.corr_gain_rfg = 100
-        sofb.correct_orbit(
-            nr_iters=self.params.sofb_maxcorriter,
-            residue=self.params.sofb_maxorberr,
-        )
 
         cm_enb = _np.r_[sofb.hcm_enbl, sofb.vcm_enbl]
         respm = _np.zeros((2 * sofb.nr_bpms, sofb.nr_cors), dtype=float)
@@ -89,9 +78,12 @@ class OrbRespm(_BaseClass):
                 print("     CM not enabled at SOFB. Skipping.")
                 continue
 
-            cmname = sofb.famcms.cm_names[i]
-            cmtype = "hcm" if "h" in cmname.lower() else "vcm"
-            success, respm_col = self._meas_respm_single_cm(cmname, cmtype)
+            delta = (
+                self.params.delta_curr_hcm
+                if i < self.sofb.nr_hcms
+                else self.params.delta_curr_vcm
+            )
+            success, respm_col = self._meas_respm_single_cm(i, delta)
             if success:
                 respm[:, i] = respm_col
 
@@ -114,9 +106,11 @@ class OrbRespm(_BaseClass):
         dtime = dtime.split(".")[0]
         print("finished! Elapsed time {:s}".format(dtime))
 
-    def _meas_respm_single_cm(self, cmname, cmtype):
+    def _meas_respm_single_cm(self, cmidx, delta):
         sofb = self.devices["sofb"]
-        cmidx = sofb.famcms.cm_names.index(cmname)
+        famcms = sofb.famcms
+        cmdev = famcms.devices[cmidx]
+        cmname = cmdev.devname
 
         tini = _datetime.datetime.fromtimestamp(_time.time())
         strtini = tini.strftime("%Hh%Mm%Ss")
@@ -126,31 +120,30 @@ class OrbRespm(_BaseClass):
             )
         )
 
-        cmdev = sofb.famcms.devices[cmidx]
         if not cmdev.pwrstate:
             print("\n    error: CM " + cmname + " is Off.")
             self._stopevt.set()
             print("    exiting...")
             return False, None
 
-        steps = [+1, -1, 0]
+        steps = [+1, -1]
         orbs = []
-        # avoid applying variation to RF frequency
-        sofb.delta_frequency_rfg = 0
-
-        dcurr = getattr(self.params, f"delta_curr_{cmtype}")
-        deltas = _np.zeros(getattr(sofb, f"nr_{cmtype}"), dtype=float)
-        if cmtype == "vcm":
-            cmidx -= sofb.nr_hcms
+        inicurrs = famcms.get_currents()
+        deltas = _np.zeros_like(inicurrs)
         for step in steps:
-            deltas[cmidx] = step * dcurr
-            setattr(sofb, f"delta_currents_{cmtype}", deltas)
-            sofb.apply_correction()
+            deltas[cmidx] = step * delta
+            newcurrs = inicurrs + deltas
+            famcms.set_currents(newcurrs)
+            famcms.wait_currents(newcurrs)
             orbs.append(sofb.get_orbit())
-        return True, (orbs[0] - orbs[1]) / (2 * dcurr)
+
+        famcms.set_currents(inicurrs)
+        famcms.wait_currents(inicurrs)
+        return True, (orbs[0] - orbs[1]) / (2 * delta)
 
     def _meas_respm_rf(self):
         sofb = self.devices["sofb"]
+        rfgen = sofb.refgen
 
         tini = _datetime.datetime.fromtimestamp(_time.time())
         strtini = tini.strftime("%Hh%Mm%Ss")
@@ -160,17 +153,16 @@ class OrbRespm(_BaseClass):
             )
         )
 
-        steps = [+1, -1, 0]
+        steps = [+1, -1]
         orbs = []
-        # avoid applying variations to CMs
-        sofb.delta_currents_hcm *= 0
-        sofb.delta_currents_vcm *= 0
-        dfreq = self.params.delta_freq
+        inifreq = rfgen.frequency
+        delta = self.params.delta_freq
         for step in steps:
-            sofb.delta_frequency_rfg = step * dfreq
-            sofb.apply_correction()
+            rfgen.set_frequency(inifreq + step * delta)
             orbs.append(sofb.get_orbit())
-        return (orbs[0] - orbs[1]) / (2 * dfreq)
+
+        rfgen.set_frequency(inifreq)
+        return (orbs[0] - orbs[1]) / (2 * delta)
 
     def _ok_to_continue(self):
         if self._stopevt.is_set():
