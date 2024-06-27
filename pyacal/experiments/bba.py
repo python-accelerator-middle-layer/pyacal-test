@@ -10,12 +10,10 @@ import matplotlib.pyplot as _plt
 import numpy as _np
 from scipy.optimize import least_squares as _least_squares
 
-from .. import FACILITY, SIMULATOR
-from .. import get_alias_from_devtype as _get_alias_from_devtype, \
+from .. import FACILITY, get_alias_from_devtype as _get_alias_from_devtype, \
     get_alias_from_indices as _get_alias_from_indices, \
     get_alias_map as _get_alias_map, \
-    get_indices_from_key as _get_indices_from_key
-
+    get_indices_from_key as _get_indices_from_key, SIMULATOR
 from ..devices import DCCT as _DCCT, PowerSupply as _PowerSupply, SOFB as _SOFB
 from .base import ParamsBaseClass as _ParamsBaseClass, \
     ThreadedMeasBaseClass as _BaseClass
