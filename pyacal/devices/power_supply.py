@@ -13,6 +13,7 @@ class PowerSupply(Device):
         "pwrstate_rb",
         "current_sp",
         "current_rb",
+        "current_mon",
     )
 
     def __init__(self, devname):
@@ -36,6 +37,11 @@ class PowerSupply(Device):
         self["pwrstate_rb"] = value
 
     @property
+    def current_mon(self):
+        """."""
+        return self["current_mon"]
+
+    @property
     def current(self):
         """."""
         return self["current_rb"]
@@ -44,3 +50,11 @@ class PowerSupply(Device):
     def current(self, value):
         """."""
         self["current_sp"] = value
+
+    def set_current(self, value, tol=None, timeout=10):
+        """."""
+        tol = tol or PowerSupply.TINY_CURRENT
+        self.current = value
+        return self.wait(
+            "current_rb", value, comp="isclose", abs_tol=tol, timeout=timeout
+        )

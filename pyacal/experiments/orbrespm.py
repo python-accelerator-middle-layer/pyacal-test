@@ -7,8 +7,10 @@ import numpy as _np
 
 from .. import _get_facility, get_alias_from_devtype as _get_alias_from_devtype
 from ..devices import DCCT as _DCCT, SOFB as _SOFB
-from .base import ParamsBaseClass as _ParamsBaseClass, \
-    ThreadedMeasBaseClass as _BaseClass
+from .base import (
+    ParamsBaseClass as _ParamsBaseClass,
+    ThreadedMeasBaseClass as _BaseClass,
+)
 
 
 class OrbRespmParams(_ParamsBaseClass):
@@ -48,12 +50,6 @@ class OrbRespm(_BaseClass):
             dcct_alias = _get_alias_from_devtype("DCCT", self.accelerator)[0]
             self.devices["dcct"] = _DCCT(dcct_alias)
 
-    @property
-    def havebeam(self):
-        """."""
-        haveb = self.devices["dcct"]
-        return haveb.connected and haveb.storedbeam
-
     def _meas_respm(self):
         tini = _datetime.datetime.fromtimestamp(_time.time())
         print(
@@ -73,6 +69,7 @@ class OrbRespm(_BaseClass):
         for i, enbl in enumerate(cm_enb):
             if not self._ok_to_continue():
                 break
+
             print("\n{0:03d}/{1:03d}".format(i + 1, nr_enbl))
             if not enbl:
                 print("     CM not enabled at SOFB. Skipping.")
@@ -83,17 +80,18 @@ class OrbRespm(_BaseClass):
                 if i < self.sofb.nr_hcms
                 else self.params.delta_curr_vcm
             )
-            success, respm_col = self._meas_respm_single_cm(i, delta)
+            cmdev = sofb.famcms.devices[i]
+            success, respm_col = self._meas_respm_single_cm(cmdev, delta)
             if success:
                 respm[:, i] = respm_col
 
         # rf frequency
-        if sofb.rfg_enbl:
-            if self._ok_to_continue():
-                print("\n{0:03d}/{1:03d}".format(nr_enbl, nr_enbl))
-                respm[:, -1] = self._meas_respm_rf()
-        else:
+        if not sofb.rfg_enbl:
             print("     RF not enabled at SOFB. Skipping.")
+        else:
+            if self._ok_to_continue():
+                print("\n{0:03d}/{1:03d}".format(i + 1, nr_enbl))
+                respm[:, -1] = self._meas_respm_rf()
 
         self.data["timestamp"] = _time.time()
         self.data["orbrespm"] = respm
@@ -106,19 +104,13 @@ class OrbRespm(_BaseClass):
         dtime = dtime.split(".")[0]
         print("finished! Elapsed time {:s}".format(dtime))
 
-    def _meas_respm_single_cm(self, cmidx, delta):
+    def _meas_respm_single_cm(self, cmdev, delta):
         sofb = self.devices["sofb"]
-        famcms = sofb.famcms
-        cmdev = famcms.devices[cmidx]
         cmname = cmdev.devname
 
         tini = _datetime.datetime.fromtimestamp(_time.time())
         strtini = tini.strftime("%Hh%Mm%Ss")
-        print(
-            "{:s} --> Measuring OrbRespm for {:03d}: {:s}".format(
-                strtini, cmidx, cmname
-            )
-        )
+        print("{:s} --> Measuring OrbRespm for {:s}".format(strtini, cmname))
 
         if not cmdev.pwrstate:
             print("\n    error: CM " + cmname + " is Off.")
@@ -126,20 +118,16 @@ class OrbRespm(_BaseClass):
             print("    exiting...")
             return False, None
 
-        steps = [+1, -1]
+        steps = [-1, +1]
+        total_step = steps[1] - steps[0]
         orbs = []
-        inicurrs = famcms.get_currents()
-        deltas = _np.zeros_like(inicurrs)
+        inicurr = cmdev.current
         for step in steps:
-            deltas[cmidx] = step * delta
-            newcurrs = inicurrs + deltas
-            famcms.set_currents(newcurrs)
-            famcms.wait_currents(newcurrs)
+            cmdev.set_current(inicurr + step * delta)
             orbs.append(sofb.get_orbit())
+        cmdev.set_current(inicurr)
 
-        famcms.set_currents(inicurrs)
-        famcms.wait_currents(inicurrs)
-        return True, (orbs[0] - orbs[1]) / (2 * delta)
+        return True, (orbs[1] - orbs[0]) / (total_step * delta)
 
     def _meas_respm_rf(self):
         sofb = self.devices["sofb"]
@@ -147,13 +135,10 @@ class OrbRespm(_BaseClass):
 
         tini = _datetime.datetime.fromtimestamp(_time.time())
         strtini = tini.strftime("%Hh%Mm%Ss")
-        print(
-            "{:s} --> Measuring OrbRespm for {:03d}: {:s}".format(
-                strtini, len(sofb.nr_cors), "RF frequency"
-            )
-        )
+        print("{:s} --> Measuring OrbRespm for: {:s}".format(strtini, "RF"))
 
-        steps = [+1, -1]
+        steps = [-1, +1]
+        total_step = steps[1] - steps[0]
         orbs = []
         inifreq = rfgen.frequency
         delta = self.params.delta_freq
@@ -162,13 +147,13 @@ class OrbRespm(_BaseClass):
             orbs.append(sofb.get_orbit())
 
         rfgen.set_frequency(inifreq)
-        return (orbs[0] - orbs[1]) / (2 * delta)
+        return (orbs[1] - orbs[0]) / (total_step * delta)
 
     def _ok_to_continue(self):
         if self._stopevt.is_set():
             print("stopped!")
             return False
-        if not self.havebeam:
+        if not self.devices["dcct"].havebeam:
             print("Beam lost!")
             return False
         return True
