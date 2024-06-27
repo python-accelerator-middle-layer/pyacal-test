@@ -199,7 +199,15 @@ class Device:
             self.devname, propty, connection_timeout=Device.CONNECTION_TIMEOUT
         )
 
-    def wait(self, propty, value, timeout=None, comp="eq"):
+    def wait(
+        self,
+        propty,
+        value,
+        timeout=None,
+        comp="eq",
+        rel_tol=0.0,
+        abs_tol=0.1,
+    ):
         """."""
 
         def comp_(val):
@@ -209,7 +217,12 @@ class Device:
             return boo
 
         if isinstance(comp, str):
-            comp = getattr(_opr, comp)
+            if comp.lower().endswith('close'):
+                isc = _np if isinstance(value, _np.ndarray) else _math
+                isc = isc.isclose
+                comp = _partial(isc, abs_tol=abs_tol, rel_tol=rel_tol)
+            else:
+                comp = getattr(_opr, comp)
 
         if not isinstance(timeout, str) and timeout != "never":
             timeout = _DEF_TIMEOUT if timeout is None else timeout
@@ -224,15 +237,14 @@ class Device:
             _time.sleep(_TINY_INTERVAL)
         return True
 
-    def wait_float(
-        self, propty, value, rel_tol=0.0, abs_tol=0.1, timeout=None
+    def wait_set(
+        self,
+        props_values,
+        timeout=None,
+        comp="eq",
+        abs_tol=0.0,
+        rel_tol=0.1,
     ):
-        """Wait until float value gets close enough of desired value."""
-        isc = _np.isclose if isinstance(value, _np.ndarray) else _math.isclose
-        func = _partial(isc, abs_tol=abs_tol, rel_tol=rel_tol)
-        return self._wait(propty, value, comp=func, timeout=timeout)
-
-    def wait_set(self, props_values, timeout=None, comp="eq"):
         """."""
         timeout = _DEF_TIMEOUT if timeout is None else timeout
         t0_ = _time.time()
@@ -240,7 +252,14 @@ class Device:
             timeout_left = max(0, timeout - (_time.time() - t0_))
             if timeout_left == 0:
                 return False
-            if not self._wait(propty, value, timeout=timeout_left, comp=comp):
+            if not self.wait(
+                propty,
+                value,
+                timeout=timeout_left,
+                comp=comp,
+                abs_tol=abs_tol,
+                rel_tol=rel_tol,
+            ):
                 return False
         return True
 
@@ -351,6 +370,36 @@ class DeviceSet:
         """Return devices."""
         return self._devices
 
+    def wait_devices_propty(
+        self,
+        devices,
+        propty,
+        values,
+        comp="eq",
+        timeout=None,
+        abs_tol=0.0,
+        rel_tol=0.1,
+        return_prob=False,
+    ):
+        """Wait for devices property to reach value(s)."""
+        dev2val = self._get_dev_2_val(devices, values)
+        timeout = _DEF_TIMEOUT if timeout is None else timeout
+        tini = _time.time()
+        timeout_left = timeout
+        for dev, val in dev2val.items():
+            boo = dev.wait(
+                propty,
+                val,
+                comp=comp,
+                timeout=timeout_left,
+                abs_tol=abs_tol,
+                rel_tol=rel_tol,
+            )
+            timeout_left = max(0, timeout - (_time.time() - tini))
+            if not timeout_left or not boo:
+                return (False, dev) if return_prob else False
+        return (True, None) if return_prob else True
+
     # --- private methods ---
 
     def _set_devices_propty(self, devices, propty, values, wait=0):
@@ -360,44 +409,6 @@ class DeviceSet:
             if dev.pv_object(propty).wait_for_connection():
                 dev[propty] = val
                 _time.sleep(wait)
-
-    def _wait_devices_propty(
-        self,
-        devices,
-        propty,
-        values,
-        comp="eq",
-        timeout=None,
-        return_prob=False,
-    ):
-        """Wait for devices property to reach value(s)."""
-        if isinstance(comp, str):
-            comp = getattr(_opr, comp)
-        dev2val = self._get_dev_2_val(devices, values)
-
-        timeout = _DEF_TIMEOUT if timeout is None else timeout
-        tini = _time.time()
-        for _ in range(int(timeout / _TINY_INTERVAL)):
-            okdevs = set()
-            for k, v in dev2val.items():
-                boo = comp(k[propty], v)
-                if isinstance(boo, _np.ndarray):
-                    boo = _np.all(boo)
-                if boo:
-                    okdevs.add(k)
-                if _time.time() - tini > timeout:
-                    break
-            list(map(dev2val.__delitem__, okdevs))
-            if not dev2val:
-                break
-            if _time.time() - tini > timeout:
-                break
-            _time.sleep(_TINY_INTERVAL)
-
-        allok = not dev2val
-        if return_prob:
-            return allok, [dev.pv_object(propty).pvname for dev in dev2val]
-        return allok
 
     def _get_dev_2_val(self, devices, values):
         """Get devices to values dict."""
