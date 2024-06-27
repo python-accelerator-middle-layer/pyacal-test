@@ -4,7 +4,7 @@ import logging as _log
 from copy import deepcopy as _dcopy
 from threading import Event as _Event
 
-from .. import CONTROL_SYSTEM as _CS
+from .. import _get_control_system
 from ..utils import load as _load, save as _save
 
 
@@ -157,7 +157,9 @@ class ThreadedMeasBaseClass(MeasBaseClass):
         self._stopevt = _Event()
         self._finished = _Event()
         self._finished.set()
-        self._thread = _CS.Thread(target=self._run, daemon=True)
+        self._thread = _get_control_system().Thread(
+            target=self._run, daemon=True
+        )
 
     @property
     def target(self):
@@ -176,7 +178,9 @@ class ThreadedMeasBaseClass(MeasBaseClass):
             return
         self._stopevt.clear()
         self._finished.clear()
-        self._thread = _CS.Thread(target=self._run, daemon=True)
+        self._thread = _get_control_system().Thread(
+            target=self._run, daemon=True
+        )
         self._thread.start()
 
     def stop(self):

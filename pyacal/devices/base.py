@@ -7,7 +7,7 @@ from functools import partial as _partial
 
 import numpy as _np
 
-from .. import CONTROL_SYSTEM
+from .. import _get_control_system
 
 _DEF_TIMEOUT = 10  # s
 _TINY_INTERVAL = 0.050  # s
@@ -195,7 +195,7 @@ class Device:
 
     # --- private methods ---
     def _create_pv(self, propty):
-        return CONTROL_SYSTEM.PV(
+        return _get_control_system().PV(
             self.devname, propty, connection_timeout=Device.CONNECTION_TIMEOUT
         )
 

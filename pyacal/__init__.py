@@ -6,9 +6,11 @@ from ._control_systems import ControlSystemOptions
 from ._facilities import FacilityOptions
 from ._simulators import SimulatorOptions
 
-FACILITY = None
-SIMULATOR = None
-CONTROL_SYSTEM = None
+# NOTE: Package-wide variables must be mutable objects in order to not be
+# copied in import time. Thanks to steveha (accepted answer) answer in:
+# https://stackoverflow.com/questions/1977362/
+#           how-to-create-module-wide-variables-in-python
+__ACAL_VARS = {'facility': None, 'simulator': None, 'control_system': None}
 
 
 def set_facility(fac_name="sirius"):
@@ -22,11 +24,10 @@ def set_facility(fac_name="sirius"):
     """
     if fac_name.lower() not in FacilityOptions:
         raise ValueError(f"Wrong value for fac_name ({fac_name}).")
-    global FACILITY
     fac_module = _importlib.import_module('._facilities.' + fac_name, __name__)
-    FACILITY = fac_module.facility
-    _set_simulator(FACILITY.simulator)
-    _set_control_system(FACILITY.control_system)
+    __ACAL_VARS['facility'] = fac_module.facility
+    __set_simulator(__ACAL_VARS['facility'].simulator)
+    __set_control_system(__ACAL_VARS['facility'].control_system)
 
 
 def get_model(acc):
@@ -36,17 +37,19 @@ def get_model(acc):
         (paccel.accelerator.Accelerator | pyat.Accelerator): Model of the
             accelerator being abstracted.
     """
-    return FACILITY.accelerators[acc]
+    cst = _get_control_system()
+    return cst.accelerators[acc]
 
 
 def switch2online():
     """Switch ACAL to online mode."""
-    _set_control_system(FACILITY.control_system)
+    facil = _get_facility()
+    __set_control_system(facil.control_system)
 
 
 def switch2simulation():
     """Switch ACAL to simulation mode."""
-    _set_control_system("simulation")
+    __set_control_system("simulation")
 
 
 def is_online():
@@ -55,21 +58,24 @@ def is_online():
     Returns:
         bool: whether ACAL is in online or simulation mode.
     """
-    return CONTROL_SYSTEM.Name != "simulation"
+    cst = _get_control_system()
+    return cst.Name != "simulation"
 
 
 def get_alias_map():
     """."""
-    return FACILITY.alias_map
+    facil = _get_facility()
+    return facil.alias_map
 
 
 def get_alias_from_key(key, value, accelerator=None):
     """."""
-    _check_key(key)
-    acc = accelerator or FACILITY.default_accelerator
+    __check_key(key)
+    facil = _get_facility()
+    acc = accelerator or facil.default_accelerator
     return [
         alias
-        for alias, amap in FACILITY.alias_map.items()
+        for alias, amap in facil.alias_map.items()
         if value in amap.get(key, []) and acc == amap.get("accelerator")
     ]
 
@@ -91,10 +97,11 @@ def get_alias_from_property(propty, accelerator=None):
 
 def get_indices_from_key(key, value, accelerator=None):
     """."""
-    _check_key(key)
-    acc = accelerator or FACILITY.default_accelerator
+    __check_key(key)
+    facil = _get_facility()
+    acc = accelerator or facil.default_accelerator
     indices = []
-    for _, amap in FACILITY.alias_map.items():
+    for _, amap in facil.alias_map.items():
         if value in amap.get(key, []) and acc == amap.get("accelerator"):
             indices.append(amap["sim_info"]["indices"])
     return indices
@@ -102,50 +109,83 @@ def get_indices_from_key(key, value, accelerator=None):
 
 def get_indices_from_alias(alias):
     """."""
-    return [idx for idx in FACILITY.alias_map[alias]["sim_info"]["indices"]]
+    facil = _get_facility()
+    return [idx for idx in facil.alias_map[alias]["sim_info"]["indices"]]
 
 
 def get_alias_from_indices(indices, accelerator=None):
     """."""
-    acc = accelerator or FACILITY.default_accelerator
+    facil = _get_facility()
+    acc = accelerator or facil.default_accelerator
     return [
         alias
-        for alias, amap in FACILITY.alias_map.items()
+        for alias, amap in facil.alias_map.items()
         if indices in amap["sim_info"]["indices"]
         and acc == amap.get("accelerator")
     ]
 
 
-# ---------------------  private helper methods ----------------------------
+# -------- functions used by rest of the package (not for the user) -----------
+def _get_facility():
+    """Return the current facility object being used."""
+    facil = __ACAL_VARS['facility']
+    if facil is None:
+        raise RuntimeError(
+            'Facility is not defined yet. Call `set_facility` function.'
+        )
+    return facil
 
-def _check_key(key):
-    if not any(key in amap for amap in FACILITY.alias_map.values()):
+
+def _get_simulator():
+    """Return the current simulator object being used."""
+    simul = __ACAL_VARS['simulator']
+    if simul is None:
+        raise RuntimeError(
+            'Simulator is not defined yet. Call `set_facility` function.'
+        )
+    return simul
+
+
+def _get_control_system():
+    """Return the current control system being used."""
+    cst = __ACAL_VARS['control_system']
+    if cst is None:
+        raise RuntimeError(
+            'Control sytem is not defined yet. Call `set_facility` function.'
+        )
+    return cst
+
+
+# ---------------------  private helper methods ----------------------------
+def __check_key(key):
+    facil = _get_facility()
+    if not any(key in amap for amap in facil.alias_map.values()):
         raise ValueError(f"Key '{key}' not found in any alias_map entry.")
 
 
-def _set_simulator(simulator):
+def __set_simulator(simulator):
     """."""
-    global SIMULATOR
     if simulator.lower() not in SimulatorOptions:
         raise ValueError(f'Wrong value for simulator ({simulator}).')
-    SIMULATOR = _importlib.import_module('._simulators.' + simulator, __name__)
+    __ACAL_VARS['simulator'] = _importlib.import_module(
+        '._simulators.' + simulator, __name__
+    )
 
 
-def _set_control_system(control_system):
+def __set_control_system(control_system):
     """."""
-    global CONTROL_SYSTEM
     if control_system.lower() not in ControlSystemOptions:
         raise ValueError(f"Wrong value for fac_name ({control_system}).")
 
-    if CONTROL_SYSTEM is None:
-        CONTROL_SYSTEM = _importlib.import_module(
+    if __ACAL_VARS['control_system'] is None:
+        __ACAL_VARS['control_system'] = _importlib.import_module(
             '._control_systems.' + control_system, __name__)
         return
-    elif control_system == CONTROL_SYSTEM.Name:
+    elif control_system == __ACAL_VARS['control_system'].Name:
         return
     cs_new = _importlib.import_module(
         '._control_systems.' + control_system, __name__)
 
-    for key in CONTROL_SYSTEM.ALL_CONNECTIONS:
+    for key in __ACAL_VARS['control_system'].ALL_CONNECTIONS:
         cs_new.PV(*key)
-    CONTROL_SYSTEM = cs_new
+    __ACAL_VARS['control_system'] = cs_new

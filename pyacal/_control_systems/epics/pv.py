@@ -2,7 +2,7 @@
 
 import epics as _epics
 
-from ... import FACILITY
+from ... import _get_facility
 
 ALL_CONNECTIONS = {}
 
@@ -14,7 +14,7 @@ class PV(_epics.pv.PV):
         """."""
         self.devname = devname
         self.propty = propty
-        mapping = FACILITY.alias_map[devname]
+        mapping = _get_facility().alias_map[devname]
         pvname = mapping['cs_devname']
         pvname += mapping['cs_propties'][propty]['name']
         super().__init__(pvname, **kwargs)

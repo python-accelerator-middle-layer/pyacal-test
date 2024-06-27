@@ -1,6 +1,6 @@
 """."""
 
-from .. import FACILITY
+from .. import _get_facility
 from .base import Device
 
 
@@ -16,7 +16,8 @@ class Tune(Device):
             props2init=Tune.PROPERTIES_DEFAULT,
         )
 
-        if "Tune" not in FACILITY.alias_map[devname]["cs_devtype"]:
+        facil = _get_facility()
+        if "Tune" not in facil.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for Tune")
 
     @property

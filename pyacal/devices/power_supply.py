@@ -1,6 +1,6 @@
 """."""
 
-from .. import FACILITY
+from .. import _get_facility
 from .base import Device
 
 
@@ -19,7 +19,8 @@ class PowerSupply(Device):
         """."""
         super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
 
-        if "PowerSupply" not in FACILITY.alias_map[devname]["cs_devtype"]:
+        facil = _get_facility()
+        if "PowerSupply" not in facil.alias_map[devname]["cs_devtype"]:
             raise ValueError(
                 f"Device name: {devname} not valid for a PowerSupply."
             )

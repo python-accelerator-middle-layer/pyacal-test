@@ -87,8 +87,8 @@ def define_si(alias_map):
 
     # -------- Define RF --------
 
-    devname = "SI-RFGen"  # ?
-    alias = "RFGen"  # ?
+    devname = "SI-RFGen"
+    alias = "RFGen"
     if alias in alias_map:
         raise KeyError(f'Alias {alias} already defined.')
     alias_map[alias] = {
@@ -119,7 +119,7 @@ def define_si(alias_map):
         'cs_devtype': ('Tune', ),
         'accelerator': 'SI',
         'sim_info': {
-            'indices': None
+            'indices': [],
         },
         'cs_propties': {
             'tunex': {
