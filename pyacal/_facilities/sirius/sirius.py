@@ -93,17 +93,17 @@ def define_si(alias_map):
         raise KeyError(f'Alias {alias} already defined.')
     alias_map[alias] = {
         'cs_devname': 'RF-Gen',
-        'cs_devtype': 'RFGen',
+        'cs_devtype': ('RF Generator', ),
         'accelerator': 'SI',
         'sim_info': {
             'indices': famdata['SRFCav']['index'][0],
         },
         'cs_propties': {
-            'frequency-RB': {
-                'name': ':GeneralFreq-RB',
+            'frequency_rb': {
+                'name': ':GeneralFreq-RB', 'conv_cs2sim': 1,
             },
-            'frequency-SP': {
-                'name': ':GeneralFreq-SP'
+            'frequency_sp': {
+                'name': ':GeneralFreq-SP', 'conv_cs2sim': 1,
             }
         },
     }

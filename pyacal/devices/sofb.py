@@ -8,7 +8,7 @@ from ..utils import get_namedtuple as _get_namedtuple
 from .base import DeviceSet
 from .fambpms import FamBPMs as _FamBPMs
 from .famcms import FamCMs as _FamCMs
-from .rfgen import RFGen
+from .rfgen import RFGen as _RFGen
 from .power_supply import PowerSupply as _PowerSupply
 
 
