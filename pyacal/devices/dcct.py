@@ -27,3 +27,8 @@ class DCCT(Device):
     def storedbeam(self):
         """."""
         return self.current > MIN_CURRENT
+
+    @property
+    def havebeam(self):
+        """."""
+        return self.connected and self.storedbeam

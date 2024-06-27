@@ -106,12 +106,6 @@ class BBA(_BaseClass):
         return stn
 
     @property
-    def havebeam(self):
-        """."""
-        haveb = self.devices['dcct']
-        return haveb.connected and haveb.storedbeam
-
-    @property
     def measuredbpms(self):
         """."""
         return sorted(self.data['measure'])
@@ -1015,7 +1009,7 @@ class BBA(_BaseClass):
         if self._stopevt.is_set():
             print("stopped!")
             return False
-        if not self.havebeam:
+        if not self.devices['dcct'].havebeam:
             print("Beam lost!")
             return False
         return True
@@ -1099,7 +1093,7 @@ class BBA(_BaseClass):
         tmpl = '{:25s}'.format
         currpos = currneg = 0.0
         for i in range(npts):
-            if self._stopevt.is_set() or not self.havebeam:
+            if self._stopevt.is_set() or not self.devices['dcct'].havebeam:
                 print('   exiting...')
                 break
             print('    {0:02d}/{1:02d} --> '.format(i+1, npts), end='')
