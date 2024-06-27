@@ -116,12 +116,13 @@ def get_alias_from_indices(indices, accelerator=None):
     ]
 
 
+# ---------------------  private helper methods ----------------------------
+
 def _check_key(key):
     if not any(key in amap for amap in FACILITY.alias_map.values()):
         raise ValueError(f"Key '{key}' not found in any alias_map entry.")
 
 
-# ---------------------  private helper methods ----------------------------
 def _set_simulator(simulator):
     """."""
     global SIMULATOR
