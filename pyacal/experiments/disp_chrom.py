@@ -7,7 +7,8 @@ import matplotlib.gridspec as _mpl_gs
 import matplotlib.pyplot as _plt
 import numpy as _np
 
-from .. import _get_facility, _get_simulator, get_indices_from_key
+from .. import _get_facility, _get_simulator, \
+    get_indices_from_key, get_alias_from_devtype
 
 from ..devices import RFGen, SOFB, Tune
 from .base import ParamsBaseClass as _ParamsBaseClass, \
@@ -42,7 +43,7 @@ class DispChromParams(_ParamsBaseClass):
 class DispChrom(_BaseClass):
     """."""
 
-    def __init__(self, isonline=True, mom_compact=None):
+    def __init__(self, accelerator, isonline=True, mom_compact=None):
         """."""
         super().__init__(
             params=DispChromParams(), target=self._do_meas, isonline=isonline
@@ -50,10 +51,15 @@ class DispChrom(_BaseClass):
 
         self.mom_compact = mom_compact
 
+        self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
-            self.devices['sofb'] = SOFB()
-            self.devices['tune'] = Tune()
-            self.devices['rf'] = RFGen()
+            self.devices['sofb'] = SOFB(self.accelerator)
+            tune_alias = get_alias_from_devtype("Tune", self.accelerator)
+            self.devices['tune'] = Tune(tune_alias)
+            rf_alias = get_alias_from_devtype(
+                "RF Generator", self.accelerator
+            )[0]
+            self.devices['rf'] = RFGen(rf_alias)
 
     def __str__(self):
         """."""
@@ -242,9 +248,9 @@ class DispChrom(_BaseClass):
         if analysis is None:
             analysis = self.analysis
 
-        fac, sim = _get_facility(), _get_simulator()
+        simulator = _get_simulator()
         bpmidx = get_indices_from_key("cs_devtype", "BPM")
-        sposbpm = sim.get_positions(bpmidx, fac.default_accelerator)
+        sposbpm = simulator.get_positions(bpmidx, self.accelerator)
 
         fitorder_anlys = analysis['dispx'].shape[0] - 1
         if disporder > fitorder_anlys:
