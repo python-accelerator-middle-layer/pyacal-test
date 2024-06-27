@@ -16,7 +16,7 @@ def define_si(alias_map):
         raise KeyError(f'Alias {alias} already defined.')
     alias_map[alias] = {
         'cs_devname': devname,
-        'cs_devtype': 'DCCT',
+        'cs_devtype': ('DCCT', ),
         'accelerator': 'SI',
         'sim_info': {
             'indices': famdata['DCCT']['index'][0],
@@ -37,7 +37,7 @@ def define_si(alias_map):
             raise KeyError(f'Alias {alias} already defined.')
         alias_map[alias] = {
             'cs_devname': devname,
-            'cs_devtype': 'BPM',
+            'cs_devtype': ('BPM', ),
             'accelerator': 'SI',
             'sim_info': {
                 'indices': idcs,
@@ -116,7 +116,7 @@ def define_si(alias_map):
         raise KeyError(f'Alias {alias} already defined.')
     alias_map[alias] = {
         'cs_devname': 'SI-Glob:DI-Tune',
-        'cs_devtype': 'Tune',
+        'cs_devtype': ('Tune', ),
         'accelerator': 'SI',
         'sim_info': {
             'indices': None
