@@ -1,4 +1,5 @@
 
 from .. import Facility
 
-facility = Facility('soleil', 'epics', 'pyaccel')
+# arbitrary, must be defined by the facility developers:
+facility = Facility('soleil', 'epics', 'pyat')
