@@ -10,7 +10,12 @@ from ._simulators import SimulatorOptions
 # copied in import time. Thanks to steveha (accepted answer) answer in:
 # https://stackoverflow.com/questions/1977362/
 #           how-to-create-module-wide-variables-in-python
-__ACAL_VARS = {'facility': None, 'simulator': None, 'control_system': None}
+__ACAL_VARS = {
+    'facility': None,
+    'simulator': None,
+    'control_system': None,
+    'all_connections': dict(),
+}
 
 
 def set_facility(fac_name="sirius"):
@@ -156,6 +161,11 @@ def _get_control_system():
     return cst
 
 
+def _get_connections_dict():
+    """Return the dictionary with all connections being used."""
+    return __ACAL_VARS['all_connections']
+
+
 # ---------------------  private helper methods ----------------------------
 def __check_key(key):
     facil = _get_facility()
@@ -186,6 +196,8 @@ def __set_control_system(control_system):
     cs_new = _importlib.import_module(
         '._control_systems.' + control_system, __name__)
 
-    for key in __ACAL_VARS['control_system'].ALL_CONNECTIONS:
+    all_conn = __ACAL_VARS['all_connections']
+    __ACAL_VARS['all_connections'] = dict()
+    for key in all_conn:
         cs_new.PV(*key)
     __ACAL_VARS['control_system'] = cs_new

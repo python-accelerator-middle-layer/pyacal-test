@@ -2,9 +2,7 @@
 
 import epics as _epics
 
-from ... import _get_facility
-
-ALL_CONNECTIONS = {}
+from ... import _get_connections_dict, _get_facility
 
 
 class PV(_epics.pv.PV):
@@ -18,4 +16,4 @@ class PV(_epics.pv.PV):
         pvname = mapping['cs_devname']
         pvname += mapping['cs_propties'][propty]['name']
         super().__init__(pvname, **kwargs)
-        ALL_CONNECTIONS[(devname, propty)] = self
+        _get_connections_dict()[(devname, propty)] = self
