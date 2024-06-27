@@ -25,7 +25,6 @@ class MeasParams(_ParamsBaseClass):
         self.meas_nrsteps = 8
         self.npoints = 5
         self.wait_tune = 5          # [s]
-        self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
 
     def __str__(self):
@@ -36,9 +35,6 @@ class MeasParams(_ParamsBaseClass):
         stg += ftmp('min_delta_freq [Hz]', self.min_delta_freq, '')
         stg += dtmp('meas_nrsteps', self.meas_nrsteps, '')
         stg += ftmp('wait_tune [s]', self.wait_tune, '')
-        stg += ftmp(
-            'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)'
-        )
         stg += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
         return stg
 
@@ -49,7 +45,8 @@ class MeasDispChrom(_BaseClass):
     def __init__(self, isonline=True, mom_compact=None):
         """."""
         super().__init__(
-            params=MeasParams(), target=self._do_meas, isonline=isonline)
+            params=MeasParams(), target=self._do_meas, isonline=isonline
+        )
 
         self.mom_compact = mom_compact
 
@@ -71,12 +68,14 @@ class MeasDispChrom(_BaseClass):
         sofb = self.devices['sofb']
         rfgen = self.devices['rf']
         tune = self.devices['tune']
+        nr_bpms = sofb.nr_bpms
 
         npoints = self.params.meas_nrsteps
-        sofb.nr_points = self.params.sofb_nrpoints  # to be adapted
+        sofb.orb_nrpoints = self.params.sofb_nrpoints
         freq0 = rfgen.frequency
         tunex0, tuney0 = tune.tunex, tune.tuney
-        orbx0, orby0 = sofb.orbx, sofb.orby
+        concat_orb = sofb.get_orbit()
+        orbx0, orby0 = concat_orb[:nr_bpms], concat_orb[nr_bpms:]
 
         min_df = self.params.min_delta_freq
         max_df = self.params.max_delta_freq
@@ -90,16 +89,19 @@ class MeasDispChrom(_BaseClass):
                 print('   exiting...')
                 break
             rfgen.frequency = frq
-            sofb.cmd_reset()
-            _time.sleep(self.params.wait_tune)
-            sofb.wait_buffer(self.params.timeout_wait_sofb)
+            t0 = _time.time()
+            concat_orb = sofb.get_orbit()
+            et = _time.time() - t0
+            wait_tune = self.params.wait_tune - et
+            _time.sleep(max(0, wait_tune))
+
             freq.append(rfgen.frequency)
-            orbx.append(sofb.orbx)
-            orby.append(sofb.orby)
+            orbx.append(concat_orb[:nr_bpms])
+            orby.append(concat_orb[nr_bpms:])
             tunex.append(tune.tunex)
             tuney.append(tune.tuney)
-            print('delta frequency: {} Hz'.format((
-                rfgen.frequency-freq0)))
+
+            print('delta frequency: {} Hz'.format((rfgen.frequency-freq0)))
             dtunex = tunex[-1] - tunex0
             dtuney = tuney[-1] - tuney0
             print(f'(Spec. Analy.) dtune x: {dtunex:} y: {dtuney:}')
