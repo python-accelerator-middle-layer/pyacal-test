@@ -47,6 +47,8 @@ class BBAParams(_ParamsBaseClass):
         st += ftmp('deltaorby [um]', self.deltaorby, '')
         st += dtmp('meas_nrsteps', self.meas_nrsteps, '')
         st += ftmp('quad_deltacurr [A]', self.quad_deltacurr, '')
+        st += ftmp('quad_maxcurr [A]', self.quad_maxcurr, '')
+        st += ftmp('quad_mincurr [A]', self.quad_mincurr, '')
         st += ftmp('quad_nrcycles', self.quad_nrcycles, '')
         st += ftmp('wait_correctors [s]', self.wait_correctors, '')
         st += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
@@ -105,7 +107,7 @@ class DoBBA(_BaseClass):
     @property
     def havebeam(self):
         """."""
-        haveb = self.devices['currinfosi']
+        haveb = self.devices['dcct']
         return haveb.connected and haveb.storedbeam
 
     @property
@@ -134,13 +136,6 @@ class DoBBA(_BaseClass):
             if qname and qname not in self.devices:
                 self.devices[qname] = _PowerSupply(qname)
 
-    def get_orbit(self):
-        """."""
-        sofb = self.devices['sofb']
-        sofb.cmd_reset()
-        sofb.wait_buffer(self.params.timeout_wait_orbit)
-        return _np.hstack([sofb.orbx, sofb.orby])
-
     @staticmethod
     def get_cycling_curve():
         """."""
@@ -150,18 +145,17 @@ class DoBBA(_BaseClass):
         """."""
         sofb = self.devices['sofb']
         idxx = self.data['bpmnames'].index(bpmname)
-        refx, refy = sofb.refx, sofb.refy
+        refx, refy = sofb.ref_orbx, sofb.ref_orby
         refx[idxx], refy[idxx] = x0, y0
-        sofb.refx, sofb.refy = refx, refy
-        idx, resx, resy = sofb.correct_orbit_manually(
+        sofb.ref_orbx, sofb.ref_orby = refx, refy
+        idx, resx, resy = sofb.correct_orbit(
             nr_iters=self.params.sofb_maxcorriter,
             residue=self.params.sofb_maxorberr)
         return idx, _np.max([resx, resy])
 
     def correct_orbit(self):
         """."""
-        sofb = self.devices['sofb']
-        sofb.correct_orbit_manually(
+        self.devices['sofb'].correct_orbit(
             nr_iters=self.params.sofb_maxcorriter,
             residue=self.params.sofb_maxorberr)
 
@@ -1022,7 +1016,7 @@ class DoBBA(_BaseClass):
             tini.strftime('%Y-%m-%d %Hh%Mm%Ss')))
 
         sofb = self.devices['sofb']
-        sofb.nr_points = self.params.sofb_nrpoints
+        sofb.orb_nrpoints = self.params.sofb_nrpoints
 
         for i, bpm in enumerate(self._bpms2dobba):
             if self._stopevt.is_set():
@@ -1086,13 +1080,13 @@ class DoBBA(_BaseClass):
         dorbsx = self._calc_dorb_scan(self.params.deltaorbx, nrsteps//2)
         dorbsy = self._calc_dorb_scan(self.params.deltaorby, nrsteps//2)
 
-        refx0, refy0 = sofb.refx.copy(), sofb.refy.copy()
-        enblx0, enbly0 = sofb.bpmxenbl.copy(), sofb.bpmyenbl.copy()
-        ch0, cv0 = sofb.kickch.copy(), sofb.kickcv.copy()
+        refx0, refy0 = sofb.ref_orbx.copy(), sofb.ref_orby.copy()
+        enblx0, enbly0 = sofb.bpmx_enbl.copy(), sofb.bpmy_enbl.copy()
+        ch0, cv0 = sofb.kicks_hcm.copy(), sofb.kicks_vcm.copy()
 
         enblx, enbly = 0*enblx0, 0*enbly0
         enblx[idx], enbly[idx] = 1, 1
-        sofb.bpmxenbl, sofb.bpmyenbl = enblx, enbly
+        sofb.bpmx_enbl, sofb.bpmy_enbl = enblx, enbly
 
         orbini, orbpos, orbneg = [], [], []
         npts = 2*(nrsteps//2) + 1
@@ -1113,17 +1107,17 @@ class DoBBA(_BaseClass):
                 txt = tmpl('NOT Ok! dorb={:5.1f} um'.format(fmet))
             print(txt, end='')
 
-            orbini.append(self.get_orbit())
+            orbini.append(sofb.get_orbit())
 
             for j, fac in enumerate(cycling_curve):
                 newcurr = min(max(curr0 + deltacurr*fac, lowlim), upplim)
                 quad.current = newcurr
                 _time.sleep(self.params.wait_quadrupole)
                 if j == 0:
-                    orbpos.append(self.get_orbit())
+                    orbpos.append(sofb.get_orbit())
                     currpos = quad.current
                 elif j == 1:
-                    orbneg.append(self.get_orbit())
+                    orbneg.append(sofb.get_orbit())
                     currneg = quad.current
 
             dorb = orbpos[-1] - orbneg[-1]
@@ -1142,22 +1136,22 @@ class DoBBA(_BaseClass):
             'currneg': currneg}
 
         print('    restoring initial conditions.')
-        sofb.refx, sofb.refy = refx0, refy0
-        sofb.bpmxenbl, sofb.bpmyenbl = enblx0, enbly0
+        sofb.ref_orbx, sofb.ref_orby = refx0, refy0
+        sofb.bpmx_enbl, sofb.bpmy_enbl = enblx0, enbly0
 
         # restore correctors gently to do not kill the beam.
-        factch, factcv = sofb.mancorrgainch, sofb.mancorrgaincv
-        chn, cvn = sofb.kickch, sofb.kickcv
+        factch, factcv = sofb.corr_gain_hcm, sofb.corr_gain_vcm
+        chn, cvn = sofb.kicks_hcm, sofb.kicks_vcm
         dch, dcv = ch0 - chn, cv0 - cvn
         sofb.deltakickch, sofb.deltakickcv = dch, dcv
         nrsteps = _np.ceil(max(_np.abs(dch).max(), _np.abs(dcv).max()) / 1.0)
         for i in range(int(nrsteps)):
-            sofb.mancorrgainch = (i+1)/nrsteps * 100
-            sofb.mancorrgaincv = (i+1)/nrsteps * 100
+            sofb.corr_gain_hcm = (i+1)/nrsteps * 100
+            sofb.corr_gain_vcm = (i+1)/nrsteps * 100
             sofb.cmd_applycorr_all()
             _time.sleep(self.params.wait_correctors)
         sofb.deltakickch, sofb.deltakickcv = dch*0, dcv*0
-        sofb.mancorrgainch, sofb.mancorrgaincv = factch, factcv
+        sofb.corr_gain_hcm, sofb.corr_gain_vcm = factch, factcv
 
         tfin = _datetime.datetime.fromtimestamp(_time.time())
         dtime = str(tfin - tini)
