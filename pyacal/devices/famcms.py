@@ -58,12 +58,12 @@ class FamCMs(DeviceSet):
         return self.devices[self.nr_hcms :]
 
     @property
-    def kicks_hcm(self):
+    def currents_hcm(self):
         """."""
         return _np.array([cm.current for cm in self.hcms])
 
     @property
-    def kicks_vcm(self):
+    def currents_vcm(self):
         """."""
         return _np.array([cm.current for cm in self.vcms])
 
@@ -73,5 +73,19 @@ class FamCMs(DeviceSet):
 
     def set_currents(self, currents):
         """."""
-        for i, cm in enumerate(self.devices):
-            cm.current = currents[i]
+        for dev, curr in zip(self.devices, currents):
+            if curr is None or _np.isnan(curr):
+                continue
+            dev.current = curr
+
+    def wait_currents(self, currents, timeout=10):
+        """."""
+        return self.wait_devices_propty(
+            self.devices,
+            'current_rb',
+            currents,
+            comp='isclose',
+            timeout=timeout,
+            abs_tol=_PowerSupply.TINY_CURRENT,
+            rel_tol=0,
+        )
