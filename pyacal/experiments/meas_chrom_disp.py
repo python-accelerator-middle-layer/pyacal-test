@@ -25,7 +25,6 @@ class MeasParams(_ParamsBaseClass):
         self.meas_nrsteps = 8
         self.npoints = 5
         self.wait_tune = 5          # [s]
-        self.timeout_wait_sofb = 3  # [s]
         self.sofb_nrpoints = 10
 
     def __str__(self):
@@ -36,9 +35,6 @@ class MeasParams(_ParamsBaseClass):
         stg += ftmp('min_delta_freq [Hz]', self.min_delta_freq, '')
         stg += dtmp('meas_nrsteps', self.meas_nrsteps, '')
         stg += ftmp('wait_tune [s]', self.wait_tune, '')
-        stg += ftmp(
-            'timeout_wait_sofb [s]', self.timeout_wait_sofb, '(get orbit)'
-        )
         stg += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
         return stg
 
@@ -93,12 +89,13 @@ class MeasDispChrom(_BaseClass):
                 print('   exiting...')
                 break
             rfgen.frequency = frq
-            sofb.cmd_reset()
-            _time.sleep(self.params.wait_tune)
-            sofb.wait_buffer(self.params.timeout_wait_sofb)
+            t0 = _time.time()
+            concat_orb = sofb.get_orbit()
+            et = _time.time() - t0
+            wait_tune = self.params.wait_tune - et
+            _time.sleep(max(0, wait_tune))
 
             freq.append(rfgen.frequency)
-            concat_orb = sofb.get_orbit()
             orbx.append(concat_orb[:nr_bpms])
             orby.append(concat_orb[nr_bpms:])
             tunex.append(tune.tunex)
