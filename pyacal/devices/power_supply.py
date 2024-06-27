@@ -7,6 +7,7 @@ from .base import Device
 class PowerSupply(Device):
     """."""
 
+    TINY_CURRENT = 1e-4  # In units of the control system.
     PROPERTIES_DEFAULT = (
         "pwrstate_sp",
         "pwrstate_rb",
