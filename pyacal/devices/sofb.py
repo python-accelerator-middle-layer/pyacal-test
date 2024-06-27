@@ -1,4 +1,5 @@
 """."""
+
 import time as _time
 
 import numpy as _np
@@ -14,8 +15,7 @@ class SOFB(DeviceSet):
 
     BPM_UPDATE_RATE = 10.4  # [Hz]
     RespMatMode = _get_namedtuple(
-        'RespMatMode',
-        ('Mxx', 'Myy', 'NoCoup', 'Full')
+        "RespMatMode", ("Mxx", "Myy", "NoCoup", "Full")
     )
 
     def __init__(self, accelerator=None):
@@ -36,7 +36,7 @@ class SOFB(DeviceSet):
         self.rfg_enbl = True
 
         self.orb_nrpoints = 10
-        self.orb_method = 'average'
+        self.orb_method = "average"
 
         self.corr_gain_hcm = 100  # [%]
         self.corr_gain_vcm = 100  # [%]
@@ -45,7 +45,9 @@ class SOFB(DeviceSet):
         self.ref_orbx = _np.zeros(self.nr_bpms, dtype=float)
         self.ref_orby = _np.zeros(self.nr_bpms, dtype=float)
 
-        self._respmat = _np.zeros((self.nr_bpms*2, self.nr_cors), dtype=float)
+        self._respmat = _np.zeros(
+            (self.nr_bpms * 2, self.nr_cors), dtype=float
+        )
         self._respmat_mode = SOFB.RespMatMode.Full
         self.min_relative_singval = 1e-9
         self.tikhonov_reg_const = 0
@@ -83,8 +85,8 @@ class SOFB(DeviceSet):
     @respmat.setter
     def respmat(self, value):
         value = _np.asarray(value)
-        if value.shape != (2*self.nr_bpms, self.nr_cors):
-            raise ValueError('Wrong shape for response matrix.')
+        if value.shape != (2 * self.nr_bpms, self.nr_cors):
+            raise ValueError("Wrong shape for response matrix.")
         self._calc_inv_respmat(value)
         self._respmat = value.copy()
 
@@ -143,10 +145,10 @@ class SOFB(DeviceSet):
         orbs = []
         for _ in range(self.orb_nrpoints):
             orbs.append(_np.hstack([self.fambpms.orbx, self.fambpms.orby]))
-            _time.sleep(1/SOFB.BPM_UPDATE_RATE)
+            _time.sleep(1 / SOFB.BPM_UPDATE_RATE)
 
         func = _np.mean
-        if self.orb_method.lower().startswith('median'):
+        if self.orb_method.lower().startswith("median"):
             func = _np.median
         return func(orbs, axis=0)
 
@@ -185,8 +187,8 @@ class SOFB(DeviceSet):
 
     def apply_delta_kicks(self, dkicks, timeout=10):
         nr_hvcm = self.nr_hcms + self.nr_vcms
-        dhcm = dkicks[:self.nr_hcms] * (self.corr_gain_hcm / 100)
-        dvcm = dkicks[self.nr_hcms:nr_hvcm] * (self.corr_gain_vcm / 100)
+        dhcm = dkicks[: self.nr_hcms] * (self.corr_gain_hcm / 100)
+        dvcm = dkicks[self.nr_hcms : nr_hvcm] * (self.corr_gain_vcm / 100)
         drfg = dkicks[-1] * (self.corr_gain_rfg / 100)
         # NOTE: Not finished yet.
 
@@ -214,38 +216,38 @@ class SOFB(DeviceSet):
         mat = _np.reshape(mat, [_np.sum(sel_bpm), _np.sum(sel_cor)])
 
         uuu, sing, vvv = _np.linalg.svd(mat, full_matrices=False)
-        idcs = sing/sing[0] > self.min_relative_singval
+        idcs = sing / sing[0] > self.min_relative_singval
         singr = sing[idcs]
         nr_sv = _np.sum(idcs)
         if not nr_sv:
-            raise ValueError('All Singular Values below minimum.')
+            raise ValueError("All Singular Values below minimum.")
 
         # Apply Tikhonov regularization:
         regc = self.tikhonov_reg_const
         regc *= regc
         inv_s = _np.zeros(sing.size, dtype=float)
-        inv_s[idcs] = singr/(singr*singr + regc)
+        inv_s[idcs] = singr / (singr * singr + regc)
 
         # calculate processed singular values
         singp = _np.zeros(sing.size, dtype=float)
-        singp[idcs] = 1/inv_s[idcs]
-        inv_mat = _np.dot(vvv.T*inv_s, uuu.T)
+        singp[idcs] = 1 / inv_s[idcs]
+        inv_mat = _np.dot(vvv.T * inv_s, uuu.T)
         is_nan = _np.any(_np.isnan(inv_mat))
         is_inf = _np.any(_np.isinf(inv_mat))
         if is_nan or is_inf:
-            raise ValueError('Inverse contains nan or inf.')
+            raise ValueError("Inverse contains nan or inf.")
 
         sing_vals = _np.zeros(nr_svals, dtype=float)
-        sing_vals[:sing.size] = sing
+        sing_vals[: sing.size] = sing
         self._sing_vals_raw = sing_vals
 
         sing_vals = _np.zeros(nr_svals, dtype=float)
-        sing_vals[:singp.size] = singp
+        sing_vals[: singp.size] = singp
         self._sing_vals_proc = sing_vals
         self._sing_vals_nr = nr_sv
 
         self._inv_respmat = _np.zeros(self.respmat.shape, dtype=float).T
         self._inv_respmat[sel_mat.T] = inv_mat.ravel()
         self._respmat_processed = _np.zeros(self.respmat.shape, dtype=float)
-        self._respmat_processed[sel_mat] = _np.dot(uuu*singp, vvv).ravel()
+        self._respmat_processed[sel_mat] = _np.dot(uuu * singp, vvv).ravel()
         return self._inv_respmat
