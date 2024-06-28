@@ -197,7 +197,7 @@ class SOFB(DeviceSet):
             if dorb.std() < residue:
                 break
             self.calculate_correction(dorb)
-            self.apply_delta_kicks()
+            self.apply_correction()
 
     def calculate_correction(self, dorb):
         """Calculate kicks variation to correct orbit.
