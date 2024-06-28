@@ -15,7 +15,8 @@ class DCCT(Device):
         """."""
         super().__init__(devname, props2init=DCCT.PROPERTIES_DEFAULT)
 
-        if "DCCT" not in _get_facility().alias_map[devname]["cs_devtype"]:
+        facil = _get_facility()
+        if facil.CSDevTypes.DCCT not in facil.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for a DCCT.")
 
     @property

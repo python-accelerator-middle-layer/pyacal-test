@@ -58,7 +58,7 @@ class DispChrom(_BaseClass):
             tune_alias = get_alias_from_devtype("Tune", self.accelerator)
             self.devices['tune'] = Tune(tune_alias)
             rf_alias = get_alias_from_devtype(
-                "RF Generator", self.accelerator
+                "RFGenerator", self.accelerator
             )[0]
             self.devices['rf'] = RFGen(rf_alias)
 
