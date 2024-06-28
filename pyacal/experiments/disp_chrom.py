@@ -21,6 +21,7 @@ class DispChromParams(_ParamsBaseClass):
     def __init__(self):
         """."""
         super().__init__()
+        self.meas_nrsteps = 5
         self.max_delta_freq = +200  # [Hz]
         self.min_delta_freq = -200  # [Hz]
         self.rf_timeout = 10        # [s]
@@ -77,7 +78,7 @@ class DispChrom(_BaseClass):
         tune = self.devices['tune']
         nr_bpms = sofb.nr_bpms
 
-        npoints = self.params.meas_nrsteps
+        meas_nrsteps = self.params.meas_nrsteps
         sofb.orb_nrpoints = self.params.sofb_nrpoints
         freq0 = rfgen.frequency
         tunex0, tuney0 = tune.tunex, tune.tuney
@@ -86,7 +87,7 @@ class DispChrom(_BaseClass):
 
         min_df = self.params.min_delta_freq
         max_df = self.params.max_delta_freq
-        span = freq0 + _np.linspace(min_df, max_df, npoints)
+        span = freq0 + _np.linspace(min_df, max_df, meas_nrsteps)
 
         freq = []
         tunex, tuney = [], []
