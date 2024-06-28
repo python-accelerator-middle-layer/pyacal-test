@@ -1,0 +1,3 @@
+"""."""
+
+ControlSystemOptions = ('epics', 'simulation', 'tango')
