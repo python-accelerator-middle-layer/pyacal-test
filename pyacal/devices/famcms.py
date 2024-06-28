@@ -18,11 +18,15 @@ class FamCMs(DeviceSet):
             cmnames = []
             plane = plane.upper()
             if "H" in plane:
-                hcmnames = self._get_cm_names(devtype="Corrector Horizontal")
+                hcmnames = self._get_cm_names(
+                    devtype=facil.CSDevTypes.CorrectorHorizontal
+                )
                 cmnames.extend(hcmnames)
                 self.nr_hcms = len(hcmnames)
             if "V" in plane.upper():
-                vcmnames = self._get_cm_names(devtype="Corrector Vertical")
+                vcmnames = self._get_cm_names(
+                    devtype=facil.CSDevTypes.CorrectorVertical
+                )
                 cmnames.extend(vcmnames)
                 self.nr_vcms = len(vcmnames)
 

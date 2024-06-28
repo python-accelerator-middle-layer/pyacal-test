@@ -22,12 +22,12 @@ class RFGen(Device):
     def __init__(self, devname=None):
         """."""
         if devname is None:
-            devname = get_alias_from_devtype("RF Generator")[0]
+            devname = get_alias_from_devtype("RFGenerator")[0]
 
         super().__init__(devname, props2init=RFGen.PROPERTIES_DEFAULT)
 
         facil = _get_facility()
-        if "RF Generator" not in facil.alias_map[devname]["cs_devtype"]:
+        if "RFGenerator" not in facil.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for a RFGen")
 
     @property

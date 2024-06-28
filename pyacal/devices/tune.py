@@ -17,7 +17,7 @@ class Tune(Device):
         )
 
         facil = _get_facility()
-        if "Tune" not in facil.alias_map[devname]["cs_devtype"]:
+        if "TuneMeas" not in facil.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for Tune")
 
     @property

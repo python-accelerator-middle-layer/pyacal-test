@@ -17,7 +17,8 @@ class BPM(Device):
             auto_monitor_mon=auto_monitor_mon,
         )
 
-        if "BPM" not in _get_facility().alias_map[devname]["cs_devtype"]:
+        facil = _get_facility()
+        if facil.CSDevTypes.BPM not in facil.alias_map[devname]["cs_devtype"]:
             raise ValueError(f"Device name: {devname} not valid for a BPM.")
 
     @property

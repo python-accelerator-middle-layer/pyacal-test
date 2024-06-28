@@ -19,7 +19,7 @@ class FamBPMs(DeviceSet):
                 alias
                 for alias, amap in facil.alias_map.items()
                 if amap["accelerator"] == self.accelerator
-                and "BPM" in amap["cs_devtype"]
+                and facil.CSDevTypes.BPM in amap["cs_devtype"]
             ]
             bpmnames.sort(
                 key=lambda alias: facil.alias_map[alias]["sim_info"]["indices"]

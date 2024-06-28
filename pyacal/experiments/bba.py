@@ -323,8 +323,8 @@ class BBA(_BaseClass):
     def get_default_quads(self):
         """."""
         bpmnames = self.data["bpmnames"]
-        quads_idx = _get_indices_from_key("cs_devtype", "Quadrupole Normal")
-        qs_idx = _get_indices_from_key("cs_devtype", "Quadrupole Skew")
+        quads_idx = _get_indices_from_key("cs_devtype", "QuadrupoleNormal")
+        qs_idx = _get_indices_from_key("cs_devtype", "QuadrupoleSkew")
         bpms_idx = []
         for bpmname in bpmnames:
             bpms_idx.append(
