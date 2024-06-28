@@ -58,10 +58,6 @@ class DispChrom(_BaseClass):
             self.devices['rf'] = self.devices["sofb"].rfgen
             tune_alias = get_alias_from_devtype("Tune", self.accelerator)
             self.devices['tune'] = Tune(tune_alias)
-            rf_alias = get_alias_from_devtype(
-                "RF Generator", self.accelerator
-            )[0]
-            self.devices['rf'] = RFGen(rf_alias)
 
     def __str__(self):
         """."""
