@@ -21,7 +21,9 @@ class PowerSupply(Device):
         super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
 
         facil = _get_facility()
-        if facil.CSDevTypes.PowerSupply not in facil.alias_map[devname]["cs_devtype"]:
+        if facil.check_alias_in_csdevtype(
+            devname, facil.CSDevTypes.PowerSupply
+        ):
             raise ValueError(
                 f"Device name: {devname} not valid for a PowerSupply."
             )

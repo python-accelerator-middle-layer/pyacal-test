@@ -67,69 +67,6 @@ def is_online():
     return cst.Name != "simulation"
 
 
-def get_alias_map():
-    """."""
-    facil = _get_facility()
-    return facil.alias_map
-
-
-def get_alias_from_key(key, value, accelerator=None):
-    """."""
-    __check_key(key)
-    facil = _get_facility()
-    acc = accelerator or facil.default_accelerator
-    return [
-        alias
-        for alias, amap in facil.alias_map.items()
-        if value in amap.get(key, []) and acc == amap.get("accelerator")
-    ]
-
-
-def get_alias_from_devname(devname, accelerator=None):
-    """."""
-    return get_alias_from_key("cs_devname", devname, accelerator=accelerator)
-
-
-def get_alias_from_devtype(devtype, accelerator=None):
-    """."""
-    return get_alias_from_key("cs_devtype", devtype, accelerator=accelerator)
-
-
-def get_alias_from_property(propty, accelerator=None):
-    """."""
-    return get_alias_from_key("cs_propties", propty, accelerator=accelerator)
-
-
-def get_indices_from_key(key, value, accelerator=None):
-    """."""
-    __check_key(key)
-    facil = _get_facility()
-    acc = accelerator or facil.default_accelerator
-    indices = []
-    for _, amap in facil.alias_map.items():
-        if value in amap.get(key, []) and acc == amap.get("accelerator"):
-            indices.append(amap["sim_info"]["indices"])
-    return indices
-
-
-def get_indices_from_alias(alias):
-    """."""
-    facil = _get_facility()
-    return [idx for idx in facil.alias_map[alias]["sim_info"]["indices"]]
-
-
-def get_alias_from_indices(indices, accelerator=None):
-    """."""
-    facil = _get_facility()
-    acc = accelerator or facil.default_accelerator
-    return [
-        alias
-        for alias, amap in facil.alias_map.items()
-        if indices in amap["sim_info"]["indices"]
-        and acc == amap.get("accelerator")
-    ]
-
-
 # -------- functions used by rest of the package (not for the user) -----------
 def _get_facility():
     """Return the current facility object being used."""
@@ -167,12 +104,6 @@ def _get_connections_dict():
 
 
 # ---------------------  private helper methods ----------------------------
-def __check_key(key):
-    facil = _get_facility()
-    if not any(key in amap for amap in facil.alias_map.values()):
-        raise ValueError(f"Key '{key}' not found in any alias_map entry.")
-
-
 def __set_simulator(simulator):
     """."""
     if simulator.lower() not in SimulatorOptions:

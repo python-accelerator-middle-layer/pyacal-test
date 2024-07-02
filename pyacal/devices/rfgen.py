@@ -26,8 +26,8 @@ class RFGen(Device):
 
         super().__init__(devname, props2init=RFGen.PROPERTIES_DEFAULT)
 
-        facil = _get_facility()
-        if "RFGenerator" not in facil.alias_map[devname]["cs_devtype"]:
+        fac = _get_facility()
+        if fac.check_alias_in_csdevtype(devname, fac.CSDevType.RFGenerator):
             raise ValueError(f"Device name: {devname} not valid for a RFGen")
 
     @property
