@@ -3,7 +3,7 @@
 import importlib as _importlib
 
 from ._control_systems import ControlSystemOptions
-from ._facilities import FacilityOptions
+from ._facilities import FacilityOptions, Facility
 from ._simulators import SimulatorOptions
 
 # NOTE: Package-wide variables must be mutable objects in order to not be
@@ -68,7 +68,7 @@ def is_online():
 
 
 # -------- functions used by rest of the package (not for the user) -----------
-def _get_facility():
+def _get_facility() -> Facility:
     """Return the current facility object being used."""
     facil = __ACAL_VARS['facility']
     if facil is None:

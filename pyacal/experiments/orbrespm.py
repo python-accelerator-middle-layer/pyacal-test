@@ -5,7 +5,7 @@ import time as _time
 
 import numpy as _np
 
-from .. import _get_facility, get_alias_from_devtype as _get_alias_from_devtype
+from .. import _get_facility
 from ..devices import DCCT as _DCCT, SOFB as _SOFB
 from .base import (
     ParamsBaseClass as _ParamsBaseClass,
@@ -47,8 +47,7 @@ class OrbRespm(_BaseClass):
         self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
             self.devices["sofb"] = _SOFB(self.accelerator)
-            dcct_alias = _get_alias_from_devtype("DCCT", self.accelerator)[0]
-            self.devices["dcct"] = _DCCT(dcct_alias)
+            self.devices["dcct"] = _DCCT(accelerator=self.accelerator)
 
     def _meas_respm(self):
         tini = _datetime.datetime.fromtimestamp(_time.time())

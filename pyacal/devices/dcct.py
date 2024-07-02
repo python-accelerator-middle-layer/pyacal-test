@@ -11,13 +11,19 @@ class DCCT(Device):
 
     PROPERTIES_DEFAULT = ("current",)
 
-    def __init__(self, devname):
+    def __init__(self, devname=None, accelerator=None):
         """."""
-        super().__init__(devname, props2init=DCCT.PROPERTIES_DEFAULT)
+        fac = _get_facility()
+        self.accelerator = accelerator or fac.default_accelerator
+        if devname is None:
+            devname = fac.find_aliases_from_cs_devtype(fac.CSDevTypes.DCCT)
+            devname = fac.find_aliases_from_accelerator(
+                self.accelerator, devname)[0]
 
-        facil = _get_facility()
-        if facil.check_alias_in_csdevtype(devname, facil.CSDevType.DCCT):
+        if not fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.DCCT):
             raise ValueError(f"Device name: {devname} not valid for a DCCT.")
+
+        super().__init__(devname, props2init=DCCT.PROPERTIES_DEFAULT)
 
     @property
     def current(self):

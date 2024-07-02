@@ -18,15 +18,13 @@ class PowerSupply(Device):
 
     def __init__(self, devname):
         """."""
-        super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
-
         facil = _get_facility()
-        if facil.check_alias_in_csdevtype(
-            devname, facil.CSDevTypes.PowerSupply
-        ):
+        if facil.is_alias_in_cs_devtype(devname, facil.CSDevTypes.PowerSupply):
             raise ValueError(
                 f"Device name: {devname} not valid for a PowerSupply."
             )
+
+        super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
 
     @property
     def pwrstate(self):

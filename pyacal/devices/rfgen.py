@@ -4,7 +4,7 @@ import time as _time
 
 import numpy as _np
 
-from .. import get_alias_from_devtype, _get_facility
+from .. import _get_facility
 from .base import Device
 
 
@@ -21,14 +21,15 @@ class RFGen(Device):
 
     def __init__(self, devname=None):
         """."""
+        fac = _get_facility()
         if devname is None:
-            devname = get_alias_from_devtype("RFGenerator")[0]
+            devname = fac.find_aliases_from_cs_devtype(
+                fac.CSDevTypes.RFGenerator)[0]
+
+        if fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.RFGenerator):
+            raise ValueError(f"Device name: {devname} not valid for a RFGen")
 
         super().__init__(devname, props2init=RFGen.PROPERTIES_DEFAULT)
-
-        fac = _get_facility()
-        if fac.check_alias_in_csdevtype(devname, fac.CSDevType.RFGenerator):
-            raise ValueError(f"Device name: {devname} not valid for a RFGen")
 
     @property
     def frequency(self):

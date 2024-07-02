@@ -71,13 +71,11 @@ class BBA(_BaseClass):
         )
         self._bpms2dobba = list()
         self.data["measure"] = dict()
-        self._amap = _get_alias_map()
 
         self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
             self.devices["sofb"] = _SOFB(self.accelerator)
-            dcct_alias = _get_alias_from_devtype("DCCT", self.accelerator)[0]
-            self.devices["dcct"] = _DCCT(dcct_alias)
+            self.devices["dcct"] = _DCCT(accelerator=self.accelerator)
 
             self.data["bpmnames"] = self.devices["sofb"].fambpms.bpm_names
             self.data["quadnames"] = self.get_default_quads()
@@ -191,8 +189,11 @@ class BBA(_BaseClass):
 
         dorbx = dorb[usepts, :nbpms]
         dorby = dorb[usepts, nbpms:]
-        devtype = self._amap[self.data["quadnames"][idx]]["cs_devtype"]
-        if "skew" in devtype.lower():
+        fac = _get_facility()
+        is_skew = fac.is_alias_in_cs_devtype(
+            self.data["quadnames"][idx], fac.CSDevTypes.QuadrupoleSkew
+        )
+        if is_skew:
             dorbx, dorby = dorby, dorbx
         anl['xpos'] = xpos
         anl['ypos'] = ypos
