@@ -8,8 +8,10 @@ def get_positions(refpts, acc=None):
     """Return the longitudinal position along the model.
 
     Args:
-        indices (_numpy.ndarray, list, tuple): Indices of the element in the
+        refpts (at.Refpts): Reference points of the element in the
             model where to return data.
+        acc (str, optional): name of the accelerator. Defaults to None, which
+            means the variable DEFAULT_ACCELERATOR will be used.
 
     Returns:
         numpy.ndarray: position in [m] along the accelerator.
@@ -24,8 +26,10 @@ def get_orbit(refpts, acc=None):
     """Return the orbit of the model.
 
     Args:
-        indices (_numpy.ndarray, list, tuple): Indices of the element in the
+        refpts (at.Refpts): Reference points of the element in the
             model where to return data.
+        acc (str, optional): name of the accelerator. Defaults to None, which
+            means the variable DEFAULT_ACCELERATOR will be used.
 
     Returns:
         tuple: (orbx, orby) in [m].
@@ -37,12 +41,14 @@ def get_orbit(refpts, acc=None):
     return o6[:, 0], o6[:, 2]
 
 
-def get_twiss(indices, acc=None):
+def get_twiss(refpts, acc=None):
     """Return twiss parameters of the model.
 
     Args:
-        indices (_numpy.ndarray, list, tuple): Indices of the element in the
+        refpts (at.Refpts): Reference points of the element in the
             model where to return data.
+        acc (str, optional): name of the accelerator. Defaults to None, which
+            means the variable DEFAULT_ACCELERATOR will be used.
 
     Returns:
         dict: Dictionary containing Twiss parameters. Available keys:
@@ -52,7 +58,7 @@ def get_twiss(indices, acc=None):
     facility = _get_facility()
     acc = acc or facility.default_accelerator
     accel = facility.accelerators[acc]
-    _, _, twi = accel.get_optics(indices)
+    _, _, twi = accel.get_optics(refpts)
     return {
         'betax': twi.beta[:, 0],
         'betay': twi.beta[:, 1],
@@ -71,8 +77,10 @@ def get_beamsizes(refpts, acc=None):
     """Return beam sizes of the model.
 
     Args:
-        indices (_numpy.ndarray, list, tuple): Indices of the element in the
+        refpts (at.Refpts): Reference points of the element in the
             model where to return data.
+        acc (str, optional): name of the accelerator. Defaults to None, which
+            means the variable DEFAULT_ACCELERATOR will be used.
 
     Returns:
         dict: Dictionary containg 'sigmax' and 'sigmay'.
@@ -95,8 +103,11 @@ def get_attribute(propty, refpts, index=None, acc=None):
     Args:
         propty (str): name of the property. Must be in
             ("KL", "SL", "hkick", "vkick").
-        indices (_numpy.ndarray, list, tuple): Indices of the elements where
-            to return data;
+        refpts (at.Refpts): Reference points of the element in the
+            model where to return data.
+        index (str, optional): polynom order. Defaults to None, which
+            means the attribute DefaultOrder of the element is used.
+            For at.Multipole elements this has to be specified
         acc (str, optional): name of the accelerator. Defaults to None, which
             means the variable DEFAULT_ACCELERATOR will be used.
 
@@ -137,10 +148,13 @@ def set_attribute(propty, refpts, values, index=None, acc=None):
     Args:
         propty (str): name of the property. Must be in
             ("KL", "SL", "hkick", "vkick").
-        indices (_numpy.ndarray, list, tuple): Indices of the elements where
-            to return data;
+        refpts (at.Refpts): Reference points of the element in the
+            model where to return data.
         values (float, _numpy.ndarray, list, tuple): new values for the
             attribute. Can be a number or sequence.
+        index (str, optional): polynom order. Defaults to None, which
+            means the attribute DefaultOrder of the element is used.
+            For at.Multipole elements this has to be specified
         acc (str, optional): name of the accelerator. Defaults to None, which
             means the variable DEFAULT_ACCELERATOR will be used.
 
