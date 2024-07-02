@@ -4,7 +4,7 @@ import numpy
 from .. import _get_facility
 
 
-def get_positions(indices, acc=None):
+def get_positions(refpts, acc=None):
     """Return the longitudinal position along the model.
 
     Args:
@@ -14,11 +14,13 @@ def get_positions(indices, acc=None):
     Returns:
         numpy.ndarray: position in [m] along the accelerator.
     """
-    accel = _get_facility().accelerators[acc]
-    return accel.get_s_pos(indices)
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
+    return accel.get_s_pos(refpts)
 
 
-def get_orbit(indices, acc=None):
+def get_orbit(refpts, acc=None):
     """Return the orbit of the model.
 
     Args:
@@ -28,8 +30,10 @@ def get_orbit(indices, acc=None):
     Returns:
         tuple: (orbx, orby) in [m].
     """
-    accel = _get_facility().accelerators[acc]
-    _, o6 = accel.find_orbit(indices)
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
+    _, o6 = accel.find_orbit(refpts)
     return o6[:, 0], o6[:, 2]
 
 
@@ -45,23 +49,25 @@ def get_twiss(indices, acc=None):
             'betax', 'betay', 'alphax', 'alphay', 'mux', 'muy',
             'etax', 'etay', 'etapx', 'etapy'.
     """
-    accel = _get_facility().accelerators[acc]
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
     _, _, twi = accel.get_optics(indices)
     return {
-        'betax': twi.beta[0, :],
-        'betay': twi.beta[1, :],
-        'alphax': twi.alpha[0, :],
-        'alphay': twi.alpha[1, :],
-        'mux': twi.mu[0, :]/(2*numpy.pi),
-        'muy': twi.mu[1, :]/(2*numpy.pi),
-        'etax': twi.dispersion[0, :],
-        'etay': twi.dispersion[1, :],
-        'etapx': twi.dispersion[2, :],
-        'etapy': twi.dispersion[3, :],
+        'betax': twi.beta[:, 0],
+        'betay': twi.beta[:, 1],
+        'alphax': twi.alpha[:, 1],
+        'alphay': twi.alpha[:, 1],
+        'mux': twi.mu[:, 0]/(2*numpy.pi),
+        'muy': twi.mu[:, 1]/(2*numpy.pi),
+        'etax': twi.dispersion[:, 0],
+        'etay': twi.dispersion[:, 1],
+        'etapx': twi.dispersion[:, 2],
+        'etapy': twi.dispersion[:, 3],
     }
 
 
-def get_beamsizes(indices, acc=None):
+def get_beamsizes(refpts, acc=None):
     """Return beam sizes of the model.
 
     Args:
@@ -71,17 +77,19 @@ def get_beamsizes(indices, acc=None):
     Returns:
         dict: Dictionary containg 'sigmax' and 'sigmay'.
     """
-    accel = _get_facility().accelerators[acc]
-    _, _, twi = accel.get_optics(indices)
-    bd = at.envelope_parameters(ring.enable_6d(copy=True))
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
+    _, _, twi = accel.get_optics(refpts)
+    bd = at.envelope_parameters(accel.enable_6d(copy=True))
     return {
-        'sigmax': numpy.sqrt(twi.beta[0, :]*bd.emittances[0] +
-                             (twi.dispersion[0, :]*bd.sigma_e)**2),
-        'sigmay': numpy.sqrt(twi.beta[1, :]*bd.emittances[1]),
+        'sigmax': numpy.sqrt(twi.beta[:, 0]*bd.emittances[0] +
+                             (twi.dispersion[:, 1]*bd.sigma_e)**2),
+        'sigmay': numpy.sqrt(twi.beta[:, 1]*bd.emittances[1]),
     }
 
 
-def get_attribute(propty, indices, pol_order=None, acc=None):
+def get_attribute(propty, refpts, index=None, acc=None):
     """Return desided property from simulator.
 
     Args:
@@ -99,36 +107,31 @@ def get_attribute(propty, indices, pol_order=None, acc=None):
         numpy.ndarray: value of the attribute at the desired elements.
 
     """
-    accel = _get_facility().accelerators[acc]       
-    if propty in ('KL', 'SL') and pol_order is None:
-        raise ValueError(f'Set polynom order for propty ({propty})')
-    
-    # expensive check   
-    for e in ring[indices]:
-        if not isinstance(e, at.Multipole):  
-            raise ValueError(f'Array contains elements that are not magnets')  
-        if numpy.sum(e.KickAngle) != 0.0:
-            raise ValueError(f'Please set all KickAngle attributes to zero in the model')
-        
-    length = ring.get_value_refpts(indices, 'Length')    
-    if propty=='KL':
-        strength = ring.get_value_refpts(indices, 'PolynomB', index=pol_order)
-        return strength*length
-    elif propty=='SL':
-        strength = ring.get_value_refpts(indices, 'PolynomA', index=pol_order)
-        return strength*length       
-    elif propty=='hkick':
-        strength = ring.get_value_refpts(indices, 'PolynomB', index=0)
-        return strength*length 
-    elif propty=='vkick':
-        strength = ring.get_value_refpts(indices, 'PolynomA', index=0)
-        return strength*length 
-    else:
-        raise ValueError(f'Wrong value for propty ({propty})')  
+    _ATTR = {'KL': ['PolynomB', index or None],
+             'SL': ['PolynomA', index or None],
+             'hkick': ['KickAngle', 0],
+             'vkick': ['KickAngle', 1]}
+
+    def get_attr(element, attr, attr_index):
+        if attr_index is None and 'Polynom' in attr:
+            attr_index = getattr(element, 'DefaultOrder', None)
+            if attr_index is None:
+                raise ValueError(f'Set polynom order for element ({element.FamName})')
+        le = 1
+        if 'Polynom' in attr: le = element.Length
+        return getattr(element, attr)[attr_index] * le
+
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
+    try:
+        attr, attr_index = _ATTR[propty]
+        return [get_attr(e, attr, attr_index) for e in accel[refpts]]
+    except KeyError:
+        raise ValueError(f'Wrong value for propty ({propty})')
     
 
-
-def set_attribute(propty, indices, values, pol_order=None, acc=None):
+def set_attribute(propty, refpts, values, index=None, acc=None):
     """Set model with new attribute values.
 
     Args:
@@ -148,25 +151,26 @@ def set_attribute(propty, indices, values, pol_order=None, acc=None):
         numpy.ndarray: value of the attribute at the desired elements.
 
     """
-    accel = _get_facility().accelerators[acc]       
-    if propty in ('KL', 'SL') and pol_order is None:
-        raise ValueError(f'Set polynom order for propty ({propty})')
-        
-    # expensive check   
-    for e in ring[indices]:
-        if not isinstance(e, at.Multipole):  
-            raise ValueError(f'Array contains elements that are not magnets')  
-        if numpy.sum(e.KickAngle) != 0.0:
-            raise ValueError(f'Please set all KickAngle attributes to zero in the model')
-        
-    length = ring.get_value_refpts(indices, 'Length')    
-    if propty=='KL':
-        ring.set_value_refpts(indices, 'PolynomB', values/length, index=pol_order)
-    elif propty=='SL':
-        ring.set_value_refpts(indices, 'PolynomA', values/length, index=pol_order)      
-    elif propty=='hkick':
-        ring.set_value_refpts(indices, 'PolynomB', values, index=0)
-    elif propty=='vkick':
-        ring.set_value_refpts(indices, 'PolynomA', values, index=0) 
-    else:
-        raise ValueError(f'Wrong value for propty ({propty})') 
+    _ATTR = {'KL': ['PolynomB', index or None],
+             'SL': ['PolynomA', index or None],
+             'hkick': ['KickAngle', 0],
+             'vkick': ['KickAngle', 1]}
+
+    def set_attr(element, value, attr, attr_index):
+        if attr_index is None and 'Polynom' in attr:
+            attr_index = getattr(element, 'DefaultOrder', None)
+            if attr_index is None:
+                raise ValueError(f'Set polynom order for element ({element.FamName})')
+        le = 1
+        if 'Polynom' in attr: le = element.Length
+        getattr(element, attr)[attr_index] = value / le
+
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
+    values = numpy.broadcast_to(values, accel.refcount(refpts))
+    try:
+        attr, attr_index = _ATTR[propty]
+        return [set_attr(e, v, attr, attr_index) for e, v in zip(accel[refpts], values)]
+    except KeyError:
+        raise ValueError(f'Wrong value for propty ({propty})')

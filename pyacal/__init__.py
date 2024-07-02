@@ -42,8 +42,14 @@ def get_model(acc):
         (paccel.accelerator.Accelerator | pyat.Accelerator): Model of the
             accelerator being abstracted.
     """
-    cst = _get_control_system()
-    return cst.accelerators[acc]
+    facil = _get_facility()
+    return facil.accelerators[acc]
+
+
+# Load the model
+def set_model(acc, model):
+    facil = _get_facility()
+    facil.accelerators[acc] = model
 
 
 def switch2online():
