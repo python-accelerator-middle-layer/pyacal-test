@@ -7,7 +7,7 @@ from functools import partial as _partial
 
 import numpy as _np
 
-from .. import _get_control_system
+from .._conversions import PV as _PV
 
 _DEF_TIMEOUT = 10  # s
 _TINY_INTERVAL = 0.050  # s
@@ -144,15 +144,11 @@ class Device:
             self._pvs[propty] = pvobj
         return self._pvs[propty]
 
-    def pv_ctrlvars(self, propty):
-        """Return PV object control variable."""
-        return self._pvs[propty].get_ctrlvars()
-
     def pv_attribute_values(self, attribute):
         """Return pvname-value dict of a given attribute for all PVs."""
         attributes = dict()
-        for pvobj in self._pvs.values():
-            attributes[pvobj.pvname] = getattr(pvobj, attribute)
+        for name, pvobj in self._pvs.items():
+            attributes[(self.devname, name)] = getattr(pvobj, attribute)
         return attributes
 
     @property
@@ -195,7 +191,7 @@ class Device:
 
     # --- private methods ---
     def _create_pv(self, propty):
-        return _get_control_system().PV(
+        return _PV(
             self.devname, propty, connection_timeout=Device.CONNECTION_TIMEOUT
         )
 
