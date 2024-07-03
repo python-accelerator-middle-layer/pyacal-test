@@ -18,7 +18,8 @@ class DCCT(Device):
         if devname is None:
             devname = fac.find_aliases_from_cs_devtype(fac.CSDevTypes.DCCT)
             devname = fac.find_aliases_from_accelerator(
-                self.accelerator, devname)[0]
+                self.accelerator, devname
+            )[0]
 
         if not fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.DCCT):
             raise ValueError(f"Device name: {devname} not valid for a DCCT.")
