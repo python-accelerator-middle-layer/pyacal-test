@@ -420,7 +420,7 @@ class DeviceSet:
                 devices,
             ]
         # if 'values' is not iterable, consider the same value for all devices
-        if not isinstance(values, (tuple, list)):
+        if not isinstance(values, (tuple, list, _np.ndarray)):
             values = len(devices) * [values]
         return {k: v for k, v in zip(devices, values)}
 

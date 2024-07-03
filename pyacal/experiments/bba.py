@@ -14,7 +14,8 @@ from .. import _get_facility, _get_simulator, \
     get_alias_from_devtype as _get_alias_from_devtype, \
     get_alias_from_indices as _get_alias_from_indices, \
     get_alias_map as _get_alias_map, \
-    get_indices_from_key as _get_indices_from_key
+    get_indices_from_key as _get_indices_from_key, \
+    get_indices_from_alias as _get_indices_from_alias
 from ..devices import DCCT as _DCCT, PowerSupply as _PowerSupply, SOFB as _SOFB
 from .base import ParamsBaseClass as _ParamsBaseClass, \
     ThreadedMeasBaseClass as _BaseClass
@@ -107,7 +108,10 @@ class BBA(_BaseClass):
     @property
     def measuredbpms(self):
         """."""
-        return sorted(self.data['measure'])
+        return sorted(
+            self.data['measure'],
+            key=lambda alias:
+                self._amap[alias]["sim_info"]["indices"])
 
     @property
     def bpms2dobba(self):
@@ -115,7 +119,9 @@ class BBA(_BaseClass):
         if self._bpms2dobba:
             return _dcopy(self._bpms2dobba)
         return sorted(
-            set(self.data['bpmnames']) - self.data['measure'].keys())
+            set(self.data['bpmnames']) - self.data['measure'].keys(),
+            key=lambda alias:
+                self._amap[alias]["sim_info"]["indices"])
 
     @bpms2dobba.setter
     def bpms2dobba(self, bpmlist):
@@ -325,13 +331,13 @@ class BBA(_BaseClass):
     def get_default_quads(self):
         """."""
         bpmnames = self.data["bpmnames"]
-        quads_idx = _get_indices_from_key("cs_devtype", "QuadrupoleNormal")
-        qs_idx = _get_indices_from_key("cs_devtype", "QuadrupoleSkew")
-        bpms_idx = []
-        for bpmname in bpmnames:
-            bpms_idx.append(
-                [idx for idx in self._amap[bpmname]["sim_info"]["indices"]]
-            )
+        devtypes = _get_facility().CSDevTypes
+        quads_idx = _get_indices_from_key(
+            "cs_devtype", devtypes.QuadrupoleNormal, self.accelerator)
+        qs_idx = _get_indices_from_key(
+            "cs_devtype", devtypes.QuadrupoleSkew, self.accelerator)
+
+        bpms_idx = [_get_indices_from_alias(bpm_name) for bpm_name in bpmnames]
 
         quads_idx.extend(qs_idx)
         quads_idx = _np.array([idx[len(idx) // 2] for idx in quads_idx])
@@ -346,8 +352,15 @@ class BBA(_BaseClass):
         bba_idx = _np.argmin(diff, axis=1)
         quads_bba_idx = quads_idx[bba_idx]
         qnames = list()
-        for qidx in quads_bba_idx:
-            qnames.append(_get_alias_from_indices(qidx)[0])
+        for quad_idx in quads_bba_idx:
+            aliases = _get_alias_from_indices(quad_idx)
+            for alias in aliases:
+                cs_dev_type = self._amap[alias]["cs_devtype"]
+                if (
+                    devtypes.QuadrupoleNormal in cs_dev_type or
+                    devtypes.QuadrupoleSkew in cs_dev_type
+                ):
+                    qnames.append(alias)
         return qnames
 
     @staticmethod
