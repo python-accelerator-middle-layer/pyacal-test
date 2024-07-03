@@ -1,7 +1,9 @@
 """Module to implement class Facility."""
 from copy import deepcopy as _dcopy
 
+from .. import _get_simulator
 from ..utils import get_namedtuple as _get_namedtuple
+
 
 class Facility:
     """."""
@@ -81,7 +83,7 @@ class Facility:
                 res.append(alias)
         return res
 
-    def find_alias_from_cs_devname(self, cs_devname, aliases=None):
+    def find_aliases_from_cs_devname(self, cs_devname, aliases=None):
         """."""
         if aliases is None:
             aliases = list(self._alias_map)
@@ -94,7 +96,7 @@ class Facility:
         return res
 
     def find_aliases_from_cs_devtype(
-        self, cs_devtype, aliases=None, comp='or'
+        self, cs_devtype, aliases=None, comp='and'
     ):
         if comp == 'or':
             def meth(x, y):
@@ -136,47 +138,13 @@ class Facility:
     def is_alias_in_cs_devtype(self, alias, cs_devtype):
         return cs_devtype in self._alias_map[alias]['cs_devtype']
 
-    def sort_aliases_by_indices(self, aliases):
+    def sort_aliases_by_model_positions(self, aliases):
         idcs = self.get_attribute_from_aliases(
             'sim_info.indices', aliases=aliases
         )
-        aliases, _ = zip(*sorted(zip(aliases, idcs), key=lambda x: x[1]))
+        simul = _get_simulator()
+        pos = []
+        for idx in idcs:
+            pos.append(simul.get_positions(idx))
+        aliases, _ = zip(*sorted(zip(aliases, pos), key=lambda x: x[1]))
         return aliases
-
-    def get_alias_from_key(self, key, value, accelerator=None):
-        """."""
-        self.__check_key(key)
-        acc = accelerator or self.default_accelerator
-        return [
-            alias
-            for alias, amap in self._alias_map.items()
-            if value in amap.get(key, []) and acc == amap.get("accelerator")
-        ]
-
-    def get_indices_from_key(self, key, value, accelerator=None):
-        """."""
-        self.__check_key(key)
-        acc = accelerator or self.default_accelerator
-        indices = []
-        for _, amap in self._alias_map.items():
-            if value in amap.get(key, []) and acc == amap.get("accelerator"):
-                indices.append(amap["sim_info"]["indices"])
-        return indices
-
-    def get_indices_from_alias(self, alias):
-        """."""
-        return [idx for idx in self._alias_map[alias]["sim_info"]["indices"]]
-
-    def get_alias_from_indices(self, indices, accelerator=None):
-        """."""
-        acc = accelerator or self.default_accelerator
-        return [
-            alias
-            for alias, amap in self._alias_map.items()
-            if indices in amap["sim_info"]["indices"]
-            and acc == amap.get("accelerator")
-        ]
-
-    def __check_key(self, key):
-        if not any(key in Facility._AMAP_KEYS):
-            raise ValueError(f"Key '{key}' not found in any alias_map entry.")

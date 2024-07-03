@@ -93,4 +93,4 @@ class FamCMs(DeviceSet):
         cmnames = facil.find_aliases_from_cs_devtype(
             {facil.CSDevTypes.SOFB, devtype}, aliases=cmnames
         )
-        return facil.sort_aliases_by_indices(cmnames)
+        return facil.sort_aliases_by_model_positions(cmnames)

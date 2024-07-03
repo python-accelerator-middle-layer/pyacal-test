@@ -43,4 +43,4 @@ class FamBPMs(DeviceSet):
         bpmnames = facil.find_aliases_from_cs_devtype(
             {facil.CSDevType.BPM, facil.CSDevType.SOFB}, aliases=bpmnames,
         )
-        return facil.sort_aliases_by_indices(bpmnames)
+        return facil.sort_aliases_by_model_positions(bpmnames)
