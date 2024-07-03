@@ -32,11 +32,11 @@ class SOFB(DeviceSet):
         self.nr_vcms = self.famcms.nr_vcms
         self.nr_cors = self.nr_hcms + self.nr_vcms + 1
 
-        self.bpmx_enbl = _np.ones(self.nr_bpms, dtype=float)
-        self.bpmy_enbl = _np.ones(self.nr_bpms, dtype=float)
-        self.hcm_enbl = _np.ones(self.nr_hcms, dtype=float)
-        self.vcm_enbl = _np.ones(self.nr_vcms, dtype=float)
-        self.rfg_enbl = True
+        self._bpmx_enbl = _np.ones(self.nr_bpms, dtype=bool)
+        self._bpmy_enbl = _np.ones(self.nr_bpms, dtype=bool)
+        self._hcm_enbl = _np.ones(self.nr_hcms, dtype=bool)
+        self._vcm_enbl = _np.ones(self.nr_vcms, dtype=bool)
+        self._rfg_enbl = True
 
         self.orb_nrpoints = 10
         self.orb_method = "average"
@@ -71,7 +71,7 @@ class SOFB(DeviceSet):
     @property
     def currents_vcm(self):
         """."""
-        return self.famcms.kicks_vcm
+        return self.famcms.currents_vcm
 
     @property
     def delta_currents_hcm(self):
@@ -105,6 +105,66 @@ class SOFB(DeviceSet):
     @delta_frequency_rfg.setter
     def delta_frequency_rfg(self, value):
         self._delta_frequency_rfg = float(value)
+
+    @property
+    def bpmx_enbl(self):
+        """."""
+        return self._bpmx_enbl
+
+    @bpmx_enbl.setter
+    def bpmx_enbl(self, val):
+        val = _np.asarray(val, dtype=bool)
+        if val.size != self._bpmx_enbl.size:
+            raise ValueError('Wrong shape.')
+        self._bpmx_enbl = val
+
+    @property
+    def bpmy_enbl(self):
+        """."""
+        return self._bpmy_enbl
+
+    @bpmy_enbl.setter
+    def bpmy_enbl(self, val):
+        val = _np.asarray(val, dtype=bool)
+        if val.size != self._bpmy_enbl.size:
+            raise ValueError('Wrong shape.')
+        self._bpmy_enbl = val
+
+    @property
+    def hcm_enbl(self):
+        """."""
+        return self._hcm_enbl
+
+    @hcm_enbl.setter
+    def hcm_enbl(self, val):
+        val = _np.asarray(val, dtype=bool)
+        if val.size != self._hcm_enbl.size:
+            raise ValueError('Wrong shape.')
+        self._hcm_enbl = val
+
+    @property
+    def vcm_enbl(self):
+        """."""
+        return self._vcm_enbl
+
+    @vcm_enbl.setter
+    def vcm_enbl(self, val):
+        val = _np.asarray(val, dtype=bool)
+        if val.size != self._vcm_enbl.size:
+            raise ValueError('Wrong shape.')
+        self._vcm_enbl = val
+
+    @property
+    def rfg_enbl(self):
+        """."""
+        return self._rfg_enbl
+
+    @rfg_enbl.setter
+    def rfg_enbl(self, val):
+        val = _np.asarray(val, dtype=bool)
+        if val.size != self._rfg_enbl.size:
+            raise ValueError('Wrong shape.')
+        self._rfg_enbl = val
 
     @property
     def respmat(self):
@@ -239,16 +299,17 @@ class SOFB(DeviceSet):
 
         idcs = _np.isclose(dcm, 0, atol=_PowerSupply.TINY_CURRENT)
         dcm[idcs] = _np.nan
-        currs = self.famcms.get_currents() + dcm
+        currs0 = self.famcms.get_currents()
         freq = self.rfgen.frequency + drfg
 
-        self.famcms.set_currents(currs)
+        self.famcms.set_currents(currs0 + dcm)
         tini = _time.time()
         boo = self.rfgen.set_frequency(freq, timeout=timeout)
         if not boo:
             return False
         timeout = max(0, timeout - (_time.time() - tini))
-        return self.famcms.wait_currents(currs, timeout=timeout)
+        currs0[~idcs] += dcm[~idcs]
+        return self.famcms.wait_currents(currs0, timeout=timeout)
 
     def _calc_inv_respmat(self, mat=None):
         sel_bpm = _np.r_[self.bpmx_enbl, self.bpmy_enbl]
