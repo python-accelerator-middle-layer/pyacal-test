@@ -10,12 +10,7 @@ import matplotlib.pyplot as _plt
 import numpy as _np
 from scipy.optimize import least_squares as _least_squares
 
-from .. import _get_facility, _get_simulator, \
-    get_alias_from_devtype as _get_alias_from_devtype, \
-    get_alias_from_indices as _get_alias_from_indices, \
-    get_alias_map as _get_alias_map, \
-    get_indices_from_key as _get_indices_from_key, \
-    get_indices_from_alias as _get_indices_from_alias
+from .. import _get_facility, _get_simulator
 from ..devices import DCCT as _DCCT, PowerSupply as _PowerSupply, SOFB as _SOFB
 from .base import ParamsBaseClass as _ParamsBaseClass, \
     ThreadedMeasBaseClass as _BaseClass
@@ -110,8 +105,8 @@ class BBA(_BaseClass):
         """."""
         return sorted(
             self.data['measure'],
-            key=lambda alias:
-                self._amap[alias]["sim_info"]["indices"])
+            key=lambda alias: self.data['bpmnames'].index(alias)
+        )
 
     @property
     def bpms2dobba(self):
@@ -120,8 +115,8 @@ class BBA(_BaseClass):
             return _dcopy(self._bpms2dobba)
         return sorted(
             set(self.data['bpmnames']) - self.data['measure'].keys(),
-            key=lambda alias:
-                self._amap[alias]["sim_info"]["indices"])
+            key=lambda alias: self.data['bpmnames'].index(alias)
+        )
 
     @bpms2dobba.setter
     def bpms2dobba(self, bpmlist):
@@ -330,38 +325,40 @@ class BBA(_BaseClass):
 
     def get_default_quads(self):
         """."""
-        bpmnames = self.data["bpmnames"]
-        devtypes = _get_facility().CSDevTypes
-        quads_idx = _get_indices_from_key(
-            "cs_devtype", devtypes.QuadrupoleNormal, self.accelerator)
-        qs_idx = _get_indices_from_key(
-            "cs_devtype", devtypes.QuadrupoleSkew, self.accelerator)
-
-        bpms_idx = [_get_indices_from_alias(bpm_name) for bpm_name in bpmnames]
-
-        quads_idx.extend(qs_idx)
-        quads_idx = _np.array([idx[len(idx) // 2] for idx in quads_idx])
-
         simul = _get_simulator()
-        quads_pos = _np.array(simul.get_positions(
-            acc=self.accelerator, indices=quads_idx)).ravel()
-        bpms_pos = _np.array(simul.get_positions(
-            acc=self.accelerator, indices=bpms_idx)).ravel()
+        facil = _get_facility()
+        devtypes = facil.CSDevTypes
 
-        diff = _np.abs(bpms_pos[:, None] - quads_pos[None, :])
+        bpmnames = self.data["bpmnames"]
+        quadnames = facil.find_aliases_from_cs_devtype(
+            {devtypes.QuadrupoleNormal, devtypes.QuadrupoleSkew},
+            comp='or',
+        )
+        quadnames = facil.find_aliases_from_accelerator(
+            self.accelerator, aliases=quadnames
+        )
+
+        qidcs = facil.get_attribute_from_aliases('sim_info.indices', quadnames)
+        bidcs = facil.get_attribute_from_aliases('sim_info.indices', bpmnames)
+
+        acc = self.accelerator
+        qpos = _np.array(
+            [simul.get_positions(idx, acc=acc) for idx in qidcs]
+        ).ravel()
+        bpos = _np.array(
+            [simul.get_positions(idx, acc=acc) for idx in bidcs]
+        ).ravel()
+        if qpos.size != len(quadnames) or bpos.size != len(bpmnames):
+            raise ValueError(
+                "Size of positions does not match size of indices.\n" +
+                "Maybe there is some problem with `indices` definition in" +
+                "`facility.alias_map` or with `get_positions` function " +
+                "from `simulator`."
+            )
+
+        diff = _np.abs(bpos[:, None] - qpos[None, :])
         bba_idx = _np.argmin(diff, axis=1)
-        quads_bba_idx = quads_idx[bba_idx]
-        qnames = list()
-        for quad_idx in quads_bba_idx:
-            aliases = _get_alias_from_indices(quad_idx)
-            for alias in aliases:
-                cs_dev_type = self._amap[alias]["cs_devtype"]
-                if (
-                    devtypes.QuadrupoleNormal in cs_dev_type or
-                    devtypes.QuadrupoleSkew in cs_dev_type
-                ):
-                    qnames.append(alias)
-        return qnames
+        return [quadnames[i] for i in bba_idx]
 
     @staticmethod
     def _calc_fitting_error(fit_params):

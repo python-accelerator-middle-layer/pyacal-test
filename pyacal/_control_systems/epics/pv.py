@@ -12,8 +12,10 @@ class PV(_epics.pv.PV):
         """."""
         self.devname = devname
         self.propty = propty
-        mapping = _get_facility().alias_map[devname]
-        pvname = mapping['cs_devname']
-        pvname += mapping['cs_propties'][propty]['name']
+        facil = _get_facility()
+        pvname = facil.get_attribute_from_aliases('cs_devname', devname)
+        pvname += facil.get_attribute_from_aliases(
+            f'cs_propties.{propty}.name', devname
+        )
         super().__init__(pvname, **kwargs)
         _get_connections_dict()[(devname, propty)] = self

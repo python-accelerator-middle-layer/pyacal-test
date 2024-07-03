@@ -26,7 +26,7 @@ class RFGen(Device):
             devname = fac.find_aliases_from_cs_devtype(
                 fac.CSDevTypes.RFGenerator)[0]
 
-        if fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.RFGenerator):
+        if not fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.RFGenerator):
             raise ValueError(f"Device name: {devname} not valid for a RFGen")
 
         super().__init__(devname, props2init=RFGen.PROPERTIES_DEFAULT)

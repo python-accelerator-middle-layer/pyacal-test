@@ -18,7 +18,7 @@ class Tune(Device):
             devname = fac.find_aliases_from_accelerator(
                 self.accelerator, devname)[0]
 
-        if fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.TuneMeas):
+        if not fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.TuneMeas):
             raise ValueError(f"Device name: {devname} not valid for Tune")
 
         super().__init__(

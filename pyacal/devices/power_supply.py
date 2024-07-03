@@ -18,8 +18,8 @@ class PowerSupply(Device):
 
     def __init__(self, devname):
         """."""
-        facil = _get_facility()
-        if facil.is_alias_in_cs_devtype(devname, facil.CSDevTypes.PowerSupply):
+        fac = _get_facility()
+        if not fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.PowerSupply):
             raise ValueError(
                 f"Device name: {devname} not valid for a PowerSupply."
             )
