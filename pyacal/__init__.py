@@ -130,5 +130,5 @@ def __set_control_system(control_system):
     all_conn = __ACAL_VARS['all_connections']
     __ACAL_VARS['all_connections'] = dict()
     for key in all_conn:
-        cs_new.PV(*key)
+        cs_new.PV(*key[0])
     __ACAL_VARS['control_system'] = cs_new
