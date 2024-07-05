@@ -4,10 +4,13 @@ from copy import deepcopy as _dcopy
 
 import numpy as _np
 import pymodels
+from siriuspy.clientweb import implementation
 
+from ..._conversions.utils import ConverterNames
 from ..facility import Facility
 
 __CSDT = Facility.CSDevTypes
+__CONVT = ConverterNames
 
 
 def define_si(facil: Facility):
@@ -25,13 +28,11 @@ def define_si(facil: Facility):
             'cs_devname': devname,
             'cs_devtype': {__CSDT.DCCT, },
             'accelerator': 'SI',
-            'sim_info': {
-                'indices': [famdata['DCCT']['index'][0]],
-            },
+            'sim_info': {'indices': [famdata['DCCT']['index'][0]]},
             'cs_propties': {
                 'current': {
                     'name': ':Current-Mon',
-                    'conv_sim2cs': 1e-3,  # from [mA] to [A]
+                    'conv_cs2sim': 1e-3,  # from [mA] to [A]
                 }
             },
         }
@@ -47,17 +48,17 @@ def define_si(facil: Facility):
                 'cs_devname': devname,
                 'cs_devtype': {__CSDT.BPM, __CSDT.SOFB},
                 'accelerator': 'SI',
-                'sim_info': {
-                    'indices': [idcs],
-                },
+                'sim_info': {'indices': [idcs]},
                 'cs_propties': {
                     'posx': {
                         'name': ':PosX-Mon',
-                        'conv_sim2cs': 1e-9,  # from [nm] to [m]
+                        'conv_cs2sim': 1e-9,  # from [nm] to [m]
+                        'conv_cs2phys': 1e-3,  # from [nm] to [um]
                     },
                     'posy': {
                         'name': ':PosY-Mon',
-                        'conv_sim2cs': 1e-9,  # from [nm] to [m]
+                        'conv_cs2sim': 1e-9,  # from [nm] to [m]
+                        'conv_cs2phys': 1e-3,  # from [nm] to [um]
                     },
                 },
             }
@@ -65,54 +66,114 @@ def define_si(facil: Facility):
 
     # --------- Define magnets (power supplies) ------------
 
+    # ------------------- Bending Magnets -----------------------
+    convs = [
+        {
+            'type': __CONVT.LookupTableConverter,
+            'table_name': 'name_of_excitation_table',
+        },
+        {
+            'type': __CONVT.MagRigidityConverter,
+            'energy': 3e9,  # in [eV]
+        },
+    ]
+    props = {
+        'pwrstate_sp': {'name': ':PwrState-Sel'},
+        'pwrstate_rb': {'name': ':PwrState-Sts'},
+        'current_sp': {'name': ':Current-SP', 'conv_cs2sim': _dcopy(convs)},
+        'current_rb': {
+            'name': ':CurrentRef-Mon', 'conv_cs2sim': _dcopy(convs)},
+        'current_mon': {'name': ':Current-Mon', 'conv_cs2sim': _dcopy(convs)},
+        'energy_sp': {'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)},
+        'energy_rb': {
+            'name': ':CurrentRef-Mon', 'conv_cs2phys': _dcopy(convs),
+        },
+        'energy_mon': {
+            'name': ':Current-Mon', 'conv_cs2phys': _dcopy(convs)
+        },
+    }
+    typs = ['B1B2-1', 'B1B2-2']
+    for typ in typs:
+        devname = f'SI-Fam:PS-{typ}'
+        alias = 'Fam-' + typ
+        facil.add_2_alias_map(
+            alias,
+            {
+                'cs_devname': devname,
+                'cs_devtype': {__CSDT.DipoleNormal, __CSDT.PowerSupply},
+                'accelerator': 'SI',
+                'sim_info': {'indices': famdata[typ]['index']},
+                'cs_propties': _dcopy(props),
+            }
+        )
+
+    # ---------------- Quadrupole and Sextupole Families ------------------
+    convs = [
+        {
+            'type': __CONVT.LookupTableConverter,
+            'table_name': 'name_of_excitation_table',
+        },
+        {
+            'type': __CONVT.MagRigidityConverter,
+            'devname': 'Fam-B1B2-1',
+            'propty': 'energy_rb',
+            'conv_2_ev': 1e9,  # to convert from [GeV] to [eV]
+        },
+    ]
+    props = {
+        'pwrstate_sp': {'name': ':PwrState-Sel'},
+        'pwrstate_rb': {'name': ':PwrState-Sts'},
+        'current_sp': {'name': ':Current-SP', 'conv_cs2sim': _dcopy(convs)},
+        'current_rb': {
+            'name': ':CurrentRef-Mon', 'conv_cs2sim': _dcopy(convs)},
+        'current_mon': {'name': ':Current-Mon', 'conv_cs2sim': _dcopy(convs)},
+        'energy_sp': {'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)},
+        'energy_rb': {
+            'name': ':CurrentRef-Mon', 'conv_cs2phys': _dcopy(convs),
+        },
+        'energy_mon': {
+            'name': ':Current-Mon', 'conv_cs2phys': _dcopy(convs)
+        },
+    }
+    typs = [
+        'Q1', 'Q2', 'Q3', 'Q4',
+        'QFA', 'QDA',
+        'QDB1', 'QFB', 'QDB2',
+        'QDP1', 'QFP', 'QDP2',
+        'SFA0', 'SDA0', 'SDA1', 'SFA1', 'SDA2', 'SDA3', 'SFA2',
+        'SFB2', 'SDB3', 'SDB2', 'SFB1', 'SDB1', 'SDB0', 'SFB0',
+        'SFP2', 'SDP3', 'SDP2', 'SFP1', 'SDP1', 'SDP0', 'SFP0',
+    ]
+    for typ in typs:
+        devname = f'SI-Fam:PS-{typ}'
+        alias = 'Fam-' + typ
+        name = __CSDT.QuadrupoleNormal if typ.startswith('Q') \
+            else __CSDT.SextupoleNormal
+        facil.add_2_alias_map(
+            alias,
+            {
+                'cs_devname': devname,
+                'cs_devtype': {name, __CSDT.PowerSupply},
+                'accelerator': 'SI',
+                'sim_info': {'indices': famdata[typ]['index']},
+                'cs_propties': _dcopy(props),
+            }
+        )
+
     # ------------------ Slow Corrector Magnets ------------
     props = {
         'pwrstate_sp': {'name': ':PwrState-Sel'},
         'pwrstate_rb': {'name': ':PwrState-Sts'},
-        'current_sp': {
-            'name': ':Current-SP',
-            'conv_sim2cs': {
-                'excitation_table': 'name_of_excitation_table',
-                'brho_source': '',
-            }
-        },
+        'current_sp': {'name': ':Current-SP', 'conv_cs2sim': _dcopy(convs)},
         'current_rb': {
-            'name': ':CurrentRef-Mon',
-            'conv_sim2cs': {
-                'excitation_table': 'name_of_excitation_table',
-                'brho_source': '',
-            }
-        },
-        'current_mon': {
-            'name': ':Current-Mon',
-            'conv_sim2cs': {
-                'excitation_table': 'name_of_excitation_table',
-                'brho_source': '',
-            }
-        },
-        'strength_sp': {
-            'name': ':Current-SP',
-            'conv_sim2cs': 1.0,
-            'conv_cs2phys': {
-                'exctitation_table': 'name_of_excitation_table',
-                'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
-            }
-        },
+            'name': ':CurrentRef-Mon', 'conv_cs2sim': _dcopy(convs)},
+        'current_mon': {'name': ':Current-Mon', 'conv_cs2sim': _dcopy(convs)},
+        'strength_sp': {'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)},
         'strength_rb': {
-            'name': ':CurrentRef-Mon',
-            'conv_sim2cs': 1.0,
-            'conv_cs2phys': {
-                'exctitation_table': 'name_of_excitation_table',
-                'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
-            }
+            'name': ':CurrentRef-Mon', 'conv_cs2phys': _dcopy(convs),
         },
         'strength_mon': {
-            'name': ':Current-Mon',
-            'conv_sim2cs': 1.0,
-            'conv_cs2phys': {
-                'exctitation_table': 'name_of_excitation_table',
-                'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
-            }
+            'name': ':Current-Mon', 'conv_cs2phys': _dcopy(convs)
         },
     }
     typs = ['CH', 'CV']
@@ -130,9 +191,7 @@ def define_si(facil: Facility):
                     'cs_devname': devname,
                     'cs_devtype': {name, __CSDT.PowerSupply, __CSDT.SOFB},
                     'accelerator': 'SI',
-                    'sim_info': {
-                        'indices': [idcs],
-                    },
+                    'sim_info': {'indices': [idcs]},
                     'cs_propties': _dcopy(props),
                 }
             )
@@ -148,67 +207,44 @@ def define_si(facil: Facility):
                 'cs_devname': devname,
                 'cs_devtype': {__CSDT.QuadrupoleSkew, __CSDT.PowerSupply},
                 'accelerator': 'SI',
-                'sim_info': {
-                    'indices': [idcs],
-                },
+                'sim_info': {'indices': [idcs]},
                 'cs_propties': _dcopy(props),
             }
         )
 
     # --------------------- Normal Quadrupoles -------------------
+    convs = [
+        {
+            'type': __CONVT.LookupTableConverter,
+            'table_name': 'name_of_excitation_table',
+        },
+        {
+            'type': __CONVT.MagRigidityConverter,
+            'devname': 'FamB1B2-1',
+            'propty': 'energy_rb',
+            'conv_2_ev': 1e9,
+        },
+        {
+            'type': __CONVT.CompanionProptyConverter,
+            'devname': 'Fam-QFA',
+            'propty': 'KL-Mon',
+            'operation': 'add',
+        },
+    ]
     props = {
         'pwrstate_sp': {'name': ':PwrState-Sel'},
         'pwrstate_rb': {'name': ':PwrState-Sts'},
-        'current_sp': {
-            'name': ':Current-SP',
-            'conv_sim2cs': {
-                'excitation_table': 'name_of_excitation_table',
-                'brho_source': '',
-                'companion_dev': '',
-            }
-        },
+        'current_sp': {'name': ':Current-SP', 'conv_cs2sim': _dcopy(convs)},
         'current_rb': {
-            'name': ':CurrentRef-Mon',
-            'conv_sim2cs': {
-                'excitation_table': 'name_of_excitation_table',
-                'brho_source': '',
-                'companion_dev': '',
-            }
+            'name': ':CurrentRef-Mon', 'conv_cs2sim': _dcopy(convs)
         },
-        'current_mon': {
-            'name': ':Current-Mon',
-            'conv_sim2cs': {
-                'excitation_table': 'name_of_excitation_table',
-                'brho_source': '',
-                'companion_dev': '',
-            }
-        },
-        'strength_sp': {
-            'name': ':Current-SP',
-            'conv_sim2cs': 1.0,
-            'conv_cs2phys': {
-                'exctitation_table': 'name_of_excitation_table',
-                'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
-                'companion_dev': '',
-            }
-        },
+        'current_mon': {'name': ':Current-Mon', 'conv_cs2sim': _dcopy(convs)},
+        'strength_sp': {'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)},
         'strength_rb': {
-            'name': ':CurrentRef-Mon',
-            'conv_sim2cs': 1.0,
-            'conv_cs2phys': {
-                'exctitation_table': 'name_of_excitation_table',
-                'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
-                'companion_dev': '',
-            }
+            'name': ':CurrentRef-Mon', 'conv_cs2phys': _dcopy(convs)
         },
         'strength_mon': {
-            'name': ':Current-Mon',
-            'conv_sim2cs': 1.0,
-            'conv_cs2phys': {
-                'exctitation_table': 'name_of_excitation_table',
-                'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
-                'companion_dev': '',
-            }
+            'name': ':Current-Mon', 'conv_cs2phys': _dcopy(convs)
         },
     }
 
@@ -216,18 +252,20 @@ def define_si(facil: Facility):
     for i, idcs in enumerate(famdata[typ]['index']):
         devname = famdata[typ]['devnames'][i]
         alias = devname.dev + '-' + devname.get_nickname()
-        facil.add_2_alias_map(
-            alias,
-            {
-                'cs_devname': devname,
-                'cs_devtype': {__CSDT.QuadrupoleNormal, __CSDT.PowerSupply},
-                'accelerator': 'SI',
-                'sim_info': {
-                    'indices': [idcs],
-                },
-                'cs_propties': _dcopy(props),
-            }
-        )
+        table_name = ''
+        mapp = {
+            'cs_devname': devname,
+            'cs_devtype': {__CSDT.QuadrupoleNormal, __CSDT.PowerSupply},
+            'accelerator': 'SI',
+            'sim_info': {'indices': [idcs]},
+            'cs_propties': _dcopy(props),
+        }
+        for prp in mapp['cs_propties'].values():
+            con = prp.get('conv_cs2phys', prp['conv_cs2sim'])
+            con[0]['table_name'] = table_name
+            con[2]['devname'] = 'Fam-' + devname.dev
+
+        facil.add_2_alias_map(alias, mapp)
 
     # -------- Define RF --------
     facil.add_2_alias_map(
@@ -236,48 +274,29 @@ def define_si(facil: Facility):
             'cs_devname': 'RF-Gen',
             'cs_devtype': {__CSDT.RFGenerator, },
             'accelerator': 'SI',
-            'sim_info': {
-                'indices': famdata['SRFCav']['index'],
-            },
+            'sim_info': {'indices': famdata['SRFCav']['index']},
             'cs_propties': {
-                'frequency_rb': {
-                    'name': ':GeneralFreq-RB', 'conv_sim2cs': 1,
-                },
-                'frequency_sp': {
-                    'name': ':GeneralFreq-SP', 'conv_sim2cs': 1,
-                },
+                'frequency_rb': {'name': ':GeneralFreq-RB'},
+                'frequency_sp': {'name': ':GeneralFreq-SP'},
             },
         }
     )
 
+    phs_conv = 180/_np.pi
     facil.add_2_alias_map(
         "RFCav",
         {
             'cs_devname': 'SR-RF-DLLRF-01',
             'cs_devtype': {__CSDT.RFCavity, },
             'accelerator': 'SI',
-            'sim_info': {
-                'indices': famdata['SRFCav']['index'],
-            },
+            'sim_info': {'indices': famdata['SRFCav']['index']},
             'cs_propties': {
-                'voltage_mon': {
-                    'name': ':SL:INP:AMP', 'conv_sim2cs': 1e-6,
-                },
-                'voltage_rb': {
-                    'name': ':SL:REF:AMP', 'conv_sim2cs': 1e-6,
-                },
-                'voltage_sp': {
-                    'name': ':mV:AL:REF-SP', 'conv_sim2cs': 1e-6,
-                },
-                'phase_mon': {
-                    'name': ':SL:INP:PHS', 'conv_sim2cs': 180/_np.pi,
-                },
-                'phase_rb': {
-                    'name': ':SL:REF:PHS', 'conv_sim2cs': 180/_np.pi,
-                },
-                'phase_sp': {
-                    'name': ':PL:REF:S', 'conv_sim2cs': 180/_np.pi,
-                },
+                'voltage_mon': {'name': ':SL:INP:AMP', 'conv_cs2sim': 1e-6},
+                'voltage_rb': {'name': ':SL:REF:AMP', 'conv_cs2sim': 1e-6},
+                'voltage_sp': {'name': ':mV:AL:REF-SP', 'conv_cs2sim': 1e-6},
+                'phase_mon': {'name': ':SL:INP:PHS', 'conv_cs2sim': phs_conv},
+                'phase_rb': {'name': ':SL:REF:PHS', 'conv_cs2sim': phs_conv},
+                'phase_sp': {'name': ':PL:REF:S', 'conv_cs2sim': phs_conv},
             },
         }
     )
@@ -289,16 +308,10 @@ def define_si(facil: Facility):
             'cs_devname': 'SI-Glob:DI-Tune',
             'cs_devtype': {__CSDT.TuneMeas, },
             'accelerator': 'SI',
-            'sim_info': {
-                'indices': [[]],
-            },
+            'sim_info': {'indices': [[]]},
             'cs_propties': {
-                'tunex': {
-                    'name': '-H:TuneFrac-Mon',
-                },
-                'tuney': {
-                    'name': '-V:TuneFrac-Mon'
-                }
+                'tunex': {'name': '-H:TuneFrac-Mon'},
+                'tuney': {'name': '-V:TuneFrac-Mon'}
             },
         }
     )
@@ -340,3 +353,11 @@ define_bo(facility)
 define_tb(facility)
 define_ts(facility)
 define_li(facility)
+
+
+def get_lookup_table(facil, table_name):
+
+    pass
+
+
+facility.get_lookup_table = get_lookup_table

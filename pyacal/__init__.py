@@ -3,7 +3,7 @@
 import importlib as _importlib
 
 from ._control_systems import ControlSystemOptions
-from ._facilities import FacilityOptions, Facility
+from ._facilities import Facility, FacilityOptions
 from ._simulators import SimulatorOptions
 
 # NOTE: Package-wide variables must be mutable objects in order to not be

@@ -1,4 +1,6 @@
-from .. import _get_control_system
+from .. import _get_control_system, _get_facility
+from .converters import create_converter
+from .utils import ConverterTypes
 
 
 class PV:
@@ -74,23 +76,23 @@ class PV:
     def lower_limit(self):
         """."""
         pvo = _get_control_system().get_pv(self._key)
-        return self._convert_direct(pvo.lower_limit)
+        return self._conversion_forward(pvo.lower_limit)
 
     @property
     def upper_limit(self):
         """."""
         pvo = _get_control_system().get_pv(self._key)
-        return self._convert_direct(pvo.upper_limit)
+        return self._conversion_forward(pvo.upper_limit)
 
     def get(self, timeout=None):
         """."""
         pvo = _get_control_system().get_pv(self._key)
-        return self._convert_direct(pvo.get(timeout=timeout))
+        return self._conversion_forward(pvo.get(timeout=timeout))
 
     def put(self, value, wait=False):
         """."""
         pvo = _get_control_system().get_pv(self._key)
-        return pvo.put(self._convert_reverse(value), wait=wait)
+        return pvo.put(self._conversion_reverse(value), wait=wait)
 
     def wait_for_connection(self, timeout=None):
         """."""
@@ -98,14 +100,34 @@ class PV:
         return pvo.wait_for_connection(timeout=timeout)
 
     # ---------------------- helper methods -----------------------
-    def _convert_direct(self, value):
+    def _conversion_forward(self, value):
         """."""
+        for conv in self._converters:
+            value = conv.conversion_forward(value)
         return value
 
-    def _convert_reverse(self, value):
+    def _conversion_reverse(self, value):
         """."""
+        for conv in self._converters[::-1]:
+            value = conv.conversion_reverse(value)
         return value
 
     def _create_converters(self):
         """."""
-        return []
+        fac = _get_facility()
+        conv_list = fac.get_attribute_from_aliases(
+            f'cs_propties.{self.propty}.conv_cs2phys',
+            self.devname,
+        )
+        convs = []
+        for c_def in conv_list:
+            conv_type = c_def['type']
+            if conv_type not in ConverterTypes:
+                raise ValueError(f'Converter {conv_type} not defined.')
+            props = ConverterTypes[conv_type]
+            conv = create_converter(
+                conv_type,
+                kwargs={k: v for k, v in c_def.items() if k in props}
+            )
+            convs.append(conv)
+        return convs
