@@ -11,15 +11,15 @@ class BPM(Device):
 
     def __init__(self, devname, auto_monitor_mon=True):
         """."""
+        facil = _get_facility()
+        if not facil.is_alias_in_cs_devtype(devname, facil.CSDevTypes.BPM):
+            raise ValueError(f"Device name: {devname} not valid for a BPM.")
+
         super().__init__(
             devname,
             props2init=BPM.PROPERTIES_DEFAULT,
             auto_monitor_mon=auto_monitor_mon,
         )
-
-        facil = _get_facility()
-        if facil.CSDevTypes.BPM not in facil.alias_map[devname]["cs_devtype"]:
-            raise ValueError(f"Device name: {devname} not valid for a BPM.")
 
     @property
     def posx(self):

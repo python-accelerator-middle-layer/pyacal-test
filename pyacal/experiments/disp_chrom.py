@@ -7,8 +7,7 @@ import matplotlib.gridspec as _mpl_gs
 import matplotlib.pyplot as _plt
 import numpy as _np
 
-from .. import _get_facility, _get_simulator, \
-    get_indices_from_key, get_alias_from_devtype
+from .. import _get_facility, _get_simulator
 
 from ..devices import SOFB, Tune
 from .base import ParamsBaseClass as _ParamsBaseClass, \
@@ -56,8 +55,7 @@ class DispChrom(_BaseClass):
         if self.isonline:
             self.devices['sofb'] = SOFB(self.accelerator)
             self.devices['rf'] = self.devices["sofb"].rfgen
-            tune_alias = get_alias_from_devtype("Tune", self.accelerator)
-            self.devices['tune'] = Tune(tune_alias)
+            self.devices['tune'] = Tune(accelerator=self.accelerator)
 
     def __str__(self):
         """."""
@@ -253,14 +251,19 @@ class DispChrom(_BaseClass):
             analysis = self.analysis
 
         simulator = _get_simulator()
-        bpmidx = get_indices_from_key("cs_devtype", "BPM")
-        sposbpm = simulator.get_positions(bpmidx, self.accelerator)
+        fac = _get_facility()
+        bpmnames = fac.find_aliases_from_accelerator(self.accelerator)
+        bpmnames = fac.find_aliases_from_cs_devtype(
+            {fac.CSDevTypes.BPM, fac.CSDevTypes.SOFB}, bpmnames)
+        sposbpm = []
+        for bpmn in bpmnames:
+            bpmidx = fac.get_indices_from_alias(bpmn)
+            sposbpm.append(simulator.get_positions(bpmidx, self.accelerator))
+        sposbpm = _np.array(sposbpm).ravel()
 
         fitorder_anlys = analysis['dispx'].shape[0] - 1
         if disporder > fitorder_anlys:
-            raise Exception(
-                'It does not make sense to plot a fit order higher than' +
-                'the analysis')
+            raise ValueError('Cannot plot a fit order higher than analysis.')
         fitidx = fitorder_anlys - disporder
         dispx = analysis['dispx'][fitidx, :]
         dispy = analysis['dispy'][fitidx, :]

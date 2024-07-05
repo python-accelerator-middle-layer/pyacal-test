@@ -1,35 +1,37 @@
+"""Define SIRIUS facility object with aliases map."""
+
 from copy import deepcopy as _dcopy
 
 import numpy as _np
 import pymodels
 
-from .. import Facility
+from ..facility import Facility
 
 __CSDT = Facility.CSDevTypes
 
 
-def define_si(facility):
+def define_si(facil: Facility):
     """."""
     model = pymodels.si.create_accelerator()
-    facility.accelerators['SI'] = model
+    facil.accelerators['SI'] = model
 
     famdata = pymodels.si.get_family_data(model)
 
     devname = famdata['DCCT']['devnames'][0]
-    alias = devname.dev + devname.get_nickname()
-    facility.add2aliasmap(
+    alias = devname.dev + '-' + devname.get_nickname()
+    facil.add_2_alias_map(
         alias,
         {
             'cs_devname': devname,
-            'cs_devtype': (__CSDT.DCCT, ),
+            'cs_devtype': {__CSDT.DCCT, },
             'accelerator': 'SI',
             'sim_info': {
-                'indices': famdata['DCCT']['index'][0],
+                'indices': [famdata['DCCT']['index'][0]],
             },
             'cs_propties': {
                 'current': {
                     'name': ':Current-Mon',
-                    'conv_cs2sim': 1e-3,  # from [mA] to [A]
+                    'conv_sim2cs': 1e-3,  # from [mA] to [A]
                 }
             },
         }
@@ -38,24 +40,24 @@ def define_si(facility):
     # --------- Define BPMs ------------
     for i, idcs in enumerate(famdata['BPM']['index']):
         devname = famdata['BPM']['devnames'][i]
-        alias = devname.dev + devname.get_nickname()
-        facility.add2aliasmap(
+        alias = devname.dev + '-' + devname.get_nickname()
+        facil.add_2_alias_map(
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': (__CSDT.BPM, __CSDT.SOFB),
+                'cs_devtype': {__CSDT.BPM, __CSDT.SOFB},
                 'accelerator': 'SI',
                 'sim_info': {
-                    'indices': idcs,
+                    'indices': [idcs],
                 },
                 'cs_propties': {
                     'posx': {
                         'name': ':PosX-Mon',
-                        'conv_cs2sim': 1e-9,  # from [nm] to [m]
+                        'conv_sim2cs': 1e-9,  # from [nm] to [m]
                     },
                     'posy': {
                         'name': ':PosY-Mon',
-                        'conv_cs2sim': 1e-9,  # from [nm] to [m]
+                        'conv_sim2cs': 1e-9,  # from [nm] to [m]
                     },
                 },
             }
@@ -91,23 +93,23 @@ def define_si(facility):
         'strength_sp': {
             'name': ':Current-SP',
             'conv_sim2cs': 1.0,
-            'conv_hw2phys': {
+            'conv_cs2phys': {
                 'exctitation_table': 'name_of_excitation_table',
                 'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
             }
         },
         'strength_rb': {
             'name': ':CurrentRef-Mon',
-            'conv_cs2sim': 1.0,
-            'conv_hw2phys': {
+            'conv_sim2cs': 1.0,
+            'conv_cs2phys': {
                 'exctitation_table': 'name_of_excitation_table',
                 'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
             }
         },
         'strength_mon': {
             'name': ':Current-Mon',
-            'conv_cs2sim': 1.0,
-            'conv_hw2phys': {
+            'conv_sim2cs': 1.0,
+            'conv_cs2phys': {
                 'exctitation_table': 'name_of_excitation_table',
                 'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
             }
@@ -121,15 +123,15 @@ def define_si(facility):
     for typ, name in zip(typs, typ_names):
         for i, idcs in enumerate(famdata[typ]['index']):
             devname = famdata[typ]['devnames'][i]
-            alias = devname.dev + devname.get_nickname()
-            facility.add2aliasmap(
+            alias = devname.dev + '-' + devname.get_nickname()
+            facil.add_2_alias_map(
                 alias,
                 {
                     'cs_devname': devname,
-                    'cs_devtype': (name, __CSDT.PowerSupply, __CSDT.SOFB),
+                    'cs_devtype': {name, __CSDT.PowerSupply, __CSDT.SOFB},
                     'accelerator': 'SI',
                     'sim_info': {
-                        'indices': idcs,
+                        'indices': [idcs],
                     },
                     'cs_propties': _dcopy(props),
                 }
@@ -139,15 +141,15 @@ def define_si(facility):
     typ = 'QS'
     for i, idcs in enumerate(famdata[typ]['index']):
         devname = famdata[typ]['devnames'][i]
-        alias = devname.dev + devname.get_nickname()
-        facility.add2aliasmap(
+        alias = devname.dev + '-' + devname.get_nickname()
+        facil.add_2_alias_map(
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': (__CSDT.QuadrupoleSkew, __CSDT.PowerSupply),
+                'cs_devtype': {__CSDT.QuadrupoleSkew, __CSDT.PowerSupply},
                 'accelerator': 'SI',
                 'sim_info': {
-                    'indices': idcs,
+                    'indices': [idcs],
                 },
                 'cs_propties': _dcopy(props),
             }
@@ -167,7 +169,7 @@ def define_si(facility):
         },
         'current_rb': {
             'name': ':CurrentRef-Mon',
-            'conv_2sim2cs': {
+            'conv_sim2cs': {
                 'excitation_table': 'name_of_excitation_table',
                 'brho_source': '',
                 'companion_dev': '',
@@ -184,7 +186,7 @@ def define_si(facility):
         'strength_sp': {
             'name': ':Current-SP',
             'conv_sim2cs': 1.0,
-            'conv_hw2phys': {
+            'conv_cs2phys': {
                 'exctitation_table': 'name_of_excitation_table',
                 'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
                 'companion_dev': '',
@@ -192,8 +194,8 @@ def define_si(facility):
         },
         'strength_rb': {
             'name': ':CurrentRef-Mon',
-            'conv_cs2sim': 1.0,
-            'conv_hw2phys': {
+            'conv_sim2cs': 1.0,
+            'conv_cs2phys': {
                 'exctitation_table': 'name_of_excitation_table',
                 'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
                 'companion_dev': '',
@@ -201,8 +203,8 @@ def define_si(facility):
         },
         'strength_mon': {
             'name': ':Current-Mon',
-            'conv_cs2sim': 1.0,
-            'conv_hw2phys': {
+            'conv_sim2cs': 1.0,
+            'conv_cs2phys': {
                 'exctitation_table': 'name_of_excitation_table',
                 'brho_source': 'SI-Fam:PS-B-1:CurrentRef-Mon',
                 'companion_dev': '',
@@ -213,76 +215,82 @@ def define_si(facility):
     typ = 'QN'
     for i, idcs in enumerate(famdata[typ]['index']):
         devname = famdata[typ]['devnames'][i]
-        alias = devname.dev + devname.get_nickname()
-        facility.add2aliasmap(
+        alias = devname.dev + '-' + devname.get_nickname()
+        facil.add_2_alias_map(
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': (__CSDT.QuadrupoleNormal, __CSDT.PowerSupply),
+                'cs_devtype': {__CSDT.QuadrupoleNormal, __CSDT.PowerSupply},
                 'accelerator': 'SI',
                 'sim_info': {
-                    'indices': idcs,
+                    'indices': [idcs],
                 },
                 'cs_propties': _dcopy(props),
             }
         )
 
     # -------- Define RF --------
-    facility.add2aliasmap(
+    facil.add_2_alias_map(
         "RFGen",
         {
             'cs_devname': 'RF-Gen',
-            'cs_devtype': (__CSDT.RFGenerator, ),
+            'cs_devtype': {__CSDT.RFGenerator, },
             'accelerator': 'SI',
             'sim_info': {
                 'indices': famdata['SRFCav']['index'],
             },
             'cs_propties': {
                 'frequency_rb': {
-                    'name': ':GeneralFreq-RB', 'conv_cs2sim': 1,
+                    'name': ':GeneralFreq-RB', 'conv_sim2cs': 1,
                 },
                 'frequency_sp': {
-                    'name': ':GeneralFreq-SP', 'conv_cs2sim': 1,
+                    'name': ':GeneralFreq-SP', 'conv_sim2cs': 1,
                 },
             },
         }
     )
 
-    facility.add2aliasmap(
+    facil.add_2_alias_map(
         "RFCav",
         {
-            'cs_devname': 'RF-Gen',
-            'cs_devtype': (__CSDT.RFCavity, ),
+            'cs_devname': 'SR-RF-DLLRF-01',
+            'cs_devtype': {__CSDT.RFCavity, },
             'accelerator': 'SI',
             'sim_info': {
                 'indices': famdata['SRFCav']['index'],
             },
             'cs_propties': {
+                'voltage_mon': {
+                    'name': ':SL:INP:AMP', 'conv_sim2cs': 1e-6,
+                },
                 'voltage_rb': {
-                    'name': ':GeneralFreq-RB', 'conv_cs2sim': 1e6,
+                    'name': ':SL:REF:AMP', 'conv_sim2cs': 1e-6,
                 },
                 'voltage_sp': {
-                    'name': ':GeneralFreq-SP', 'conv_cs2sim': 1e6,
+                    'name': ':mV:AL:REF-SP', 'conv_sim2cs': 1e-6,
+                },
+                'phase_mon': {
+                    'name': ':SL:INP:PHS', 'conv_sim2cs': 180/_np.pi,
                 },
                 'phase_rb': {
-                    'name': ':GeneralFreq-RB', 'conv_cs2sim': _np.pi/180,
+                    'name': ':SL:REF:PHS', 'conv_sim2cs': 180/_np.pi,
                 },
                 'phase_sp': {
-                    'name': ':GeneralFreq-SP', 'conv_cs2sim': _np.pi/180,
+                    'name': ':PL:REF:S', 'conv_sim2cs': 180/_np.pi,
                 },
             },
         }
     )
 
     # -------- Define Tune Measurement Device --------
-    facility.add2aliasmap(
+    facil.add_2_alias_map(
         "Tune",
         {
             'cs_devname': 'SI-Glob:DI-Tune',
-            'cs_devtype': (__CSDT.TuneMeas, ),
+            'cs_devtype': {__CSDT.TuneMeas, },
             'accelerator': 'SI',
             'sim_info': {
-                'indices': [],
+                'indices': [[]],
             },
             'cs_propties': {
                 'tunex': {
@@ -296,31 +304,31 @@ def define_si(facility):
     )
 
 
-def define_bo(facility):
+def define_bo(facil: Facility):
     """."""
     model = pymodels.bo.create_accelerator()
-    facility.accelerators['BO'] = model
+    facil.accelerators['BO'] = model
     # famdata = pymodels.bo.get_family_data(model)
 
 
-def define_tb(facility):
+def define_tb(facil: Facility):
     """."""
     model, _ = pymodels.tb.create_accelerator()
-    facility.accelerators['TB'] = model
+    facil.accelerators['TB'] = model
     # famdata = pymodels.tb.get_family_data(model)
 
 
-def define_ts(facility):
+def define_ts(facil: Facility):
     """."""
     model, _ = pymodels.ts.create_accelerator()
-    facility.accelerators['TS'] = model
+    facil.accelerators['TS'] = model
     # famdata = pymodels.ts.get_family_data(model)
 
 
-def define_li(facility):
+def define_li(facil: Facility):
     """."""
     model, _ = pymodels.li.create_accelerator()
-    facility.accelerators['LI'] = model
+    facil.accelerators['LI'] = model
     # famdata = pymodels.li.get_family_data(model)
 
 

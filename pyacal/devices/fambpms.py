@@ -15,15 +15,7 @@ class FamBPMs(DeviceSet):
         facil = _get_facility()
         self.accelerator = accelerator or facil.default_accelerator
         if bpmnames is None:
-            bpmnames = [
-                alias
-                for alias, amap in facil.alias_map.items()
-                if amap["accelerator"] == self.accelerator
-                and facil.CSDevTypes.BPM in amap["cs_devtype"]
-            ]
-            bpmnames.sort(
-                key=lambda alias: facil.alias_map[alias]["sim_info"]["indices"]
-            )
+            bpmnames = self._get_default_bpmnames()
 
         bpmdevs = [_BPM(dev, auto_monitor_mon=False) for dev in bpmnames]
         super().__init__(bpmdevs)
@@ -43,3 +35,12 @@ class FamBPMs(DeviceSet):
     def orby(self):
         """."""
         return _np.array([bpm.posy for bpm in self.devices])
+
+    # ---------------- helper methods -----------------------
+    def _get_default_bpmnames(self):
+        facil = _get_facility()
+        bpmnames = facil.find_aliases_from_accelerator(self.accelerator)
+        bpmnames = facil.find_aliases_from_cs_devtype(
+            {facil.CSDevTypes.BPM, facil.CSDevTypes.SOFB}, aliases=bpmnames,
+        )
+        return facil.sort_aliases_by_model_positions(bpmnames)
