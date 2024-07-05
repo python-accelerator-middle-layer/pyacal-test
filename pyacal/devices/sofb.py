@@ -4,6 +4,7 @@ import time as _time
 
 import numpy as _np
 
+from .. import _get_facility
 from ..utils import get_namedtuple as _get_namedtuple
 from .base import DeviceSet
 from .fambpms import FamBPMs as _FamBPMs
@@ -22,8 +23,10 @@ class SOFB(DeviceSet):
 
     def __init__(self, accelerator=None):
         """."""
-        self.fambpms = _FamBPMs(accelerator=accelerator)
-        self.famcms = _FamCMs(accelerator=accelerator)
+        fac = _get_facility()
+        self.accelerator = accelerator or fac.default_accelerator
+        self.fambpms = _FamBPMs(accelerator=self.accelerator)
+        self.famcms = _FamCMs(accelerator=self.accelerator)
         self.rfgen = _RFGen()
         super().__init__([self.fambpms, self.famcms, self.rfgen])
 

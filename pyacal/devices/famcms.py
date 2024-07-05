@@ -15,38 +15,11 @@ class FamCMs(DeviceSet):
         facil = _get_facility()
         self.accelerator = accelerator or facil.default_accelerator
         if cmnames is None:
-            cmnames = []
-            plane = plane.upper()
-            if "H" in plane:
-                hcmnames = self._get_cm_names(
-                    devtype=facil.CSDevTypes.CorrectorHorizontal
-                )
-                cmnames.extend(hcmnames)
-                self.nr_hcms = len(hcmnames)
-            if "V" in plane.upper():
-                vcmnames = self._get_cm_names(
-                    devtype=facil.CSDevTypes.CorrectorVertical
-                )
-                cmnames.extend(vcmnames)
-                self.nr_vcms = len(vcmnames)
-
+            cmnames = self._get_default_cmnames(plane)
         cmdevs = [_PowerSupply(dev) for dev in cmnames]
 
         super().__init__(cmdevs)
         self._cm_names = cmnames
-
-    def _get_cm_names(self, devtype):
-        facil = _get_facility()
-        names = [
-            alias
-            for alias, amap in facil.alias_map.items()
-            if amap["accelerator"] == self.accelerator
-            and devtype in amap["cs_devtype"]
-        ]
-        names.sort(
-            key=lambda alias: facil.alias_map[alias]["sim_info"]["indices"]
-        )
-        return names
 
     @property
     def cm_names(self):
@@ -95,3 +68,29 @@ class FamCMs(DeviceSet):
             abs_tol=_PowerSupply.TINY_CURRENT,
             rel_tol=0,
         )
+
+    # -------------------- helper methods ---------------------
+    def _get_default_cmnames(self, plane):
+        cmnames = []
+        plane = plane.upper()
+        if "H" in plane:
+            hcmnames = self._get_cm_names('H')
+            cmnames.extend(hcmnames)
+            self.nr_hcms = len(hcmnames)
+        if "V" in plane.upper():
+            vcmnames = self._get_cm_names('V')
+            cmnames.extend(vcmnames)
+            self.nr_vcms = len(vcmnames)
+        return cmnames
+
+    def _get_cm_names(self, plane):
+        facil = _get_facility()
+
+        devtype = facil.CSDevTypes.CorrectorHorizontal if "H" in plane else \
+            facil.CSDevTypes.CorrectorVertical
+
+        cmnames = facil.find_aliases_from_accelerator(self.accelerator)
+        cmnames = facil.find_aliases_from_cs_devtype(
+            {facil.CSDevTypes.SOFB, devtype}, aliases=cmnames
+        )
+        return facil.sort_aliases_by_model_positions(cmnames)
