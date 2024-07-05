@@ -48,6 +48,13 @@ def get_model(acc):
 
 # Load the model
 def set_model(acc, model):
+    """Set the model of an specified accelerator.
+
+    Args:
+        acc (str): Name of the accelerator.
+        model (paccel.accelerator.Accelerator | pyat.Accelerator): New model.
+
+    """
     facil = _get_facility()
     facil.accelerators[acc] = model
 
