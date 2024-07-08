@@ -9,8 +9,7 @@ from siriuspy.clientweb import implementation
 from ..._conversions.utils import ConverterNames
 from ..facility import Facility
 
-__CSDT = Facility.CSDevTypes
-__CONVT = ConverterNames
+CSDevTypes = Facility.CSDevTypes
 
 
 def define_si(facil: Facility):
@@ -26,7 +25,7 @@ def define_si(facil: Facility):
         alias,
         {
             'cs_devname': devname,
-            'cs_devtype': {__CSDT.DCCT, },
+            'cs_devtype': {CSDevTypes.DCCT, },
             'accelerator': 'SI',
             'sim_info': {'indices': [famdata['DCCT']['index'][0]]},
             'cs_propties': {
@@ -46,7 +45,7 @@ def define_si(facil: Facility):
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': {__CSDT.BPM, __CSDT.SOFB},
+                'cs_devtype': {CSDevTypes.BPM, CSDevTypes.SOFB},
                 'accelerator': 'SI',
                 'sim_info': {'indices': [idcs]},
                 'cs_propties': {
@@ -69,11 +68,11 @@ def define_si(facil: Facility):
     # ------------------- Bending Magnets -----------------------
     convs = [
         {
-            'type': __CONVT.LookupTableConverter,
+            'type': ConverterNames.LookupTableConverter,
             'table_name': 'name_of_excitation_table',
         },
         {
-            'type': __CONVT.MagRigidityConverter,
+            'type': ConverterNames.MagRigidityConverter,
             'energy': 3e9,  # in [eV]
         },
     ]
@@ -100,7 +99,9 @@ def define_si(facil: Facility):
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': {__CSDT.DipoleNormal, __CSDT.PowerSupply},
+                'cs_devtype': {
+                    CSDevTypes.DipoleNormal, CSDevTypes.PowerSupply
+                },
                 'accelerator': 'SI',
                 'sim_info': {'indices': famdata[typ]['index']},
                 'cs_propties': _dcopy(props),
@@ -110,11 +111,11 @@ def define_si(facil: Facility):
     # ---------------- Quadrupole and Sextupole Families ------------------
     convs = [
         {
-            'type': __CONVT.LookupTableConverter,
+            'type': ConverterNames.LookupTableConverter,
             'table_name': 'name_of_excitation_table',
         },
         {
-            'type': __CONVT.MagRigidityConverter,
+            'type': ConverterNames.MagRigidityConverter,
             'devname': 'Fam-B1B2-1',
             'propty': 'energy_rb',
             'conv_2_ev': 1e9,  # to convert from [GeV] to [eV]
@@ -147,13 +148,13 @@ def define_si(facil: Facility):
     for typ in typs:
         devname = f'SI-Fam:PS-{typ}'
         alias = 'Fam-' + typ
-        name = __CSDT.QuadrupoleNormal if typ.startswith('Q') \
-            else __CSDT.SextupoleNormal
+        name = CSDevTypes.QuadrupoleNormal if typ.startswith('Q') \
+            else CSDevTypes.SextupoleNormal
         facil.add_2_alias_map(
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': {name, __CSDT.PowerSupply},
+                'cs_devtype': {name, CSDevTypes.PowerSupply},
                 'accelerator': 'SI',
                 'sim_info': {'indices': famdata[typ]['index']},
                 'cs_propties': _dcopy(props),
@@ -178,8 +179,8 @@ def define_si(facil: Facility):
     }
     typs = ['CH', 'CV']
     typ_names = [
-        __CSDT.CorrectorHorizontal,
-        __CSDT.CorrectorVertical,
+        CSDevTypes.CorrectorHorizontal,
+        CSDevTypes.CorrectorVertical,
     ]
     for typ, name in zip(typs, typ_names):
         for i, idcs in enumerate(famdata[typ]['index']):
@@ -189,7 +190,9 @@ def define_si(facil: Facility):
                 alias,
                 {
                     'cs_devname': devname,
-                    'cs_devtype': {name, __CSDT.PowerSupply, __CSDT.SOFB},
+                    'cs_devtype': {
+                        name, CSDevTypes.PowerSupply, CSDevTypes.SOFB
+                    },
                     'accelerator': 'SI',
                     'sim_info': {'indices': [idcs]},
                     'cs_propties': _dcopy(props),
@@ -205,7 +208,9 @@ def define_si(facil: Facility):
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': {__CSDT.QuadrupoleSkew, __CSDT.PowerSupply},
+                'cs_devtype': {
+                    CSDevTypes.QuadrupoleSkew, CSDevTypes.PowerSupply
+                },
                 'accelerator': 'SI',
                 'sim_info': {'indices': [idcs]},
                 'cs_propties': _dcopy(props),
@@ -215,19 +220,19 @@ def define_si(facil: Facility):
     # --------------------- Normal Quadrupoles -------------------
     convs = [
         {
-            'type': __CONVT.LookupTableConverter,
+            'type': ConverterNames.LookupTableConverter,
             'table_name': 'name_of_excitation_table',
         },
         {
-            'type': __CONVT.MagRigidityConverter,
+            'type': ConverterNames.MagRigidityConverter,
             'devname': 'FamB1B2-1',
             'propty': 'energy_rb',
             'conv_2_ev': 1e9,
         },
         {
-            'type': __CONVT.CompanionProptyConverter,
+            'type': ConverterNames.CompanionProptyConverter,
             'devname': 'Fam-QFA',
-            'propty': 'KL-Mon',
+            'propty': 'strength_mon',
             'operation': 'add',
         },
     ]
@@ -255,7 +260,9 @@ def define_si(facil: Facility):
         table_name = ''
         mapp = {
             'cs_devname': devname,
-            'cs_devtype': {__CSDT.QuadrupoleNormal, __CSDT.PowerSupply},
+            'cs_devtype': {
+                CSDevTypes.QuadrupoleNormal, CSDevTypes.PowerSupply
+            },
             'accelerator': 'SI',
             'sim_info': {'indices': [idcs]},
             'cs_propties': _dcopy(props),
@@ -272,7 +279,7 @@ def define_si(facil: Facility):
         "RFGen",
         {
             'cs_devname': 'RF-Gen',
-            'cs_devtype': {__CSDT.RFGenerator, },
+            'cs_devtype': {CSDevTypes.RFGenerator, },
             'accelerator': 'SI',
             'sim_info': {'indices': famdata['SRFCav']['index']},
             'cs_propties': {
@@ -287,7 +294,7 @@ def define_si(facil: Facility):
         "RFCav",
         {
             'cs_devname': 'SR-RF-DLLRF-01',
-            'cs_devtype': {__CSDT.RFCavity, },
+            'cs_devtype': {CSDevTypes.RFCavity, },
             'accelerator': 'SI',
             'sim_info': {'indices': famdata['SRFCav']['index']},
             'cs_propties': {
@@ -306,7 +313,7 @@ def define_si(facil: Facility):
         "Tune",
         {
             'cs_devname': 'SI-Glob:DI-Tune',
-            'cs_devtype': {__CSDT.TuneMeas, },
+            'cs_devtype': {CSDevTypes.TuneMeas, },
             'accelerator': 'SI',
             'sim_info': {'indices': [[]]},
             'cs_propties': {
