@@ -4,6 +4,7 @@ from copy import deepcopy as _dcopy
 
 import numpy as _np
 import pymodels
+from scipy.constants import elementary_charge, speed_of_light
 from siriuspy.clientweb import implementation
 
 from ..._conversions.utils import ConverterNames
@@ -66,15 +67,16 @@ def define_si(facil: Facility):
     # --------- Define magnets (power supplies) ------------
 
     # ------------------- Bending Magnets -----------------------
+    bc_intfield = 0.7503  # [T.m]
+    bc_deflection = bc_intfield / 3e9 * speed_of_light  # [rad]
+    nominal_deflection = 2*_np.pi / 20 - bc_deflection  # B1 + B2 deflection
+    scale_fac = elementary_charge * speed_of_light / nominal_deflection
     convs = [
         {
             'type': ConverterNames.LookupTableConverter,
             'table_name': 'name_of_excitation_table',
         },
-        {
-            'type': ConverterNames.MagRigidityConverter,
-            'energy': 3e9,  # in [eV]
-        },
+        scale_fac,
     ]
     props = {
         'pwrstate_sp': {'name': ':PwrState-Sel'},

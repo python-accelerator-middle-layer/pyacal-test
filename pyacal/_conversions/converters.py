@@ -3,8 +3,7 @@
 import operator as _operator
 
 import numpy as _np
-from scipy.constants import electron_mass as _electron_mass, \
-    electron_volt as _electron_volt, speed_of_light as _speed_of_light
+from scipy.constants import speed_of_light as _speed_of_light
 
 from .. import _get_facility
 from .utils import ConverterTypes
@@ -220,6 +219,7 @@ class CompanionProptyConverter(_BaseConverter):
         else:
             raise ValueError('Operation must be "add", "sub", "mul" or "div".')
 
+        opr_inv = opr_inv.pop()
         self._opr_fwd = 'truediv' if operation == 'div' else operation
         self._opr_inv = 'truediv' if opr_inv == 'div' else opr_inv
 
@@ -245,16 +245,17 @@ class CompanionProptyConverter(_BaseConverter):
 
 
 class MagRigidityConverter(CompanionProptyConverter):
+    """Ultra-relativistic approximation is used here."""
 
-    _CONST = _electron_mass * _speed_of_light / _electron_volt
+    _CONST = _speed_of_light  # c / (E/e)
 
     def __init__(self, devname='', propty='', energy=0, conv_2_ev=1e9):
-        self._const = self._CONST * conv_2_ev
+        self._const = self._CONST / conv_2_ev
         self._energy = energy
         if not energy:
             super().__init__(devname=devname, propty=propty, operation='div')
         else:
-            self._const *= energy
+            self._const /= energy
 
     @staticmethod
     def get_key(devname='', propty='', energy=0, conv_2_ev=1e9):
@@ -268,4 +269,4 @@ class MagRigidityConverter(CompanionProptyConverter):
     def conversion_reverse(self, value):
         if not self._energy:
             value = super().conversion_reverse(value)
-        return value * self._const
+        return value / self._const
