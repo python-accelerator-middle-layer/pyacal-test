@@ -7,7 +7,7 @@ from .base import Device
 class PowerSupply(Device):
     """."""
 
-    TINY_CURRENT = 1e-4  # In units of the control system.
+    TINY_CURRENT = 1e-3  # In units of the control system.
     PROPERTIES_DEFAULT = (
         "pwrstate_sp",
         "pwrstate_rb",
@@ -18,13 +18,13 @@ class PowerSupply(Device):
 
     def __init__(self, devname):
         """."""
-        super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
-
-        facil = _get_facility()
-        if facil.CSDevTypes.PowerSupply not in facil.alias_map[devname]["cs_devtype"]:
+        fac = _get_facility()
+        if not fac.is_alias_in_cs_devtype(devname, fac.CSDevTypes.PowerSupply):
             raise ValueError(
                 f"Device name: {devname} not valid for a PowerSupply."
             )
+
+        super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
 
     @property
     def pwrstate(self):

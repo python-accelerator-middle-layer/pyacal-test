@@ -5,7 +5,7 @@ import time as _time
 
 import numpy as _np
 
-from .. import _get_facility, get_alias_from_devtype as _get_alias_from_devtype
+from .. import _get_facility
 from ..devices import DCCT as _DCCT, SOFB as _SOFB
 from .base import (
     ParamsBaseClass as _ParamsBaseClass,
@@ -28,9 +28,9 @@ class OrbRespmParams(_ParamsBaseClass):
         """."""
         ftmp = "{0:24s} = {1:9.3f}  {2:s}\n".format
         dtmp = "{0:24s} = {1:9d}  {2:s}\n".format
-        stg = ftmp("delta_freq [Hz]", self.delta_freq, "")
-        stg = ftmp("delta_curr_hcm [A]", self.delta_curr_hcm, "")
-        stg = ftmp("delta_curr_vcm [A]", self.delta_curr_vcm, "")
+        stg = ftmp("delta_freq", self.delta_freq, "[Hz]")
+        stg += ftmp("delta_curr_hcm", self.delta_curr_hcm, "[A]")
+        stg += ftmp("delta_curr_vcm", self.delta_curr_vcm, "[A]")
         stg += dtmp("sofb_nrpoints", self.sofb_nrpoints, "")
         return stg
 
@@ -47,8 +47,7 @@ class OrbRespm(_BaseClass):
         self.accelerator = accelerator or _get_facility().default_accelerator
         if self.isonline:
             self.devices["sofb"] = _SOFB(self.accelerator)
-            dcct_alias = _get_alias_from_devtype("DCCT", self.accelerator)[0]
-            self.devices["dcct"] = _DCCT(dcct_alias)
+            self.devices["dcct"] = _DCCT(accelerator=self.accelerator)
 
     def _meas_respm(self):
         tini = _datetime.datetime.fromtimestamp(_time.time())
@@ -77,7 +76,7 @@ class OrbRespm(_BaseClass):
 
             delta = (
                 self.params.delta_curr_hcm
-                if i < self.sofb.nr_hcms
+                if i < sofb.nr_hcms
                 else self.params.delta_curr_vcm
             )
             cmdev = sofb.famcms.devices[i]
@@ -131,7 +130,7 @@ class OrbRespm(_BaseClass):
 
     def _meas_respm_rf(self):
         sofb = self.devices["sofb"]
-        rfgen = sofb.refgen
+        rfgen = sofb.rfgen
 
         tini = _datetime.datetime.fromtimestamp(_time.time())
         strtini = tini.strftime("%Hh%Mm%Ss")
