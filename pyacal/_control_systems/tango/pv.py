@@ -14,27 +14,28 @@ class PV(_tango.DeviceProxy):
         """."""
         self.devname = devname
         self.propty = propty
-        super().__init__(devname, propty, **kwargs)  # NOTE: not sure...
+        super().__init__(devname, **kwargs)
         _get_connections_dict()[(devname, propty)] = self
 
     @property
     def connected(self):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+        try:
+            self.state()
+            return True
+        except _tango.DevFailed as e:
+            print(e)
+            return False
 
     @property
     def value(self):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+        return self.read_attribute(self.propty)
 
     @value.setter
     def value(self, value):
-        raise NotImplementedError('Please Implement me.')
+        self.put(value)
 
     def put(self, value, wait=False):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+        self.write_attribute(self.propty, value)
 
     def wait_for_connection(self, timeout=None):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+        pass
