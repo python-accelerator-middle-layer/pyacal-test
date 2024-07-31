@@ -40,6 +40,11 @@ def get_orbit(refpts, acc=None):
     _, o6 = accel.find_orbit(refpts)
     return o6[:, 0], o6[:, 2]
 
+def get_tunes(acc=None):
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
+    return accel.get_tunes()[:2]
 
 def get_twiss(refpts, acc=None):
     """Return twiss parameters of the model.
@@ -64,8 +69,8 @@ def get_twiss(refpts, acc=None):
         'betay': twi.beta[:, 1],
         'alphax': twi.alpha[:, 1],
         'alphay': twi.alpha[:, 1],
-        'mux': twi.mu[:, 0]/(2*numpy.pi),
-        'muy': twi.mu[:, 1]/(2*numpy.pi),
+        'mux': twi.mu[:, 0],
+        'muy': twi.mu[:, 1],
         'etax': twi.dispersion[:, 0],
         'etay': twi.dispersion[:, 1],
         'etapx': twi.dispersion[:, 2],
