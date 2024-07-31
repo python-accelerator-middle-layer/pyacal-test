@@ -25,6 +25,12 @@ class PV:
         return pvo.connected
 
     @property
+    def pvname(self):
+        """."""
+        pvo = _get_control_system().get_pv(self._key)
+        return pvo.pvname
+
+    @property
     def auto_monitor(self):
         """."""
         pvo = _get_control_system().get_pv(self._key)

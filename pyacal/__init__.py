@@ -47,7 +47,7 @@ def get_model(acc):
 
 
 # Load the model
-def set_model(acc, model):
+def set_model(acc, model, facil=None):
     """Set the model of an specified accelerator.
 
     Args:
@@ -55,7 +55,8 @@ def set_model(acc, model):
         model (paccel.accelerator.Accelerator | pyat.Accelerator): New model.
 
     """
-    facil = _get_facility()
+    if facil is None:
+        facil = _get_facility()
     facil.accelerators[acc] = model
 
 
