@@ -210,7 +210,7 @@ class CompanionProptyConverter(_BaseConverter):
         if _PV_class is None:
             from .pv import PV
             _PV_class = PV
-        self._prpt_pv = _PV_class(devname, propty, auto_monitor=True)
+        self._prpt_pv = _PV_class(devname, propty)
 
         if operation in self._ADD_SUB:
             opr_inv = self._ADD_SUB - {operation, }
