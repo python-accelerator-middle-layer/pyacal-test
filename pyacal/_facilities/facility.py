@@ -62,6 +62,10 @@ class Facility:
         """
         raise NotImplementedError('Please implement me.')
 
+    def get_accelerator_object(self, acc=None):
+        acc = acc or self.default_accelerator
+        return self.accelerators[acc]
+
     def add_2_alias_map(self, alias, value):
         """."""
         self._check_map_entry(alias, value)
