@@ -16,7 +16,9 @@ def create_converter(converter_type, kwargs):
     if converter_type not in ConverterTypes:
         raise TypeError(f'Converter type {converter_type} is not allowed.')
 
-    clss = getattr(globals(), converter_type)
+    clss = globals().get(converter_type)
+    if clss is None:
+        TypeError(f"Converter type {converter_type:s} not found.")
     key = (converter_type, clss.get_key(**kwargs))
     conv = __CONVERTERS_DICT.get(key)
     if conv is None:
@@ -38,6 +40,11 @@ class _BaseConverter:
     def __init__(self):
         pass
 
+    @property
+    def connected(self):
+        """."""
+        return True
+
     @staticmethod
     def get_key():
         return ()
@@ -47,6 +54,9 @@ class _BaseConverter:
 
     def conversion_reverse(self, value):
         return value
+
+    def wait_for_connection(self, timeout=None):
+        return True
 
 
 class ScaleConverter(_BaseConverter):
@@ -113,6 +123,7 @@ class LookupTableConverter(_BaseConverter):
                 'Lookup table must be strictly monotonic to be invertible.'
             )
         self._table = table
+        self._table_name = table_name
 
     @staticmethod
     def get_key(table_name=''):
@@ -121,8 +132,8 @@ class LookupTableConverter(_BaseConverter):
     def conversion_forward(self, value):
         val = _np.interp(
             value,
-            self.table[:, 0],
-            self.table[:, 1],
+            self._table[:, 0],
+            self._table[:, 1],
             left=_np.nan,
             right=_np.nan
         )
@@ -133,8 +144,8 @@ class LookupTableConverter(_BaseConverter):
     def conversion_reverse(self, value):
         val = _np.interp(
             value,
-            self.table[:, 1],
-            self.table[:, 0],
+            self._table[:, 1],
+            self._table[:, 0],
             left=_np.nan,
             right=_np.nan
         )
@@ -223,6 +234,11 @@ class CompanionProptyConverter(_BaseConverter):
         self._opr_fwd = 'truediv' if operation == 'div' else operation
         self._opr_inv = 'truediv' if opr_inv == 'div' else opr_inv
 
+    @property
+    def connected(self):
+        """."""
+        return self._prpt_pv.connected
+
     @staticmethod
     def get_key(devname='', propty='', operation='add'):
         return (devname, propty, operation)
@@ -243,10 +259,15 @@ class CompanionProptyConverter(_BaseConverter):
             raise ValueError('Companion property value is None.')
         return val_comp
 
+    def wait_for_connection(self, timeout=None):
+        """."""
+        return self._prpt_pv.wait_for_connection(timeout=timeout)
+
 
 class MagRigidityConverter(CompanionProptyConverter):
     """Ultra-relativistic approximation is used here."""
 
+    # TODO: Generalize conversion to non-relativistic particles
     _CONST = _speed_of_light  # c / (E/e)
 
     def __init__(self, devname='', propty='', energy=0, conv_2_ev=1e9):

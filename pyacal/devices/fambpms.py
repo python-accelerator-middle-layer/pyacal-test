@@ -17,7 +17,7 @@ class FamBPMs(DeviceSet):
         if bpmnames is None:
             bpmnames = self._get_default_bpmnames()
 
-        bpmdevs = [_BPM(dev, auto_monitor_mon=False) for dev in bpmnames]
+        bpmdevs = [_BPM(dev) for dev in bpmnames]
         super().__init__(bpmdevs)
         self._bpm_names = bpmnames
 

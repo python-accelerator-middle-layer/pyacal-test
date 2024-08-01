@@ -1,3 +1,5 @@
+import time as _time
+
 from .. import _get_control_system, _get_facility
 from .converters import create_converter
 from .utils import ConverterTypes
@@ -5,9 +7,7 @@ from .utils import ConverterTypes
 
 class PV:
 
-    def __init__(
-        self, devname, propty, auto_monitor=True, connection_timeout=None
-    ):
+    def __init__(self, devname, propty, connection_timeout=None):
         """."""
         self.devname = devname
         self.propty = propty
@@ -15,7 +15,6 @@ class PV:
         self._key = control.create_pv(
             self.devname,
             self.propty,
-            auto_monitor=auto_monitor,
             connection_timeout=connection_timeout,
         )
         self._converters = self._create_converters()
@@ -24,7 +23,10 @@ class PV:
     def connected(self):
         """."""
         pvo = _get_control_system().get_pv(self._key)
-        return pvo.connected
+        conn = pvo.connected
+        for conv in self._converters:
+            conn &= conv.connected
+        return conn
 
     @property
     def value(self):
@@ -68,6 +70,8 @@ class PV:
 
     def get(self, timeout=None):
         """."""
+        if not self.wait_for_connection(timeout=timeout):
+            return None
         pvo = _get_control_system().get_pv(self._key)
         return self._conversion_forward(pvo.get(timeout=timeout))
 
@@ -78,8 +82,17 @@ class PV:
 
     def wait_for_connection(self, timeout=None):
         """."""
+        t0_ = _time.time()
         pvo = _get_control_system().get_pv(self._key)
-        return pvo.wait_for_connection(timeout=timeout)
+        conn = pvo.wait_for_connection(timeout=timeout)
+        dt_ = _time.time() - t0_
+        for conv in self._converters:
+            time_left = timeout if timeout is None else timeout - dt_
+            if timeout is not None and time_left <= 0:
+                return False
+            conn &= conv.wait_for_connection(timeout=time_left)
+            dt_ = _time.time() - t0_
+        return conn
 
     # ---------------------- helper methods -----------------------
     def _conversion_forward(self, value):
