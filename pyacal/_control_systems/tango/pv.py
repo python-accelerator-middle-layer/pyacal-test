@@ -80,6 +80,11 @@ class PV:
         """."""
         attr = self._ds.read_attribute(self.cs_propty)
         self._timestamp = attr.time.totime()
+        if self.cs_propty =='State':
+            if attr.value == tango.DevState.ON:
+                return True
+            else:
+                return False
         if '_mon' in self.propty:
             attrv = attr.value
         else:
@@ -95,6 +100,8 @@ class PV:
             v0 = self._ds.read_attribute(self.cs_propty).w_value
             v0[self.vector_idx] = value
             self._ds.write_attribute(self.cs_propty, v0)
+        elif self.cs_propty == 'State':
+            raise AttributeError('Cannot set attribute State in tango interface')
         else:
             self._ds.write_attribute(self.cs_propty, value)
 

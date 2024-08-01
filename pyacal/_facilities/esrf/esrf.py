@@ -2,13 +2,16 @@ import at
 import warnings
 from .. import Facility
 from ... import set_model
+from ... import devices
 
 __CSDT = Facility.CSDevTypes
 
 _DEVTYPE = {'CH': {__CSDT.CorrectorHorizontal, __CSDT.PowerSupply, __CSDT.SOFB},
             'CV': {__CSDT.CorrectorVertical, __CSDT.PowerSupply, __CSDT.SOFB},
             'QS': {__CSDT.QuadrupoleSkew, __CSDT.PowerSupply},
-            'BPM': {__CSDT.BPM, __CSDT.SOFB}
+            'BPM': {__CSDT.BPM, __CSDT.SOFB},
+            'DCCT': {__CSDT.DCCT, },
+            'RFGEN': {__CSDT.RFGenerator, },
             }
 
 _DEVCONV = {'CH': 'hst',
@@ -34,8 +37,8 @@ def define_ebs(facil:Facility):
         ring = at.load_lattice('./betamodel.mat', use='betamodel')
     set_model(accname, ring, facil)
 
-    # Add SH1 correctors
-    sh_idx = ring.get_uint32_index('SH1*')
+    # Add SH correctors
+    sh_idx = ring.get_uint32_index('SH*')
     properties = {'current_sp': {'name': 'Strength'},
                   'current_rb': {'name': 'Strength'},
                   'current_mon': {'name': 'Strength'},
@@ -79,10 +82,47 @@ def define_ebs(facil:Facility):
             }
         )
 
+        # Add CT
+    ct_idx = ring.get_uint32_index('*CT*')
+    properties = {'current': {'name': 'Current',
+                                  'conv_sim2cs': 1e-3}, }
+    devname = 'srdiag/beam-current/total'
+    facil.add_2_alias_map(
+        'DCCT',
+        {'cs_devname': devname,
+         'cs_devtype': _DEVTYPE['DCCT'],
+         'accelerator': accname,
+         'sim_info': {'indices': [ct_idx], },
+         'vector_index': 0,
+         'cs_propties': properties,
+         }
+    )
+
+    # Add RF Generator
+    rf_idx = ring.get_uint32_index(at.RFCavity)
+    properties = {'frequency_rb': {'name': 'Frequency'},
+                  'frequency_sp': {'name': 'Frequency'},
+                  }
+
+    devname = 'sy/ms/1'
+    alias = 'RFGEN'
+    facil.add_2_alias_map(
+        alias,
+        {
+            'cs_devname': devname,
+            'cs_devtype': _DEVTYPE['RFGEN'],
+            'accelerator': accname,
+            'sim_info': {'indices': [rf_idx], },
+            'vector_index': 0,
+            'cs_propties': properties,
+        }
+    )
+
 
 # arbitrary, must be defined by the facility developers:
 facility = Facility('esrf', 'tango', 'pyat')
 facility.default_accelerator = 'EBS'
 facility._CONNECTED_DS = {}
 facility._AMAP_DEF.update({'vector_index': int})
+devices.PowerSupply.TINY_CURRENT = 1.0e-6
 define_ebs(facility)

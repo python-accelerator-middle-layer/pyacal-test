@@ -29,12 +29,12 @@ class PowerSupply(Device):
     @property
     def pwrstate(self):
         """."""
-        return self["pwrstate_sp"]
+        return self["pwrstate_rb"]
 
     @pwrstate.setter
     def pwrstate(self, value):
         """."""
-        self["pwrstate_rb"] = value
+        self["pwrstate_sp"] = value
 
     @property
     def current_mon(self):
@@ -53,7 +53,7 @@ class PowerSupply(Device):
 
     def set_current(self, value, tol=None, timeout=10):
         """."""
-        tol = tol or PowerSupply.TINY_CURRENT
+        tol = tol or self.TINY_CURRENT
         self.current = value
         return self.wait(
             "current_rb", value, comp="isclose", abs_tol=tol, timeout=timeout

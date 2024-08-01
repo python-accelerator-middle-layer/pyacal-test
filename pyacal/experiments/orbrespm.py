@@ -26,7 +26,7 @@ class OrbRespmParams(_ParamsBaseClass):
 
     def __str__(self):
         """."""
-        ftmp = "{0:24s} = {1:9.3f}  {2:s}\n".format
+        ftmp = "{0:24s} = {1:9.2e}  {2:s}\n".format
         dtmp = "{0:24s} = {1:9d}  {2:s}\n".format
         stg = ftmp("delta_freq", self.delta_freq, "[Hz]")
         stg += ftmp("delta_curr_hcm", self.delta_curr_hcm, "[A]")
