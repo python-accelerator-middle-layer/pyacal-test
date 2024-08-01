@@ -102,7 +102,9 @@ def define_si(facil: Facility):
             {
                 'cs_devname': devname,
                 'cs_devtype': {
-                    CSDevTypes.DipoleNormal, CSDevTypes.PowerSupply
+                    CSDevTypes.DipoleNormal,
+                    CSDevTypes.MagnetFamily,
+                    CSDevTypes.PowerSupply,
                 },
                 'accelerator': 'SI',
                 'sim_info': {'indices': famdata[typ]['index']},
@@ -130,11 +132,11 @@ def define_si(facil: Facility):
         'current_rb': {
             'name': ':CurrentRef-Mon', 'conv_cs2sim': _dcopy(convs)},
         'current_mon': {'name': ':Current-Mon', 'conv_cs2sim': _dcopy(convs)},
-        'energy_sp': {'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)},
-        'energy_rb': {
+        'strength_sp': {'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)},
+        'strength_rb': {
             'name': ':CurrentRef-Mon', 'conv_cs2phys': _dcopy(convs),
         },
-        'energy_mon': {
+        'strength_mon': {
             'name': ':Current-Mon', 'conv_cs2phys': _dcopy(convs)
         },
     }
@@ -156,7 +158,10 @@ def define_si(facil: Facility):
             alias,
             {
                 'cs_devname': devname,
-                'cs_devtype': {name, CSDevTypes.PowerSupply},
+                'cs_devtype': {
+                    name,
+                    CSDevTypes.MagnetFamily,
+                    CSDevTypes.PowerSupply},
                 'accelerator': 'SI',
                 'sim_info': {'indices': famdata[typ]['index']},
                 'cs_propties': _dcopy(props),
@@ -193,7 +198,10 @@ def define_si(facil: Facility):
                 {
                     'cs_devname': devname,
                     'cs_devtype': {
-                        name, CSDevTypes.PowerSupply, CSDevTypes.SOFB
+                        name,
+                        CSDevTypes.MagnetIndividual,
+                        CSDevTypes.PowerSupply,
+                        CSDevTypes.SOFB,
                     },
                     'accelerator': 'SI',
                     'sim_info': {'indices': [idcs]},
@@ -211,7 +219,9 @@ def define_si(facil: Facility):
             {
                 'cs_devname': devname,
                 'cs_devtype': {
-                    CSDevTypes.QuadrupoleSkew, CSDevTypes.PowerSupply
+                    CSDevTypes.QuadrupoleSkew,
+                    CSDevTypes.MagnetIndividual,
+                    CSDevTypes.PowerSupply,
                 },
                 'accelerator': 'SI',
                 'sim_info': {'indices': [idcs]},
@@ -227,14 +237,14 @@ def define_si(facil: Facility):
         },
         {
             'type': ConverterNames.MagRigidityConverter,
-            'devname': 'FamB1B2-1',
+            'devname': 'Fam-B1B2-1',
             'propty': 'energy_rb',
             'conv_2_ev': 1e9,
         },
         {
             'type': ConverterNames.CompanionProptyConverter,
             'devname': 'Fam-QFA',
-            'propty': 'strength_mon',
+            'propty': 'strength_rb',
             'operation': 'add',
         },
     ]
@@ -263,14 +273,20 @@ def define_si(facil: Facility):
         mapp = {
             'cs_devname': devname,
             'cs_devtype': {
-                CSDevTypes.QuadrupoleNormal, CSDevTypes.PowerSupply
+                CSDevTypes.QuadrupoleNormal,
+                CSDevTypes.MagnetIndividual,
+                CSDevTypes.PowerSupply,
             },
             'accelerator': 'SI',
             'sim_info': {'indices': [idcs]},
             'cs_propties': _dcopy(props),
         }
         for prp in mapp['cs_propties'].values():
-            con = prp.get('conv_cs2phys', prp['conv_cs2sim'])
+            con = prp.get('conv_cs2phys')
+            if con is None:
+                con = prp.get('conv_cs2sim')
+            if con is None:
+                continue
             con[0]['table_name'] = table_name
             con[2]['devname'] = 'Fam-' + devname.dev
 
@@ -291,7 +307,7 @@ def define_si(facil: Facility):
         }
     )
 
-    phs_conv = 180/_np.pi
+    phs_conv = 180 / np.pi
     facil.add_2_alias_map(
         "RFCav",
         {

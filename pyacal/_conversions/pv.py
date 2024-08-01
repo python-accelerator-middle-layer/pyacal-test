@@ -29,6 +29,11 @@ class PV:
         return conn
 
     @property
+    def pvname(self):
+        """."""
+        return (self.devname, self.propty)
+
+    @property
     def value(self):
         """."""
         return self.get()

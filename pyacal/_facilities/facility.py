@@ -10,6 +10,8 @@ class Facility:
 
     class CSDevTypes:
         PowerSupply = 'PowerSupply'
+        MagnetIndividual = 'MagnetIndividual'
+        MagnetFamily = 'MagnetFamily'
         DipoleNormal = 'DipoleNormal'
         DipoleReverse = 'DipoleReverse'
         DipoleSkew = 'DipoleSkew'
@@ -271,3 +273,4 @@ class Facility:
                 f'Wrong keys to define converter in {propty} of {alias}.\n' +
                 f'    {wrong_keys}\nPossible values:\n    {possible}'
             )
+        return conv

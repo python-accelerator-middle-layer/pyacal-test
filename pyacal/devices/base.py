@@ -137,22 +137,12 @@ class Device:
     def __getitem__(self, propty):
         """Return value of property."""
         pvobj = self.pv_object(propty)
-        try:
-            value = pvobj.get(timeout=Device.GET_TIMEOUT)
-        except Exception:
-            # exceptions raised in a Virtual Circuit Disconnect (192)
-            # event. If the PV IOC goes down, for example.
-            print("Could not get value of {}".format(pvobj.pvname))
-            value = None
-        return value
+        return pvobj.get(timeout=Device.GET_TIMEOUT)
 
     def __setitem__(self, propty, value):
         """Set value of property."""
         pvobj = self.pv_object(propty)
-        try:
-            pvobj.value = value
-        except Exception:
-            print("Could not set value of {}".format(pvobj.pvname))
+        pvobj.value = value
 
     # --- private methods ---
     def _create_pv(self, propty):
