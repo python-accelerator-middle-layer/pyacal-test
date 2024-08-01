@@ -2,10 +2,11 @@
 
 from copy import deepcopy as _dcopy
 
-import numpy as _np
+import numpy as np
 import pymodels
-from scipy.constants import elementary_charge, speed_of_light
-from siriuspy.clientweb import implementation
+from scipy.constants import speed_of_light
+from siriuspy.magnet.excdata import ExcitationData
+from siriuspy.search import PSSearch
 
 from ..._conversions.utils import ConverterNames
 from ..facility import Facility
@@ -16,6 +17,10 @@ CSDevTypes = Facility.CSDevTypes
 def define_si(facil: Facility):
     """."""
     model = pymodels.si.create_accelerator()
+    model = pymodels.si.fitted_models.vertical_dispersion_and_coupling(model)
+    model.cavity_on = True
+    model.radiation_on = 1
+    model.vchamber_on = True
     facil.accelerators['SI'] = model
 
     famdata = pymodels.si.get_family_data(model)
@@ -68,9 +73,12 @@ def define_si(facil: Facility):
 
     # ------------------- Bending Magnets -----------------------
     bc_intfield = 0.7503  # [T.m]
-    bc_deflection = bc_intfield / 3e9 * speed_of_light  # [rad]
-    nominal_deflection = 2*_np.pi / 20 - bc_deflection  # B1 + B2 deflection
-    scale_fac = elementary_charge * speed_of_light / nominal_deflection
+    bc_deflection = bc_intfield * speed_of_light / 3e9  # [rad]
+    nominal_deflection = 2*np.pi / 20 - bc_deflection  # B1 + B2 deflection
+    # Notes on the equation below:
+    #  - factor of 2 needed because lookup table accounts for half integral;
+    #  - the factor 1e9 needed to have energy in GeV instead of eV;
+    scale_fac = 2 * speed_of_light / nominal_deflection / 1e9
     convs = [
         {
             'type': ConverterNames.LookupTableConverter,
@@ -97,6 +105,15 @@ def define_si(facil: Facility):
     for typ in typs:
         devname = f'SI-Fam:PS-{typ}'
         alias = 'Fam-' + typ
+        table_name = PSSearch.conv_psname_2_pstype(devname) + '.txt'
+        prps = _dcopy(props)
+        for prp in prps.values():
+            con = prp.get('conv_cs2phys')
+            if con is None:
+                con = prp.get('conv_cs2sim')
+            if con is None:
+                continue
+            con[0]['table_name'] = table_name
         facil.add_2_alias_map(
             alias,
             {
@@ -108,7 +125,7 @@ def define_si(facil: Facility):
                 },
                 'accelerator': 'SI',
                 'sim_info': {'indices': famdata[typ]['index']},
-                'cs_propties': _dcopy(props),
+                'cs_propties': prps,
             }
         )
 
@@ -154,6 +171,16 @@ def define_si(facil: Facility):
         alias = 'Fam-' + typ
         name = CSDevTypes.QuadrupoleNormal if typ.startswith('Q') \
             else CSDevTypes.SextupoleNormal
+        table_name = PSSearch.conv_psname_2_pstype(devname) + '.txt'
+        prps = _dcopy(props)
+        for prp in prps.values():
+            con = prp.get('conv_cs2phys')
+            if con is None:
+                con = prp.get('conv_cs2sim')
+            if con is None:
+                continue
+            con[0]['table_name'] = table_name
+
         facil.add_2_alias_map(
             alias,
             {
@@ -164,19 +191,40 @@ def define_si(facil: Facility):
                     CSDevTypes.PowerSupply},
                 'accelerator': 'SI',
                 'sim_info': {'indices': famdata[typ]['index']},
-                'cs_propties': _dcopy(props),
+                'cs_propties': prps,
             }
         )
 
     # ------------------ Slow Corrector Magnets ------------
+    convs = [
+        {
+            'type': ConverterNames.LookupTableConverter,
+            'table_name': 'name_of_excitation_table',
+        },
+        {
+            'type': ConverterNames.MagRigidityConverter,
+            'devname': 'Fam-B1B2-1',
+            'propty': 'energy_rb',
+            'conv_2_ev': 1e9,  # to convert from [GeV] to [eV]
+        },
+        1e6,  # from [rad] to [urad]
+    ]
+    cs2sim = _dcopy(convs)[:2]
     props = {
         'pwrstate_sp': {'name': ':PwrState-Sel'},
         'pwrstate_rb': {'name': ':PwrState-Sts'},
-        'current_sp': {'name': ':Current-SP', 'conv_cs2sim': _dcopy(convs)},
+        'current_sp': {
+            'name': ':Current-SP', 'conv_cs2sim': _dcopy(cs2sim),
+        },
         'current_rb': {
-            'name': ':CurrentRef-Mon', 'conv_cs2sim': _dcopy(convs)},
-        'current_mon': {'name': ':Current-Mon', 'conv_cs2sim': _dcopy(convs)},
-        'strength_sp': {'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)},
+            'name': ':CurrentRef-Mon', 'conv_cs2sim': _dcopy(cs2sim),
+        },
+        'current_mon': {
+            'name': ':Current-Mon', 'conv_cs2sim': _dcopy(cs2sim)
+        },
+        'strength_sp': {
+            'name': ':Current-SP', 'conv_cs2phys': _dcopy(convs)
+        },
         'strength_rb': {
             'name': ':CurrentRef-Mon', 'conv_cs2phys': _dcopy(convs),
         },
@@ -193,6 +241,17 @@ def define_si(facil: Facility):
         for i, idcs in enumerate(famdata[typ]['index']):
             devname = famdata[typ]['devnames'][i]
             alias = devname.dev + '-' + devname.get_nickname()
+
+            table_name = PSSearch.conv_psname_2_pstype(devname) + '.txt'
+            prps = _dcopy(props)
+            for prp in prps.values():
+                con = prp.get('conv_cs2phys')
+                if con is None:
+                    con = prp.get('conv_cs2sim')
+                if con is None:
+                    continue
+                con[0]['table_name'] = table_name
+
             facil.add_2_alias_map(
                 alias,
                 {
@@ -205,7 +264,7 @@ def define_si(facil: Facility):
                     },
                     'accelerator': 'SI',
                     'sim_info': {'indices': [idcs]},
-                    'cs_propties': _dcopy(props),
+                    'cs_propties': prps,
                 }
             )
 
@@ -214,6 +273,16 @@ def define_si(facil: Facility):
     for i, idcs in enumerate(famdata[typ]['index']):
         devname = famdata[typ]['devnames'][i]
         alias = devname.dev + '-' + devname.get_nickname()
+        table_name = PSSearch.conv_psname_2_pstype(devname) + '.txt'
+        prps = _dcopy(props)
+        for prp in prps.values():
+            con = prp.get('conv_cs2phys')
+            if con is None:
+                con = prp.get('conv_cs2sim')
+            if con is None:
+                continue
+            con[0]['table_name'] = table_name
+
         facil.add_2_alias_map(
             alias,
             {
@@ -225,7 +294,7 @@ def define_si(facil: Facility):
                 },
                 'accelerator': 'SI',
                 'sim_info': {'indices': [idcs]},
-                'cs_propties': _dcopy(props),
+                'cs_propties': _dcopy(prps),
             }
         )
 
@@ -269,7 +338,7 @@ def define_si(facil: Facility):
     for i, idcs in enumerate(famdata[typ]['index']):
         devname = famdata[typ]['devnames'][i]
         alias = devname.dev + '-' + devname.get_nickname()
-        table_name = ''
+        table_name = PSSearch.conv_psname_2_pstype(devname) + '.txt'
         mapp = {
             'cs_devname': devname,
             'cs_devtype': {
@@ -380,9 +449,23 @@ define_ts(facility)
 define_li(facility)
 
 
-def get_lookup_table(facil, table_name):
+def get_lookup_table(table_name):
+    magfunc = PSSearch.conv_pstype_2_magfunc(table_name.split('.')[0])
+    magnet_conv_sign = -1
+    if magfunc == 'corrector-horizontal':
+        magnet_conv_sign = +1.0
+    # if 'TB' in maname and 'QD' in maname:
+    #     magnet_conv_sign = +1.0
 
-    pass
+    excdata = ExcitationData(table_name)
+    cur = excdata.currents
+    typ = excdata.main_multipole_type
+    harm = excdata.main_multipole_harmonic
+    intf = excdata.multipoles[typ][harm]
+
+    table = np.array([cur, intf]).T
+    table[:, 1] *= magnet_conv_sign
+    return table
 
 
 facility.get_lookup_table = get_lookup_table
