@@ -8,13 +8,7 @@ from ... import _get_facility
 class PV:
     """PV class."""
 
-    def __init__(
-        self,
-        devname,
-        propty,
-        auto_monitor=True,
-        connection_timeout=None
-    ):
+    def __init__(self, devname, propty, connection_timeout=None):
         """."""
         self.devname = devname
         self.propty = propty
@@ -27,16 +21,6 @@ class PV:
 
     @property
     def connected(self):
-        """."""
-        raise NotImplementedError('Please Implement me.')
-
-    @property
-    def auto_monitor(self):
-        """."""
-        raise NotImplementedError('Please Implement me.')
-
-    @auto_monitor.setter
-    def auto_monitor(self, value):
         """."""
         raise NotImplementedError('Please Implement me.')
 

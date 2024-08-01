@@ -28,13 +28,6 @@ class Device:
             will be initialized. In this last option, it is possible to add
             properties that are not in PROPERTIES_DEFAULT. The other properties
             will be created whenever they are needed. Defaults to 'all'.
-        auto_monitor: bool, optional
-            Whether to automatically monitor PVs for changes. Used for PVs
-            that do not end with '-Mon' or 'Data'. Defaults to True.
-        auto_monitor_mon: bool, optional
-            Whether to automatically monitor '-Mon' or 'Data' PVs for changes.
-            Defaults to False (to avoid overloading the client). Set to False
-            when using PV.get_timevars() to know when a PV has been updated.
 
     """
 
@@ -42,17 +35,9 @@ class Device:
     GET_TIMEOUT = 5.0  # [s]
     PROPERTIES_DEFAULT = ()
 
-    def __init__(
-        self,
-        devname,
-        props2init="all",
-        auto_monitor=True,
-        auto_monitor_mon=False,
-    ):
+    def __init__(self, devname, props2init="all"):
         """."""
         self._devname = devname
-        self._auto_monitor = auto_monitor
-        self._auto_monitor_mon = auto_monitor_mon
 
         if isinstance(props2init, str) and props2init.lower() == "all":
             propties = self.PROPERTIES_DEFAULT
@@ -103,11 +88,6 @@ class Device:
         return True
 
     @property
-    def auto_monitor_status(self):
-        """Return PVs auto_monitor statuses."""
-        return {pvn: pv.auto_monitor for pvn, pv in self._pvs.items()}
-
-    @property
     def disconnected_pvnames(self):
         """Return list of disconnected device PVs."""
         set_ = set()
@@ -115,21 +95,6 @@ class Device:
             if not pvobj.connected:
                 set_.add(pvobj.pvname)
         return set_
-
-    def set_auto_monitor(self, pvname, value):
-        """Set auto_monitor state of individual PVs."""
-        if pvname not in self._pvs:
-            return False
-        pvobj = self._pvs[pvname]
-        try:
-            # TODO verify need of int
-            pvobj.auto_monitor = int(value)
-        except Exception:
-            # exceptions raised in a Virtual Circuit Disconnect (192)
-            # event. If the PV IOC goes down, for example.
-            print("Could not set auto_monitor of {}".format(pvobj.pvname))
-            return False
-        return True
 
     def update(self):
         """Update device properties."""
@@ -324,14 +289,6 @@ class DeviceSet:
         for dev in self._devices:
             set_.update(dev.disconnected_pvnames)
         return set_
-
-    @property
-    def auto_monitor_status(self):
-        """Return PVs auto_monitor statuses."""
-        dic_ = dict()
-        for dev in self._devices:
-            dic_.update(dev.auto_monitor_status)
-        return dic_
 
     def update(self):
         """Update device properties."""

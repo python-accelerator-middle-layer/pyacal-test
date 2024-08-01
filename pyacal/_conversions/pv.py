@@ -27,18 +27,6 @@ class PV:
         return pvo.connected
 
     @property
-    def auto_monitor(self):
-        """."""
-        pvo = _get_control_system().get_pv(self._key)
-        return pvo.auto_monitor
-
-    @auto_monitor.setter
-    def auto_monitor(self, value):
-        """."""
-        pvo = _get_control_system().get_pv(self._key)
-        pvo.auto_monitor = int(value)
-
-    @property
     def value(self):
         """."""
         return self.get()
@@ -65,12 +53,6 @@ class PV:
         """."""
         pvo = _get_control_system().get_pv(self._key)
         return pvo.units
-
-    @property
-    def precision(self):
-        """."""
-        pvo = _get_control_system().get_pv(self._key)
-        return pvo.precision
 
     @property
     def lower_limit(self):
