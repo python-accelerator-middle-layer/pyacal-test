@@ -2,9 +2,8 @@
 
 import numpy as _np
 
-from .. import _get_facility
+from .. import _get_facility, _get_devices
 from .base import DeviceSet
-from .bpm import BPM as _BPM
 
 
 class FamBPMs(DeviceSet):
@@ -13,11 +12,12 @@ class FamBPMs(DeviceSet):
     def __init__(self, accelerator=None, bpmnames=None):
         """."""
         facil = _get_facility()
+        devices = _get_devices()
         self.accelerator = accelerator or facil.default_accelerator
         if bpmnames is None:
             bpmnames = self._get_default_bpmnames()
 
-        bpmdevs = [_BPM(dev, auto_monitor_mon=False) for dev in bpmnames]
+        bpmdevs = [devices.BPM(dev, auto_monitor_mon=False) for dev in bpmnames]
         super().__init__(bpmdevs)
         self._bpm_names = bpmnames
 

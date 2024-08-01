@@ -2,7 +2,6 @@ import at
 import warnings
 from .. import Facility
 from ... import set_model
-from ... import devices
 
 __CSDT = Facility.CSDevTypes
 
@@ -39,11 +38,8 @@ def define_ebs(facil:Facility):
 
     # Add SH correctors
     sh_idx = ring.get_uint32_index('SH*')
-    properties = {'current_sp': {'name': 'Strength'},
-                  'current_rb': {'name': 'Strength'},
-                  'current_mon': {'name': 'Strength'},
-                  'pwrstate_sp': {'name': 'State'},
-                  'pwrstate_rb': {'name': 'State'}, }
+    properties = {'strength': {'name': 'Strength'},
+                  'state': {'name': 'State'},}
     for idx in sh_idx:
         devname = ring[idx].Device
         mag, cell, girder = get_info_from_devname(devname)
@@ -56,8 +52,8 @@ def define_ebs(facil:Facility):
                 {'cs_devname': dname,
                  'cs_devtype': _DEVTYPE[fc],
                  'accelerator': accname,
+                 'ds_info': {'readonly': False},
                  'sim_info': {'indices': [[idx]], },
-                 'vector_index': 0,
                  'cs_propties': properties,
                  }
             )
@@ -77,7 +73,7 @@ def define_ebs(facil:Facility):
              'cs_devtype': _DEVTYPE['BPM'],
              'accelerator': accname,
              'sim_info': {'indices': [[idx]], },
-             'vector_index': i,
+             'ds_info': {'vector_index': i, 'readonly': True, },
              'cs_propties': properties,
             }
         )
@@ -93,7 +89,7 @@ def define_ebs(facil:Facility):
          'cs_devtype': _DEVTYPE['DCCT'],
          'accelerator': accname,
          'sim_info': {'indices': [ct_idx], },
-         'vector_index': 0,
+         'ds_info': {'readonly': True, },
          'cs_propties': properties,
          }
     )
@@ -113,7 +109,7 @@ def define_ebs(facil:Facility):
             'cs_devtype': _DEVTYPE['RFGEN'],
             'accelerator': accname,
             'sim_info': {'indices': [rf_idx], },
-            'vector_index': 0,
+            'ds_info': {'readonly': True, },
             'cs_propties': properties,
         }
     )
@@ -122,7 +118,4 @@ def define_ebs(facil:Facility):
 # arbitrary, must be defined by the facility developers:
 facility = Facility('esrf', 'tango', 'pyat')
 facility.default_accelerator = 'EBS'
-facility._CONNECTED_DS = {}
-facility._AMAP_DEF.update({'vector_index': int})
-devices.PowerSupply.TINY_CURRENT = 1.0e-6
 define_ebs(facility)

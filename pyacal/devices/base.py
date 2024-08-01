@@ -207,7 +207,7 @@ class Device:
         """."""
 
         def comp_(val):
-            boo = comp(self[propty], val)
+            boo = comp(getattr(self, propty), val)
             if isinstance(boo, _np.ndarray):
                 boo = _np.all(boo)
             return boo

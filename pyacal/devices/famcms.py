@@ -2,9 +2,8 @@
 
 import numpy as _np
 
-from .. import _get_facility
+from .. import _get_facility, _get_devices
 from .base import DeviceSet
-from .power_supply import PowerSupply as _PowerSupply
 
 
 class FamCMs(DeviceSet):
@@ -13,10 +12,11 @@ class FamCMs(DeviceSet):
     def __init__(self, accelerator=None, cmnames=None, plane="HV"):
         """."""
         facil = _get_facility()
+        devices = _get_devices()
         self.accelerator = accelerator or facil.default_accelerator
         if cmnames is None:
             cmnames = self._get_default_cmnames(plane)
-        cmdevs = [_PowerSupply(dev) for dev in cmnames]
+        cmdevs = [devices.PowerSupply(dev) for dev in cmnames]
 
         super().__init__(cmdevs)
         self._cm_names = cmnames

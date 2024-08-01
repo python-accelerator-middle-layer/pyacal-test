@@ -47,6 +47,9 @@ class Facility:
         self._alias_map = {}
         self.accelerators = {}
         self.default_accelerator = ""
+        if control_system=='tango':
+            self._CONNECTED_DS = {}
+            self._AMAP_DEF.update({'ds_info': dict})
 
     def add_2_alias_map(self, alias, value):
         """."""
@@ -163,10 +166,12 @@ class Facility:
         mapdef = self._AMAP_DEF
         if key not in mapdef:
             raise KeyError(f'Key {key} present in {alias} is not allowed.')
-        elif not isinstance(val, mapdef[key]):
-            raise ValueError(
-                f'Value of key {key} should be of type {str(mapdef[key])}.'
-            )
+        try:
+            val = mapdef.get(key)(val)
+        except ValueError as e:
+            e.args = (f'Value of key {key} '
+                      f'should be of type {str(mapdef[key])}.', )
+            raise
 
         if key == 'sim_info':
             self._check_sim_info(alias, val)
