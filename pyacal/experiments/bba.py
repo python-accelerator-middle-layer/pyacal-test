@@ -334,6 +334,11 @@ class BBA(_BaseClass):
             {devtypes.QuadrupoleNormal, devtypes.QuadrupoleSkew},
             comp='or',
         )
+        quadnames = facil.find_aliases_from_cs_devtype(
+            devtypes.MagnetIndividual,
+            comp='or',
+            aliases=quadnames,
+        )
         quadnames = facil.find_aliases_from_accelerator(
             self.accelerator, aliases=quadnames
         )
@@ -342,12 +347,8 @@ class BBA(_BaseClass):
         bidcs = facil.get_attribute_from_aliases('sim_info.indices', bpmnames)
 
         acc = self.accelerator
-        qpos = _np.array(
-            [simul.get_positions(idx, acc=acc) for idx in qidcs]
-        ).ravel()
-        bpos = _np.array(
-            [simul.get_positions(idx, acc=acc) for idx in bidcs]
-        ).ravel()
+        qpos = _np.array(simul.get_positions(qidcs, acc=acc)).ravel()
+        bpos = _np.array(simul.get_positions(bidcs, acc=acc)).ravel()
         if qpos.size != len(quadnames) or bpos.size != len(bpmnames):
             raise ValueError(
                 "Size of positions does not match size of indices.\n" +
