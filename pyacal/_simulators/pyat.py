@@ -40,11 +40,22 @@ def get_orbit(refpts, acc=None):
     _, o6 = accel.find_orbit(refpts)
     return o6[:, 0], o6[:, 2]
 
+
 def get_tunes(acc=None):
+    """Return fractional transverse tunes of the model.
+
+    Args:
+        acc (str, optional): name of the accelerator. Defaults to None, which
+            means the variable DEFAULT_ACCELERATOR will be used.
+
+    Returns:
+        tuple: 2-tuple containing the two transverse tunes of the model.
+    """
     facility = _get_facility()
     acc = acc or facility.default_accelerator
     accel = facility.accelerators[acc]
     return accel.get_tunes()[:2]
+
 
 def get_twiss(refpts, acc=None):
     """Return twiss parameters of the model.
@@ -145,7 +156,7 @@ def get_attribute(propty, refpts, index=None, acc=None):
         return [get_attr(e, attr, attr_index) for e in accel[refpts]]
     except KeyError:
         raise ValueError(f'Wrong value for propty ({propty})')
-    
+
 
 def set_attribute(propty, refpts, values, index=None, acc=None):
     """Set model with new attribute values.
