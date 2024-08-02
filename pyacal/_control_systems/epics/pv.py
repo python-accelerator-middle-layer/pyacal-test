@@ -12,7 +12,6 @@ class PV:
         self,
         devname,
         propty,
-        auto_monitor=True,
         connection_timeout=None
     ):
         """."""
@@ -25,25 +24,13 @@ class PV:
         )
 
         self._pvo = _epics.PV(
-            pvname,
-            auto_monitor=auto_monitor,
-            connection_timeout=connection_timeout
+            pvname, connection_timeout=connection_timeout, auto_monitor=False
         )
 
     @property
     def connected(self):
         """."""
         return self._pvo.connected
-
-    @property
-    def auto_monitor(self):
-        """."""
-        return self._pvo.auto_monitor
-
-    @auto_monitor.setter
-    def auto_monitor(self, value):
-        """."""
-        self._pvo.auto_monitor = int(value)
 
     @property
     def value(self):
@@ -69,11 +56,6 @@ class PV:
     def units(self):
         """."""
         return self._pvo.units
-
-    @property
-    def precision(self):
-        """."""
-        return self._pvo.precision
 
     @property
     def lower_limit(self):

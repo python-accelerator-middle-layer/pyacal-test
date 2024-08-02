@@ -3,14 +3,12 @@
 from .. import _get_connections_dict, _get_control_system
 
 
-def create_pv(devname, propty, auto_monitor=True, connection_timeout=None):
+def create_pv(devname, propty, connection_timeout=None):
     """Create connection with PV.
 
     Args:
         devname (str): Alias for device name defined in Facility.alias_map.
         propty (str): alias for property name defined in Facility.alias_map.
-        auto_monitor (bool, optional): Whether to turn on auto monitor.
-            Defaults to True.
         connection_timeout (int, optional): time to wait for connection before
             raising Timeout error. Defaults to None.
 
@@ -21,7 +19,6 @@ def create_pv(devname, propty, auto_monitor=True, connection_timeout=None):
     args = (
         devname,
         propty,
-        auto_monitor,
         connection_timeout
     )
     conns = _get_connections_dict()

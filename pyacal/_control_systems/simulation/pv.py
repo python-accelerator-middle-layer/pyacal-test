@@ -10,7 +10,6 @@ class PV:
         self,
         devname,
         propty,
-        auto_monitor=True,
         connection_timeout=None
     ):
         """."""
@@ -25,16 +24,6 @@ class PV:
 
     @property
     def connected(self):
-        """."""
-        raise NotImplementedError('Please Implement me.')
-
-    @property
-    def auto_monitor(self):
-        """."""
-        raise NotImplementedError('Please Implement me.')
-
-    @auto_monitor.setter
-    def auto_monitor(self, value):
         """."""
         raise NotImplementedError('Please Implement me.')
 

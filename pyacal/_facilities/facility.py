@@ -1,36 +1,37 @@
 """Module to implement class Facility."""
 from copy import deepcopy as _dcopy
 
-from ..utils import get_namedtuple as _get_namedtuple
+_ConverterTypes = None
+_ConverterNames = None
 
 
 class Facility:
     """."""
 
-    _CS_DEVTYPES = (
-        'PowerSupply',
-        'DipoleNormal',
-        'DipoleReverse',
-        'DipoleSkew',
-        'CorrectorHorizontal',
-        'CorrectorVertical',
-        'QuadrupoleNormal',
-        'QuadrupoleSkew',
-        'SextupoleNormal',
-        'SextupoleSkew',
-        'OctupoleNormal',
-        'OctupoleSkew',
-        'DCCT',
-        'BPM',
-        'IDBPM',
-        'PBPM',
-        'RFGenerator',
-        'RFCavity',
-        'TuneMeas',
-        'SOFB',
-        'Family'
-    )
-    CSDevTypes = _get_namedtuple('CSDevTypes', _CS_DEVTYPES, _CS_DEVTYPES)
+    class CSDevTypes:
+        PowerSupply = 'PowerSupply'
+        MagnetIndividual = 'MagnetIndividual'
+        MagnetFamily = 'MagnetFamily'
+        DipoleNormal = 'DipoleNormal'
+        DipoleReverse = 'DipoleReverse'
+        DipoleSkew = 'DipoleSkew'
+        CorrectorHorizontal = 'CorrectorHorizontal'
+        CorrectorVertical = 'CorrectorVertical'
+        QuadrupoleNormal = 'QuadrupoleNormal'
+        QuadrupoleSkew = 'QuadrupoleSkew'
+        SextupoleNormal = 'SextupoleNormal'
+        SextupoleSkew = 'SextupoleSkew'
+        OctupoleNormal = 'OctupoleNormal'
+        OctupoleSkew = 'OctupoleSkew'
+        DCCT = 'DCCT'
+        BPM = 'BPM'
+        IDBPM = 'IDBPM'
+        PBPM = 'PBPM'
+        RFGenerator = 'RFGenerator'
+        RFCavity = 'RFCavity'
+        TuneMeas = 'TuneMeas'
+        SOFB = 'SOFB'
+        Family = 'Family'
 
     _AMAP_DEF = {
         'cs_devname': str,
@@ -50,6 +51,23 @@ class Facility:
         self.default_accelerator = ""
         if control_system == 'tango':
             self._CONNECTED_DS = {}
+
+    def get_lookup_table(self, table_name):
+        """Given a table name, this method should find and load the file.
+
+        The class pyacal._converters.converters.LookupTableConverter expects
+        the table to be a numpy.ndarray of shape (N, 2) where N is the number
+        of points of the table.
+
+        Returns:
+            table (numpy.ndarray, (N, 2)): Look-up table.
+
+        """
+        raise NotImplementedError('Please implement me.')
+
+    def get_accelerator_object(self, acc=None):
+        acc = acc or self.default_accelerator
+        return self.accelerators[acc]
 
     def add_2_alias_map(self, alias, value):
         """."""
@@ -147,6 +165,12 @@ class Facility:
 
     # ---------------------- helper methods ---------------------------
     def _check_map_entry(self, alias, value):
+        global _ConverterNames, _ConverterTypes
+        if _ConverterNames is None:
+            from .._conversions.utils import ConverterNames, ConverterTypes
+            _ConverterTypes = ConverterTypes
+            _ConverterNames = ConverterNames
+
         mapdef = self._AMAP_DEF
         if not isinstance(alias, str):
             raise TypeError('Alias name should be of type str.')
@@ -196,7 +220,6 @@ class Facility:
             raise TypeError(f"Wrong type for `indices` of {alias}")
 
     def _check_cs_propties(self, alias, propty, val):
-
         if not isinstance(val, dict):
             raise TypeError(
                 f'value for propty {propty} of alias {alias} should be a dict.'
@@ -225,3 +248,46 @@ class Facility:
                 f"Propty {propty} of {alias} has extra keys. "
                 f"Possible values are {all_keys}"
             )
+
+        for name in ('conv_cs2sim', 'conv_cs2phys'):
+            if name not in val.keys():
+                val[name] = []
+            elif isinstance(val[name], (float, int)):
+                val[name] = [{
+                    'type': _ConverterNames.ScaleConverter, 'scale': val[name]
+                }, ]
+            elif isinstance(val[name], (list, tuple)):
+                val[name] = list(val[name])
+                for i, conv in enumerate(val[name]):
+                    val[name][i] = self._check_converter(alias, propty, conv)
+            else:
+                raise TypeError(
+                    f'Entry {name} from propty {propty} of {alias} is wrong.'
+                )
+
+    def _check_converter(self, alias, propty, conv):
+        if isinstance(conv, (float, int)):
+            return {'type': _ConverterNames.ScaleConverter, 'scale': conv}
+
+        if not isinstance(conv, dict):
+            raise TypeError(
+                f'Converter entry must be dict in propty {propty} of {alias}.'
+            )
+
+        if 'type' not in conv:
+            raise KeyError(
+                f'Converter entry must have "type" key in {propty} of {alias}.'
+            )
+        elif conv['type'] not in _ConverterTypes:
+            raise ValueError(
+                f'Converter type not allowed in propty {propty} of {alias}.'
+            )
+
+        possible = _ConverterTypes[conv['type']]
+        wrong_keys = conv.keys() - (possible | {'type'})
+        if wrong_keys:
+            raise ValueError(
+                f'Wrong keys to define converter in {propty} of {alias}.\n' +
+                f'    {wrong_keys}\nPossible values:\n    {possible}'
+            )
+        return conv

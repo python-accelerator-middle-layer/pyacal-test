@@ -1,20 +1,24 @@
 """PV class."""
 
 import tango
+
 from ... import _get_facility
 
 
 class PV:
     """PV class."""
 
-    def __init__(self, devname, propty, auto_monitor=True, connection_timeout=None):
+    def __init__(self, devname, propty, connection_timeout=None):
         """."""
         self.devname = devname
         self.propty = propty
         facil = _get_facility()
-        self.cs_devname = facil.get_attribute_from_aliases('cs_devname', devname)
-        properties = facil.get_attribute_from_aliases(f'cs_propties.{propty}',
-                                                      devname)
+        self.cs_devname = facil.get_attribute_from_aliases(
+            'cs_devname', devname
+        )
+        properties = facil.get_attribute_from_aliases(
+            f'cs_propties.{propty}', devname
+        )
         self.cs_propty = properties['name']
         self.wvalue = properties.get('wvalue', False)
         self.idx = properties.get('index', None)
@@ -33,6 +37,7 @@ class PV:
 
     @property
     def connected(self):
+        """."""
         try:
             self._ds.state()
             return True
