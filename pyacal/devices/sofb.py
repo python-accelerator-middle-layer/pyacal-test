@@ -9,8 +9,8 @@ from ..utils import get_namedtuple as _get_namedtuple
 from .base import DeviceSet
 from .fambpms import FamBPMs as _FamBPMs
 from .famcms import FamCMs as _FamCMs
-from .rfgen import RFGen as _RFGen
 from .power_supply import PowerSupply as _PowerSupply
+from .rfgen import RFGen as _RFGen
 
 
 class SOFB(DeviceSet):
@@ -30,7 +30,7 @@ class SOFB(DeviceSet):
         self.rfgen = _RFGen()
         super().__init__([self.fambpms, self.famcms, self.rfgen])
 
-        self.nr_bpms = len(self.fambpms.devices)
+        self.nr_bpms = len(self.fambpms.bpm_names)
         self.nr_hcms = self.famcms.nr_hcms
         self.nr_vcms = self.famcms.nr_vcms
         self.nr_cors = self.nr_hcms + self.nr_vcms + 1

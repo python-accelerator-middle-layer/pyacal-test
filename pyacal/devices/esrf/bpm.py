@@ -9,7 +9,7 @@ class BPM(Device):
 
     PROPERTIES_DEFAULT = ("posx", "posy")
 
-    def __init__(self, devname, auto_monitor_mon=True):
+    def __init__(self, devname):
         """."""
         facil = _get_facility()
         if not facil.is_alias_in_cs_devtype(devname, facil.CSDevTypes.BPM):
