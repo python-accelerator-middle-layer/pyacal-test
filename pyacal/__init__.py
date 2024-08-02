@@ -15,6 +15,7 @@ __ACAL_VARS = {
     'simulator': None,
     'control_system': None,
     'all_connections': dict(),
+    'devices': None,
 }
 
 
@@ -112,6 +113,7 @@ def _get_control_system():
         )
     return cst
 
+
 def _get_devices():
     """Return the current simulator object being used."""
     devices = __ACAL_VARS['devices']
@@ -167,4 +169,3 @@ def __set_devices(fac_name):
     except ImportError:
         device_module = _importlib.import_module('.devices', __name__)
     __ACAL_VARS['devices'] = device_module
-
