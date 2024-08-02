@@ -4,7 +4,7 @@ ConverterTypes = {
     'ScaleConverter': {'scale', },
     'OffsetConverter': {'offset', },
     'LookupTableConverter': {'table_name', },
-    'PolynomConverter': {'coeffs', 'limits'},
+    'PolynomConverter': {'coeffs', 'limits', 'is_forward'},
     'CompanionProptyConverter': {'devname', 'propty', 'operation'},
     'MagRigidityConverter': {'devname', 'propty', 'conv_2_ev'},
 }

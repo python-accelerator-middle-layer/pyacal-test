@@ -156,9 +156,9 @@ class LookupTableConverter(_BaseConverter):
         return val
 
 
-class PolynomialConverter(_BaseConverter):
+class PolynomConverter(_BaseConverter):
 
-    def __init__(self, coeffs=(0, 1), limits=(0, 1)):
+    def __init__(self, coeffs=(0, 1), limits=(0, 1), is_forward=True):
         super().__init__()
 
         if not isinstance(limits, (list, tuple, _np.ndarray)):
@@ -166,7 +166,7 @@ class PolynomialConverter(_BaseConverter):
         elif not isinstance(coeffs, (list, tuple, _np.ndarray)):
             raise TypeError('Coeffs must be list, tuple or 1d numpy.ndarray.')
 
-        pol = _np.polynomial.Polynomial(coeffs, domain=tuple(limits))
+        pol = _np.polynomial.Polynomial(coeffs)
         pol_der = pol.deriv()
         roots = pol_der.roots()
         roots = roots[_np.isreal(roots)]
@@ -174,6 +174,8 @@ class PolynomialConverter(_BaseConverter):
             raise TypeError(
                 'Polynom must be strictly monotonic to be invertible.'
             )
+        self._is_forward = is_forward
+        self._limits = limits
         self._pol = pol
         self._pol_der = pol_der
 
@@ -185,15 +187,25 @@ class PolynomialConverter(_BaseConverter):
         self._table_guess = _np.vstack([y, x]).T
 
     @staticmethod
-    def get_key(coefs=(0, 1), limits=(0, 1)):
-        return (tuple(coefs), tuple(limits))
+    def get_key(coeffs=(0, 1), limits=(0, 1), is_forward=True):
+        return (tuple(coeffs), tuple(limits), is_forward)
 
     def conversion_forward(self, value):
-        if not self._pol.domain[0] <= value <= self._pol.domain[1]:
+        if self._is_forward:
+            return self._conversion_forward(value)
+        return self._conversion_reverse(value)
+
+    def conversion_reverse(self, value):
+        if self._is_forward:
+            return self._conversion_reverse(value)
+        return self._conversion_forward(value)
+
+    def _conversion_forward(self, value):
+        if not self._limits[0] <= value <= self._limits[1]:
             raise ValueError(f'Value {value} is out of bounds.')
         return self._pol(value)
 
-    def conversion_reverse(self, value):
+    def _conversion_reverse(self, value):
         val = _np.interp(
             value,
             self._table_guess[:, 0],
