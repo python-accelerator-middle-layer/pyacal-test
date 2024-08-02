@@ -13,10 +13,11 @@ class PV:
         self.propty = propty
         facil = _get_facility()
         self.cs_devname = facil.get_attribute_from_aliases('cs_devname', devname)
-        self.cs_propty = facil.get_attribute_from_aliases(
-            f'cs_propties.{propty}.name', devname)
-        self.readonly = facil.get_attribute_from_aliases(
-            'ds_info.readonly', devname)
+        properties = facil.get_attribute_from_aliases(f'cs_propties.{propty}',
+                                                      devname)
+        self.cs_propty = properties['name']
+        self.wvalue = properties.get('wvalue', False)
+        self.idx = properties.get('index', None)
         try:
             self._ds = facil._CONNECTED_DS[self.cs_devname]
         except KeyError:
@@ -77,10 +78,8 @@ class PV:
     def get(self, timeout=None):
         attr = self._ds.read_attribute(self.cs_propty)
         self._timestamp = attr.time.totime()
-        if self.readonly:
-            return attr.value
-        else:
-            return attr.value, attr.w_value
+        value = attr.w_value if self.wvalue else attr.value
+        return value if self.idx is None else value[self.idx]
 
     def put(self, value, wait=None):
         self._ds.write_attribute(self.cs_propty, value)

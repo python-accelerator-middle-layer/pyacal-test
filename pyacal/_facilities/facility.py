@@ -28,6 +28,7 @@ class Facility:
         'RFCavity',
         'TuneMeas',
         'SOFB',
+        'Family'
     )
     CSDevTypes = _get_namedtuple('CSDevTypes', _CS_DEVTYPES, _CS_DEVTYPES)
 
@@ -47,9 +48,8 @@ class Facility:
         self._alias_map = {}
         self.accelerators = {}
         self.default_accelerator = ""
-        if control_system=='tango':
+        if control_system == 'tango':
             self._CONNECTED_DS = {}
-            self._AMAP_DEF.update({'ds_info': dict})
 
     def add_2_alias_map(self, alias, value):
         """."""
@@ -196,6 +196,7 @@ class Facility:
             raise TypeError(f"Wrong type for `indices` of {alias}")
 
     def _check_cs_propties(self, alias, propty, val):
+
         if not isinstance(val, dict):
             raise TypeError(
                 f'value for propty {propty} of alias {alias} should be a dict.'
@@ -204,12 +205,20 @@ class Facility:
             raise KeyError(
                 f'Propty {propty} of {alias} does not have `name` defined.'
             )
-        elif not isinstance(val['name'], str):
+        if not isinstance(val['name'], str):
             raise TypeError(
                 f'Name of propty {propty} of {alias} should be of type str.'
             )
+        elif not isinstance(val.get('index', 0), int):
+            raise TypeError(
+                f'index of propty {propty} of {alias} should be of type int.'
+            )
+        elif not isinstance(val.get('wvalue', False), bool):
+            raise TypeError(
+                f'wvalue of propty {propty} of {alias} should be of type bool.'
+            )
 
-        all_keys = {'name', 'conv_sim2cs', 'conv_cs2phys'}
+        all_keys = {'name', 'conv_sim2cs', 'conv_cs2phys', 'index', 'wvalue'}
         extra_keys = val.keys() - all_keys
         if extra_keys:
             raise KeyError(

@@ -9,6 +9,7 @@ _DEVTYPE = {'CH': {__CSDT.CorrectorHorizontal, __CSDT.PowerSupply, __CSDT.SOFB},
             'CV': {__CSDT.CorrectorVertical, __CSDT.PowerSupply, __CSDT.SOFB},
             'QS': {__CSDT.QuadrupoleSkew, __CSDT.PowerSupply},
             'BPM': {__CSDT.BPM, __CSDT.SOFB},
+            'BPM_ALL': {__CSDT.BPM, __CSDT.Family},
             'DCCT': {__CSDT.DCCT, },
             'RFGEN': {__CSDT.RFGenerator, },
             }
@@ -38,8 +39,9 @@ def define_ebs(facil:Facility):
 
     # Add SH correctors
     sh_idx = ring.get_uint32_index('SH*')
-    properties = {'strength': {'name': 'Strength'},
-                  'state': {'name': 'State'},}
+    properties = {'strength_read': {'name': 'Strength'},
+                  'strength_write': {'name': 'Strength', 'wvalue': True},
+                  'state': {'name': 'State'}}
     for idx in sh_idx:
         devname = ring[idx].Device
         mag, cell, girder = get_info_from_devname(devname)
@@ -52,7 +54,6 @@ def define_ebs(facil:Facility):
                 {'cs_devname': dname,
                  'cs_devtype': _DEVTYPE[fc],
                  'accelerator': accname,
-                 'ds_info': {'readonly': False},
                  'sim_info': {'indices': [[idx]], },
                  'cs_propties': properties,
                  }
@@ -60,12 +61,11 @@ def define_ebs(facil:Facility):
 
     # Add BPM
     bpm_idx = ring.get_uint32_index('BPM*')
-    properties = {'posx': {'name': 'All_SA_HPosition'},
-                  'posy': {'name': 'All_SA_VPosition'},
-                  }
+    devname = 'srdiag/bpm/all'
     for i, idx in enumerate(bpm_idx):
-        #devname = ring[idx].Device
-        devname = 'srdiag/bpm/all'
+        properties = {'posx': {'name': 'All_SA_HPosition', 'index': i},
+                      'posy': {'name': 'All_SA_VPosition', 'index': i},
+                      }
         alias = ring[idx].FamName
         facil.add_2_alias_map(
             alias,
@@ -73,12 +73,25 @@ def define_ebs(facil:Facility):
              'cs_devtype': _DEVTYPE['BPM'],
              'accelerator': accname,
              'sim_info': {'indices': [[idx]], },
-             'ds_info': {'vector_index': i, 'readonly': True, },
              'cs_propties': properties,
             }
         )
+    # Add BPM Family
+    properties = {'orbx': {'name': 'All_SA_HPosition'},
+                  'orby': {'name': 'All_SA_VPosition'},
+                  }
+    facil.add_2_alias_map(
+        'BPM_ALL',
+        {'cs_devname': devname,
+         'cs_devtype': _DEVTYPE['BPM_ALL'],
+         'accelerator': accname,
+         'sim_info': {'indices': [bpm_idx], },
+         'cs_propties': properties,
+         }
+    )
 
-        # Add CT
+
+    # Add CT
     ct_idx = ring.get_uint32_index('*CT*')
     properties = {'current': {'name': 'Current',
                                   'conv_sim2cs': 1e-3}, }
@@ -89,7 +102,6 @@ def define_ebs(facil:Facility):
          'cs_devtype': _DEVTYPE['DCCT'],
          'accelerator': accname,
          'sim_info': {'indices': [ct_idx], },
-         'ds_info': {'readonly': True, },
          'cs_propties': properties,
          }
     )
@@ -109,7 +121,6 @@ def define_ebs(facil:Facility):
             'cs_devtype': _DEVTYPE['RFGEN'],
             'accelerator': accname,
             'sim_info': {'indices': [rf_idx], },
-            'ds_info': {'readonly': True, },
             'cs_propties': properties,
         }
     )

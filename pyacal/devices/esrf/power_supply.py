@@ -11,7 +11,8 @@ class PowerSupply(Device):
     TINY_CURRENT = 1e-6  # In units of the control system.
     PROPERTIES_DEFAULT = (
         "state",
-        "strength",
+        "strength_read",
+        "strength_write"
     )
 
     def __init__(self, devname):
@@ -32,24 +33,22 @@ class PowerSupply(Device):
     @property
     def current_mon(self):
         """."""
-        val, _ = self["strength"]
-        return val
+        return self["strength_read"]
 
     @property
     def current(self):
         """."""
-        _, val = self["strength"]
-        return val
+        return self["strength_write"]
 
     @current.setter
     def current(self, value):
         """."""
-        self["strength"] = value
+        self["strength_write"] = value
 
     def set_current(self, value, tol=None, timeout=10):
         """."""
         tol = tol or self.TINY_CURRENT
         self.current = value
         return self.wait(
-            "current", value, comp="isclose", abs_tol=tol, timeout=timeout
+            "current_mon", value, comp="isclose", abs_tol=tol, timeout=timeout
         )
