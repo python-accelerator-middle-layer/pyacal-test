@@ -35,7 +35,7 @@ def define_ebs(facil:Facility):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         ring = at.load_lattice('./betamodel.mat', use='betamodel')
-    set_model(accname, ring, facil)
+    facil.accelerators[accname] = ring
 
     # Add SH correctors
     sh_idx = ring.get_uint32_index('SH*')
