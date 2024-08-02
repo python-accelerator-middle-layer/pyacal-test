@@ -94,7 +94,7 @@ def define_ebs(facil:Facility):
     # Add CT
     ct_idx = ring.get_uint32_index('*CT*')
     properties = {'current': {'name': 'Current',
-                                  'conv_sim2cs': 1e-3}, }
+                                  'conv_cs2sim': 1e3}, }
     devname = 'srdiag/beam-current/total'
     facil.add_2_alias_map(
         'DCCT',

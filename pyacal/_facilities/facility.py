@@ -241,7 +241,7 @@ class Facility:
                 f'wvalue of propty {propty} of {alias} should be of type bool.'
             )
 
-        all_keys = {'name', 'conv_sim2cs', 'conv_cs2phys', 'index', 'wvalue'}
+        all_keys = {'name', 'conv_cs2sim', 'conv_cs2phys', 'index', 'wvalue'}
         extra_keys = val.keys() - all_keys
         if extra_keys:
             raise KeyError(
