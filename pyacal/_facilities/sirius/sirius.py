@@ -1,10 +1,11 @@
 """Define SIRIUS facility object with aliases map."""
 
+import math
 from copy import deepcopy as _dcopy
 
 import numpy as np
 import pymodels
-from scipy.constants import speed_of_light
+from scipy.constants import electron_mass, electron_volt, speed_of_light
 from siriuspy.magnet.excdata import ExcitationData
 from siriuspy.search import PSSearch
 
@@ -72,19 +73,35 @@ def define_si(facil: Facility):
     # --------- Define magnets (power supplies) ------------
 
     # ------------------- Bending Magnets -----------------------
-    bc_intfield = 0.7503  # [T.m]
-    bc_deflection = bc_intfield * speed_of_light / 3e9  # [rad]
-    nominal_deflection = 2*np.pi / 20 - bc_deflection  # B1 + B2 deflection
-    # Notes on the equation below:
-    #  - factor of 2 needed because lookup table accounts for half integral;
-    #  - the factor 1e9 needed to have energy in GeV instead of eV;
-    scale_fac = 2 * speed_of_light / nominal_deflection / 1e9
+    nom_ene = 3e9  # [eV]
+    ene0 = electron_mass * speed_of_light ** 2 / electron_volt  # [eV]
+    # nominal momentum in [eV/c]:
+    nom_mom = math.sqrt(nom_ene * nom_ene - ene0 * ene0) / speed_of_light
+    nominal_deflection = math.radians(2.755300 + 4.096400)  # B1+B2 deflection
+
     convs = [
-        {
+        {  # calculate the integrated field from current
             'type': ConverterNames.LookupTableConverter,
             'table_name': 'name_of_excitation_table',
         },
-        scale_fac,
+        # calculate the momentum in [eV/c] times c in [m/s]:
+        speed_of_light / nominal_deflection,
+        {  # take the square of the result
+            'type': ConverterNames.PolynomConverter,
+            'coeffs': (0, 0, 1),
+            'limits': (0, nom_mom * speed_of_light * 1.1),
+        },
+        {  # add the square of the rest energy
+            'type': ConverterNames.OffsetConverter,
+            'offset': ene0 * ene0,
+        },
+        {  # take the square root using a polynom in reverse mode
+            'type': ConverterNames.PolynomConverter,
+            'coeffs': (0, 0, 1),
+            'limits': (ene0 , nom_ene * 1.1),
+            'is_forward': False,
+        },
+        1 / 1e9,  # convert energy to [GeV]
     ]
     props = {
         'pwrstate_sp': {'name': ':PwrState-Sel'},
