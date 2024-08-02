@@ -1,9 +1,11 @@
 """."""
 
+import math as _math
 import operator as _operator
 
 import numpy as _np
-from scipy.constants import speed_of_light as _speed_of_light
+from scipy.constants import electron_mass as _electron_mass, \
+    electron_volt as _electron_volt, speed_of_light as _speed_of_light
 
 from .. import _get_facility
 from .utils import ConverterTypes
@@ -252,8 +254,6 @@ class CompanionProptyConverter(_BaseConverter):
         return getattr(_operator, self._opr_inv)(value, val_comp)
 
     def _get_companion_property_value(self):
-        if not self._prpt_pv.connected:
-            raise ValueError('Companion property not connected.')
         val_comp = self._prpt_pv.value
         if val_comp is None:
             raise ValueError('Companion property value is None.')
@@ -267,27 +267,50 @@ class CompanionProptyConverter(_BaseConverter):
 class MagRigidityConverter(CompanionProptyConverter):
     """Ultra-relativistic approximation is used here."""
 
-    # TODO: Generalize conversion to non-relativistic particles
-    _CONST = _speed_of_light  # c / (E/e)
-
     def __init__(self, devname='', propty='', energy=0, conv_2_ev=1e9):
-        self._const = self._CONST / conv_2_ev
+        self._conv_2_ev = conv_2_ev
         self._energy = energy
         if not energy:
             super().__init__(devname=devname, propty=propty, operation='div')
-        else:
-            self._const /= energy
+
+    @property
+    def connected(self):
+        """."""
+        if self._energy:
+            return True
+        return super().connected
 
     @staticmethod
     def get_key(devname='', propty='', energy=0, conv_2_ev=1e9):
         return (devname, propty, energy, conv_2_ev)
 
     def conversion_forward(self, value):
-        if not self._energy:
-            value = super().conversion_forward(value)
-        return value * self._const
+        """."""
+        mag_rig = self._get_mag_rigidity()
+        return value / mag_rig
 
     def conversion_reverse(self, value):
-        if not self._energy:
-            value = super().conversion_reverse(value)
-        return value / self._const
+        """."""
+        mag_rig = self._get_mag_rigidity()
+        return value * mag_rig
+
+    def _get_mag_rigidity(self):
+        """Return magnetic rigidity (p/e)."""
+        energy = self._energy
+        if not energy:
+            energy = self._get_companion_property_value()
+        energy *= self._conv_2_ev
+
+        # electron rest energy in [eV]:
+        rest_ene = _electron_mass * _speed_of_light ** 2 / _electron_volt
+
+        # make sure energy is not smaller than rest energy:
+        energy = max(energy, rest_ene + 1)
+
+        return _math.sqrt(energy*energy - rest_ene*rest_ene) / _speed_of_light
+
+    def wait_for_connection(self, timeout=None):
+        """."""
+        if self._energy:
+            return True
+        return super().wait_for_connection(timeout=timeout)
