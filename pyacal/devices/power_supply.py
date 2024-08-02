@@ -7,13 +7,13 @@ from .base import Device
 class PowerSupply(Device):
     """."""
 
-    TINY_CURRENT = 1e-3  # In units of the control system.
+    TINY_STRENGTH = 1e-3
     PROPERTIES_DEFAULT = (
         "pwrstate_sp",
         "pwrstate_rb",
-        "current_sp",
-        "current_rb",
-        "current_mon",
+        "strength_sp",
+        "strength_rb",
+        "strength_mon",
     )
 
     def __init__(self, devname):
@@ -37,24 +37,24 @@ class PowerSupply(Device):
         self["pwrstate_sp"] = value
 
     @property
-    def current_mon(self):
+    def strength_mon(self):
         """."""
-        return self["current_mon"]
+        return self["strength_mon"]
 
     @property
-    def current(self):
+    def strength(self):
         """."""
-        return self["current_rb"]
+        return self["strength_rb"]
 
-    @current.setter
-    def current(self, value):
+    @strength.setter
+    def strength(self, value):
         """."""
-        self["current_sp"] = value
+        self["strength_sp"] = value
 
-    def set_current(self, value, tol=None, timeout=10):
+    def set_strength(self, value, tol=None, timeout=10):
         """."""
-        tol = tol or self.TINY_CURRENT
-        self.current = value
+        tol = tol or self.TINY_STRENGTH
+        self.strength = value
         return self.wait(
-            "current_rb", value, comp="isclose", abs_tol=tol, timeout=timeout
+            "strength_rb", value, comp="isclose", abs_tol=tol, timeout=timeout
         )

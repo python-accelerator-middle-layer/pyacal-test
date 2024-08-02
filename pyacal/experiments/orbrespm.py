@@ -120,11 +120,11 @@ class OrbRespm(_BaseClass):
         steps = [-1, +1]
         total_step = steps[1] - steps[0]
         orbs = []
-        inicurr = cmdev.current
+        inicurr = cmdev.strength
         for step in steps:
-            cmdev.set_current(inicurr + step * delta)
+            cmdev.set_strength(inicurr + step * delta)
             orbs.append(sofb.get_orbit())
-        cmdev.set_current(inicurr)
+        cmdev.set_strength(inicurr)
 
         return True, (orbs[1] - orbs[0]) / (total_step * delta)
 

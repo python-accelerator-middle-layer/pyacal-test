@@ -31,24 +31,28 @@ class PowerSupply(Device):
         return True if state==tango.DevState.ON else False
 
     @property
-    def current_mon(self):
+    def strength_mon(self):
         """."""
         return self["strength_read"]
 
     @property
-    def current(self):
+    def strength(self):
         """."""
         return self["strength_write"]
 
-    @current.setter
-    def current(self, value):
+    @strength.setter
+    def strength(self, value):
         """."""
         self["strength_write"] = value
 
-    def set_current(self, value, tol=None, timeout=10):
+    def set_strength(self, value, tol=None, timeout=10):
         """."""
-        tol = tol or self.TINY_CURRENT
-        self.current = value
+        tol = tol or self.TINY_STRENGTH
+        self.strength = value
         return self.wait(
-            "current_mon", value, comp="isclose", abs_tol=tol, timeout=timeout
+            "strength_rb",
+            value,
+            comp="isclose",
+            abs_tol=tol,
+            timeout=timeout,
         )

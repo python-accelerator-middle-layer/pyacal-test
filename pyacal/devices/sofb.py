@@ -47,8 +47,8 @@ class SOFB(DeviceSet):
         self.corr_gain_hcm = 100  # [%]
         self.corr_gain_vcm = 100  # [%]
         self.corr_gain_rfg = 100  # [%]
-        self._delta_currents_hcm = _np.zeros(self.nr_hcms, dtype=float)
-        self._delta_currents_vcm = _np.zeros(self.nr_vcms, dtype=float)
+        self._delta_strengths_hcm = _np.zeros(self.nr_hcms, dtype=float)
+        self._delta_strengths_vcm = _np.zeros(self.nr_vcms, dtype=float)
         self._delta_frequency_rfg = 0.0
 
         self.ref_orbx = _np.zeros(self.nr_bpms, dtype=float)
@@ -67,38 +67,38 @@ class SOFB(DeviceSet):
         self._respmat_processed = None
 
     @property
-    def currents_hcm(self):
+    def strengths_hcm(self):
         """."""
-        return self.famcms.currents_hcm
+        return self.famcms.strengths_hcm
 
     @property
-    def currents_vcm(self):
+    def strengths_vcm(self):
         """."""
-        return self.famcms.currents_vcm
+        return self.famcms.strengths_vcm
 
     @property
-    def delta_currents_hcm(self):
+    def delta_strengths_hcm(self):
         """."""
-        return self._delta_currents_hcm
+        return self._delta_strengths_hcm
 
-    @delta_currents_hcm.setter
-    def delta_currents_hcm(self, value):
+    @delta_strengths_hcm.setter
+    def delta_strengths_hcm(self, value):
         value = _np.asarray(value)
-        if value.size != self._delta_currents_hcm.size:
+        if value.size != self._delta_strengths_hcm.size:
             raise ValueError('Wrong shape for value.')
-        self._delta_currents_hcm = value.copy()
+        self._delta_strengths_hcm = value.copy()
 
     @property
-    def delta_currents_vcm(self):
+    def delta_strengths_vcm(self):
         """."""
-        return self._delta_currents_vcm
+        return self._delta_strengths_vcm
 
-    @delta_currents_vcm.setter
-    def delta_currents_vcm(self, value):
+    @delta_strengths_vcm.setter
+    def delta_strengths_vcm(self, value):
         value = _np.asarray(value)
-        if value.size != self._delta_currents_vcm.size:
+        if value.size != self._delta_strengths_vcm.size:
             raise ValueError('Wrong shape for value.')
-        self._delta_currents_vcm = value.copy()
+        self._delta_strengths_vcm = value.copy()
 
     @property
     def delta_frequency_rfg(self):
@@ -275,44 +275,44 @@ class SOFB(DeviceSet):
         inv_mat = self._calc_inv_respmat()
         dkicks = inv_mat @ dorb
         dkicks *= -1
-        self._delta_currents_hcm = dkicks[: self.nr_hcms]
-        self._delta_currents_vcm = dkicks[self.nr_hcms :][: self.nr_vcms]
+        self._delta_strengths_hcm = dkicks[: self.nr_hcms]
+        self._delta_strengths_vcm = dkicks[self.nr_hcms :][: self.nr_vcms]
         self._delta_frequency_rfg = dkicks[-1]
 
     def apply_correction(self, timeout=10):
         """Apply correction to machine.
 
-        The properties `delta_currents_hcm`, `delta_currents_vcm` and
+        The properties `delta_strengths_hcm`, `delta_strengths_vcm` and
         `delta_frequency_rfg` will be multiplied by the respective correction
         gains (`corr_gain_hcm`, `corr_gain_vcm`, `corr_gain_rfg`) and applied
         to the correctors.
 
         Args:
             timeout (int, optional): Time to wait for correctors to get to
-                desired current. Defaults to 10.
+                desired strength. Defaults to 10.
 
         Returns:
-            bool: whether or not all correctors reached desired current.
+            bool: whether or not all correctors reached desired strength.
 
         """
-        dhcm = self._delta_currents_hcm * (self.corr_gain_hcm / 100)
-        dvcm = self._delta_currents_vcm * (self.corr_gain_vcm / 100)
+        dhcm = self._delta_strengths_hcm * (self.corr_gain_hcm / 100)
+        dvcm = self._delta_strengths_vcm * (self.corr_gain_vcm / 100)
         drfg = self._delta_frequency_rfg * (self.corr_gain_rfg / 100)
         dcm = _np.r_[dhcm, dvcm]
 
-        idcs = _np.isclose(dcm, 0, atol=_PowerSupply.TINY_CURRENT)
+        idcs = _np.isclose(dcm, 0, atol=_PowerSupply.TINY_STRENGTH)
         dcm[idcs] = _np.nan
-        currs0 = self.famcms.get_currents()
+        currs0 = self.famcms.get_strengths()
         freq = self.rfgen.frequency + drfg
 
-        self.famcms.set_currents(currs0 + dcm)
+        self.famcms.set_strengths(currs0 + dcm)
         tini = _time.time()
         boo = self.rfgen.set_frequency(freq, timeout=timeout)
         if not boo:
             return False
         timeout = max(0, timeout - (_time.time() - tini))
         currs0[~idcs] += dcm[~idcs]
-        return self.famcms.wait_currents(currs0, timeout=timeout)
+        return self.famcms.wait_strengths(currs0, timeout=timeout)
 
     def _calc_inv_respmat(self, mat=None):
         sel_bpm = _np.r_[self.bpmx_enbl, self.bpmy_enbl]

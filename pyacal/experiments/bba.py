@@ -1070,7 +1070,7 @@ class BBA(_BaseClass):
             print('    exiting...')
             return
 
-        curr0 = quad.current
+        curr0 = quad.strength
         deltacurr = self.params.quad_deltacurr
         cycling_curve = BBA.get_cycling_curve()
 
@@ -1085,7 +1085,7 @@ class BBA(_BaseClass):
             print('.', end='')
             for fac in cycling_curve:
                 newcurr = min(max(curr0 + deltacurr*fac, lowlim), upplim)
-                quad.current = newcurr
+                quad.strength = newcurr
                 _time.sleep(self.params.wait_quadrupole)
         print(' Ok!')
 
@@ -1095,7 +1095,7 @@ class BBA(_BaseClass):
 
         refx0, refy0 = sofb.ref_orbx.copy(), sofb.ref_orby.copy()
         enblx0, enbly0 = sofb.bpmx_enbl.copy(), sofb.bpmy_enbl.copy()
-        ch0, cv0 = sofb.currents_hcm.copy(), sofb.currents_vcm.copy()
+        ch0, cv0 = sofb.strengths_hcm.copy(), sofb.strengths_vcm.copy()
 
         enblx, enbly = 0*enblx0, 0*enbly0
         enblx[idx], enbly[idx] = 1, 1
@@ -1124,14 +1124,14 @@ class BBA(_BaseClass):
 
             for j, fac in enumerate(cycling_curve):
                 newcurr = min(max(curr0 + deltacurr*fac, lowlim), upplim)
-                quad.current = newcurr
+                quad.strength = newcurr
                 _time.sleep(self.params.wait_quadrupole)
                 if j == 0:
                     orbpos.append(sofb.get_orbit())
-                    currpos = quad.current
+                    currpos = quad.strength
                 elif j == 1:
                     orbneg.append(sofb.get_orbit())
-                    currneg = quad.current
+                    currneg = quad.strength
 
             dorb = orbpos[-1] - orbneg[-1]
             dorbx = dorb[:len(self.data['bpmnames'])]
@@ -1154,16 +1154,16 @@ class BBA(_BaseClass):
 
         # restore correctors gently to do not kill the beam.
         factch, factcv = sofb.corr_gain_hcm, sofb.corr_gain_vcm
-        chn, cvn = sofb.currents_hcm, sofb.currents_vcm
+        chn, cvn = sofb.strengths_hcm, sofb.strengths_vcm
         dch, dcv = ch0 - chn, cv0 - cvn
-        sofb.delta_currents_hcm, sofb.delta_currents_vcm = dch, dcv
+        sofb.delta_strengths_hcm, sofb.delta_strengths_vcm = dch, dcv
         nrsteps = _np.ceil(max(_np.abs(dch).max(), _np.abs(dcv).max()) / 1.0)
         for i in range(int(nrsteps)):
             sofb.corr_gain_hcm = (i+1)/nrsteps * 100
             sofb.corr_gain_vcm = (i+1)/nrsteps * 100
             sofb.apply_correction()
             _time.sleep(self.params.wait_correctors)
-        sofb.delta_currents_hcm, sofb.delta_currents_vcm = dch*0, dcv*0
+        sofb.delta_strengths_hcm, sofb.delta_strengths_vcm = dch*0, dcv*0
         sofb.corr_gain_hcm, sofb.corr_gain_vcm = factch, factcv
 
         tfin = _datetime.datetime.fromtimestamp(_time.time())

@@ -37,35 +37,35 @@ class FamCMs(DeviceSet):
         return self.devices[self.nr_hcms :]
 
     @property
-    def currents_hcm(self):
+    def strengths_hcm(self):
         """."""
-        return _np.array([cm.current for cm in self.hcms])
+        return _np.array([cm.strength for cm in self.hcms])
 
     @property
-    def currents_vcm(self):
+    def strengths_vcm(self):
         """."""
-        return _np.array([cm.current for cm in self.vcms])
+        return _np.array([cm.strength for cm in self.vcms])
 
-    def get_currents(self):
+    def get_strengths(self):
         """."""
-        return _np.array([cm.current for cm in self.devices])
+        return _np.array([cm.strength for cm in self.devices])
 
-    def set_currents(self, currents):
+    def set_strengths(self, strengths):
         """."""
-        for dev, curr in zip(self.devices, currents):
+        for dev, curr in zip(self.devices, strengths):
             if curr is None or _np.isnan(curr):
                 continue
-            dev.current = curr
+            dev.strength = curr
 
-    def wait_currents(self, currents, timeout=10):
+    def wait_strengths(self, strengths, timeout=10):
         """."""
         return self.wait_devices_propty(
             self.devices,
-            'current_rb',
-            currents,
+            'strength_rb',
+            strengths,
             comp='isclose',
             timeout=timeout,
-            abs_tol=_PowerSupply.TINY_CURRENT,
+            abs_tol=_get_devices().PowerSupply.TINY_STRENGTH,
             rel_tol=0,
         )
 
