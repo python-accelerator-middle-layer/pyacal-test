@@ -2,13 +2,17 @@
 
 from ... import _get_facility
 from ..base import Device
-import tango
 
 
 class PowerSupply(Device):
     """."""
 
-    TINY_CURRENT = 1e-6  # In units of the control system.
+    class TANGODevState:
+        """."""
+        ON = 0
+        OFF = 1
+
+    TINY_STRENGTH = 1e-6
     PROPERTIES_DEFAULT = (
         "state",
         "strength_rb",
@@ -27,8 +31,7 @@ class PowerSupply(Device):
     @property
     def pwrstate(self):
         """."""
-        state = self["state"]
-        return True if state==tango.DevState.ON else False
+        return self["state"] == PowerSupply.TANGODevState.ON
 
     @property
     def strength_mon(self):
