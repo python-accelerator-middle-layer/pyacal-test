@@ -4,6 +4,8 @@ import tango
 
 from ... import _get_facility
 
+__CONNECTED_DS = {}
+
 
 class PV:
     """PV class."""
@@ -23,10 +25,10 @@ class PV:
         self.wvalue = properties.get('wvalue', False)
         self.idx = properties.get('index', None)
         try:
-            self._ds = facil._CONNECTED_DS[self.cs_devname]
+            self._ds = __CONNECTED_DS[self.cs_devname]
         except KeyError:
             self._ds = tango.DeviceProxy(self.cs_devname)
-            facil._CONNECTED_DS[self.cs_devname] = self._ds
+            __CONNECTED_DS[self.cs_devname] = self._ds
         self.config = self._ds.get_attribute_config(self.cs_propty)
         self._timestamp = None
         self._pvname = self.cs_devname + '/' + self.cs_propty
