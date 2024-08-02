@@ -39,8 +39,8 @@ def define_ebs(facil:Facility):
 
     # Add SH correctors
     sh_idx = ring.get_uint32_index('SH*')
-    properties = {'strength_read': {'name': 'Strength'},
-                  'strength_write': {'name': 'Strength', 'wvalue': True},
+    properties = {'strength_rb': {'name': 'Strength'},
+                  'strength_sp': {'name': 'Strength', 'wvalue': True},
                   'state': {'name': 'State'}}
     for idx in sh_idx:
         devname = ring[idx].Device
