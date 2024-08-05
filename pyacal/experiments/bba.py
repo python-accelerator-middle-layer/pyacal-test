@@ -22,38 +22,38 @@ class BBAParams(_ParamsBaseClass):
     def __init__(self):
         """."""
         super().__init__()
-        self.deltaorbx = 100  # [um]
-        self.deltaorby = 100  # [um]
+        self.deltaorbx = 100
+        self.deltaorby = 100
         self.meas_nrsteps = 8
-        self.quad_deltacurr = 1  # [A]
-        self.quad_maxcurr = 200  # [A]
-        self.quad_mincurr = 0  # [A]
+        self.quad_delta_stren = 1
+        self.quad_max_stren = 200
+        self.quad_min_stren = 0
         self.quad_nrcycles = 1
         self.wait_correctors = 0.3  # [s]
         self.wait_quadrupole = 0.3  # [s]
         self.timeout_wait_orbit = 3  # [s]
         self.sofb_nrpoints = 10
         self.sofb_maxcorriter = 5
-        self.sofb_maxorberr = 5  # [um]
+        self.sofb_maxorberr = 5
 
     def __str__(self):
         """."""
         ftmp = '{0:24s} = {1:9.3f}  {2:s}\n'.format
         dtmp = '{0:24s} = {1:9d}  {2:s}\n'.format
-        stg = ftmp('deltaorbx [um]', self.deltaorbx, '')
-        stg += ftmp('deltaorby [um]', self.deltaorby, '')
+        stg = ftmp('deltaorbx', self.deltaorbx, '')
+        stg += ftmp('deltaorby', self.deltaorby, '')
         stg += dtmp('meas_nrsteps', self.meas_nrsteps, '')
-        stg += ftmp('quad_deltacurr [A]', self.quad_deltacurr, '')
-        stg += ftmp('quad_maxcurr [A]', self.quad_maxcurr, '')
-        stg += ftmp('quad_mincurr [A]', self.quad_mincurr, '')
+        stg += ftmp('quad_delta_stren', self.quad_delta_stren, '')
+        stg += ftmp('quad_max_stren', self.quad_max_stren, '')
+        stg += ftmp('quad_min_stren', self.quad_min_stren, '')
         stg += ftmp('quad_nrcycles', self.quad_nrcycles, '')
-        stg += ftmp('wait_correctors [s]', self.wait_correctors, '')
-        stg += ftmp('wait_quadrupole [s]', self.wait_quadrupole, '')
+        stg += ftmp('wait_correctors', self.wait_correctors, '[s]')
+        stg += ftmp('wait_quadrupole', self.wait_quadrupole, '[s]')
         stg += ftmp(
-            'timeout_wait_orbit [s]', self.timeout_wait_orbit, '(get orbit)')
+            'timeout_wait_orbit', self.timeout_wait_orbit, '[s] (get orbit)')
         stg += dtmp('sofb_nrpoints', self.sofb_nrpoints, '')
         stg += dtmp('sofb_maxcorriter', self.sofb_maxcorriter, '')
-        stg += ftmp('sofb_maxorberr [um]', self.sofb_maxorberr, '')
+        stg += ftmp('sofb_maxorberr', self.sofb_maxorberr, '')
         return stg
 
 
@@ -90,7 +90,7 @@ class BBA(_BaseClass):
         stn += 'Connected?  ' + str(self.connected) + '\n\n'
 
         stn += '     {:^20s} {:^20s} {:6s} {:6s}\n'.format(
-            'BPM', 'Quad', 'Xc [um]', 'Yc [um]')
+            'BPM', 'Quad', 'Xc', 'Yc')
         tmplt = '{:03d}: {:^20s} {:^20s} {:^6.1f} {:^6.1f}\n'
         dta = self.data
         for bpm in self.bpms2dobba:
@@ -543,15 +543,15 @@ class BBA(_BaseClass):
         yini = self.data['scancentery'][idx]
         qname = self.data['quadnames'][idx]
 
-        currpos = self.data['measure'][bpm].get('currpos')
-        currneg = self.data['measure'][bpm].get('currneg')
-        if currpos is not None and currneg is not None:
-            deltacurr = currpos - currneg
+        stren_pos = self.data['measure'][bpm].get('stren_pos')
+        stren_neg = self.data['measure'][bpm].get('stren_neg')
+        if stren_pos is not None and stren_neg is not None:
+            delta_stren = stren_pos - stren_neg
         else:
-            deltacurr = self.data['measure'][bpm]['deltacurr']
+            delta_stren = self.data['measure'][bpm]['delta_stren']
 
         tmp = '{:6.1f} ' + r'$\pm$' + ' {:<6.1f}'
-        st = 'Quad: {:15s} (dcurr={:.4f} A)\n'.format(qname, deltacurr)
+        st = 'Quad: {:15s} (d_stren={:.4f} A)\n'.format(qname, delta_stren)
         st += '\nInitial Search values = ({:.2f}, {:.2f})\n'.format(xini, yini)
         st += 'BBA Results:\n'
         x0s = tmp.format(xl0, stdxl0)
@@ -1071,12 +1071,12 @@ class BBA(_BaseClass):
             print('    exiting...')
             return
 
-        curr0 = quad.strength
-        deltacurr = self.params.quad_deltacurr
+        stren_0 = quad.strength
+        delta_stren = self.params.quad_delta_stren
         cycling_curve = BBA.get_cycling_curve()
 
-        upp = self.params.quad_maxcurr
-        low = self.params.quad_mincurr
+        upp = self.params.quad_max_stren
+        low = self.params.quad_min_stren
         # Limits are interchanged in some quads:
         upplim = max(upp, low) - 0.0005
         lowlim = min(upp, low) + 0.0005
@@ -1085,8 +1085,8 @@ class BBA(_BaseClass):
         for _ in range(self.params.quad_nrcycles):
             print('.', end='')
             for fac in cycling_curve:
-                newcurr = min(max(curr0 + deltacurr*fac, lowlim), upplim)
-                quad.strength = newcurr
+                new_stren = min(max(stren_0 + delta_stren*fac, lowlim), upplim)
+                quad.strength = new_stren
                 _time.sleep(self.params.wait_quadrupole)
         print(' Ok!')
 
@@ -1105,7 +1105,7 @@ class BBA(_BaseClass):
         orbini, orbpos, orbneg = [], [], []
         npts = 2*(nrsteps//2) + 1
         tmpl = '{:25s}'.format
-        currpos = currneg = 0.0
+        stren_pos = stren_neg = 0.0
         for i in range(npts):
             if self._stopevt.is_set() or not self.devices['dcct'].havebeam:
                 print('   exiting...')
@@ -1124,30 +1124,30 @@ class BBA(_BaseClass):
             orbini.append(sofb.get_orbit())
 
             for j, fac in enumerate(cycling_curve):
-                newcurr = min(max(curr0 + deltacurr*fac, lowlim), upplim)
-                quad.strength = newcurr
+                new_stren = min(max(stren_0 + delta_stren*fac, lowlim), upplim)
+                quad.strength = new_stren
                 _time.sleep(self.params.wait_quadrupole)
                 if j == 0:
                     orbpos.append(sofb.get_orbit())
-                    currpos = quad.strength
+                    stren_pos = quad.strength
                 elif j == 1:
                     orbneg.append(sofb.get_orbit())
-                    currneg = quad.strength
+                    stren_neg = quad.strength
 
             dorb = orbpos[-1] - orbneg[-1]
             dorbx = dorb[:len(self.data['bpmnames'])]
             dorby = dorb[len(self.data['bpmnames']):]
             rmsx = _np.sqrt(_np.sum(dorbx*dorbx) / dorbx.shape[0])
             rmsy = _np.sqrt(_np.sum(dorby*dorby) / dorby.shape[0])
-            print('rmsx = {:5.1f} rmsy = {:5.1f} um dcurr = {:.1g}'.format(
-                rmsx, rmsy, currpos - currneg))
+            print('rmsx = {:5.1f} rmsy = {:5.1f} um d_stren = {:.1g}'.format(
+                rmsx, rmsy, stren_pos - stren_neg))
 
         self.data['measure'][bpmname] = {
             'orbini': _np.array(orbini),
             'orbpos': _np.array(orbpos),
             'orbneg': _np.array(orbneg),
-            'currpos': currpos,
-            'currneg': currneg}
+            'stren_pos': stren_pos,
+            'stren_neg': stren_neg}
 
         print('    restoring initial conditions.')
         sofb.ref_orbx, sofb.ref_orby = refx0, refy0

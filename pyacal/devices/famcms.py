@@ -52,10 +52,10 @@ class FamCMs(DeviceSet):
 
     def set_strengths(self, strengths):
         """."""
-        for dev, curr in zip(self.devices, strengths):
-            if curr is None or _np.isnan(curr):
+        for dev, stren in zip(self.devices, strengths):
+            if stren is None or _np.isnan(stren):
                 continue
-            dev.strength = curr
+            dev.strength = stren
 
     def wait_strengths(self, strengths, timeout=10):
         """."""

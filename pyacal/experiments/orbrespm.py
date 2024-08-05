@@ -19,18 +19,18 @@ class OrbRespmParams(_ParamsBaseClass):
     def __init__(self):
         """."""
         super().__init__()
-        self.delta_freq = 100  # [Hz]
-        self.delta_curr_hcm = 1  # [A]
-        self.delta_curr_vcm = 1  # [A]
+        self.delta_freq = 100
+        self.delta_stren_hcm = 1
+        self.delta_stren_vcm = 1
         self.sofb_nrpoints = 10
 
     def __str__(self):
         """."""
         ftmp = "{0:24s} = {1:9.2e}  {2:s}\n".format
         dtmp = "{0:24s} = {1:9d}  {2:s}\n".format
-        stg = ftmp("delta_freq", self.delta_freq, "[Hz]")
-        stg += ftmp("delta_curr_hcm", self.delta_curr_hcm, "[A]")
-        stg += ftmp("delta_curr_vcm", self.delta_curr_vcm, "[A]")
+        stg = ftmp("delta_freq", self.delta_freq, "")
+        stg += ftmp("delta_stren_hcm", self.delta_stren_hcm, "")
+        stg += ftmp("delta_stren_vcm", self.delta_stren_vcm, "")
         stg += dtmp("sofb_nrpoints", self.sofb_nrpoints, "")
         return stg
 
@@ -75,9 +75,9 @@ class OrbRespm(_BaseClass):
                 continue
 
             delta = (
-                self.params.delta_curr_hcm
+                self.params.delta_stren_hcm
                 if i < sofb.nr_hcms
-                else self.params.delta_curr_vcm
+                else self.params.delta_stren_vcm
             )
             cmdev = sofb.famcms.devices[i]
             success, respm_col = self._meas_respm_single_cm(cmdev, delta)
@@ -120,11 +120,11 @@ class OrbRespm(_BaseClass):
         steps = [-1, +1]
         total_step = steps[1] - steps[0]
         orbs = []
-        inicurr = cmdev.strength
+        ini_stren = cmdev.strength
         for step in steps:
-            cmdev.set_strength(inicurr + step * delta)
+            cmdev.set_strength(ini_stren + step * delta)
             orbs.append(sofb.get_orbit())
-        cmdev.set_strength(inicurr)
+        cmdev.set_strength(ini_stren)
 
         return True, (orbs[1] - orbs[0]) / (total_step * delta)
 
