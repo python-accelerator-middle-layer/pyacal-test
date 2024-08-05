@@ -15,6 +15,7 @@ __ACAL_VARS = {
     'simulator': None,
     'control_system': None,
     'all_connections': dict(),
+    'devices': None,
 }
 
 
@@ -33,6 +34,7 @@ def set_facility(fac_name="sirius"):
     __ACAL_VARS['facility'] = fac_module.facility
     __set_simulator(__ACAL_VARS['facility'].simulator)
     __set_control_system(__ACAL_VARS['facility'].control_system)
+    __set_devices(fac_name)
 
 
 def get_model(acc):
@@ -42,8 +44,22 @@ def get_model(acc):
         (paccel.accelerator.Accelerator | pyat.Accelerator): Model of the
             accelerator being abstracted.
     """
-    cst = _get_control_system()
-    return cst.accelerators[acc]
+    facil = _get_facility()
+    return facil.accelerators[acc]
+
+
+# Load the model
+def set_model(acc, model, facil=None):
+    """Set the model of an specified accelerator.
+
+    Args:
+        acc (str): Name of the accelerator.
+        model (paccel.accelerator.Accelerator | pyat.Accelerator): New model.
+
+    """
+    if facil is None:
+        facil = _get_facility()
+    facil.accelerators[acc] = model
 
 
 def switch2online():
@@ -98,6 +114,16 @@ def _get_control_system():
     return cst
 
 
+def _get_devices():
+    """Return the current simulator object being used."""
+    devices = __ACAL_VARS['devices']
+    if devices is None:
+        raise RuntimeError(
+            'Devices is not defined yet. Call `set_facility` function.'
+        )
+    return devices
+
+
 def _get_connections_dict():
     """Return the dictionary with all connections being used."""
     return __ACAL_VARS['all_connections']
@@ -132,3 +158,14 @@ def __set_control_system(control_system):
     for key in all_conn:
         cs_new.PV(*key[0])
     __ACAL_VARS['control_system'] = cs_new
+
+
+def __set_devices(fac_name):
+    """."""
+    if fac_name.lower() not in FacilityOptions:
+        raise ValueError(f"Wrong value for fac_name ({fac_name}).")
+    try:
+        device_module = _importlib.import_module('.devices.'+fac_name, __name__)
+    except ImportError:
+        device_module = _importlib.import_module('.devices', __name__)
+    __ACAL_VARS['devices'] = device_module

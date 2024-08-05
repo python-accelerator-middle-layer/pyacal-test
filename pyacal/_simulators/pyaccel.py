@@ -39,6 +39,22 @@ def get_orbit(indices, acc=None):
     return orb[0], orb[2]
 
 
+def get_tunes(acc=None):
+    """Return fractional transverse tunes of the model.
+
+    Args:
+        acc (str, optional): name of the accelerator. Defaults to None, which
+            means the variable DEFAULT_ACCELERATOR will be used.
+
+    Returns:
+        tuple: 2-tuple containing the two transverse tunes of the model.
+    """
+    facility = _get_facility()
+    acc = acc or facility.default_accelerator
+    accel = facility.accelerators[acc]
+    return pa.optics.get_frac_tunes(accel)[:2]
+
+
 def get_twiss(indices, acc=None):
     """Return twiss parameters of the model.
 

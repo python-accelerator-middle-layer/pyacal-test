@@ -1,9 +1,10 @@
 """PV class."""
 
-import tango as _tango
+import tango
 
 from ... import _get_facility
 
+_CONNECTED_DS = {}
 
 class PV:
     """PV class."""
@@ -13,16 +14,37 @@ class PV:
         self.devname = devname
         self.propty = propty
         facil = _get_facility()
-        cs_devname = facil.get_attribute_from_aliases('cs_devname', devname)
-        cs_propty = facil.get_attribute_from_aliases(
-            f'cs_propties.{propty}.name', devname
+        self.cs_devname = facil.get_attribute_from_aliases(
+            'cs_devname', devname
         )
-        raise NotImplementedError('Please Implement me.')
+        properties = facil.get_attribute_from_aliases(
+            f'cs_propties.{propty}', devname
+        )
+        self.cs_propty = properties['name']
+        self.wvalue = properties.get('wvalue', False)
+        self.idx = properties.get('index', None)
+        try:
+            self._ds = _CONNECTED_DS[self.cs_devname]
+        except KeyError:
+            self._ds = tango.DeviceProxy(self.cs_devname)
+            _CONNECTED_DS[self.cs_devname] = self._ds
+        self.config = self._ds.get_attribute_config(self.cs_propty)
+        self._timestamp = None
+        self._pvname = self.cs_devname + '/' + self.cs_propty
+
+    @property
+    def pvname(self):
+        return self._pvname
 
     @property
     def connected(self):
         """."""
-        raise NotImplementedError('Please Implement me.')
+        try:
+            self._ds.state()
+            return True
+        except tango.DevFailed as e:
+            print(e)
+            return False
 
     @property
     def value(self):
@@ -37,41 +59,36 @@ class PV:
     @property
     def timestamp(self):
         """."""
-        raise NotImplementedError('Please Implement me.')
+        return self._timestamp
 
     @property
     def host(self):
         """."""
-        raise NotImplementedError('Please Implement me.')
+        return self._ds.get_db_host()
 
     @property
     def units(self):
         """."""
-        raise NotImplementedError('Please Implement me.')
-
-    @property
-    def precision(self):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+        return self.config.unit
 
     @property
     def lower_limit(self):
         """."""
-        raise NotImplementedError('Please Implement me.')
+        return self.config.min_value
 
     @property
     def upper_limit(self):
         """."""
-        raise NotImplementedError('Please Implement me.')
+        return self.config.max_value
 
     def get(self, timeout=None):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+        attr = self._ds.read_attribute(self.cs_propty)
+        self._timestamp = attr.time.totime()
+        value = attr.w_value if self.wvalue else attr.value
+        return value if self.idx is None else value[self.idx]
 
-    def put(self, value, wait=False):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+    def put(self, value, wait=None):
+        self._ds.write_attribute(self.cs_propty, value)
 
     def wait_for_connection(self, timeout=None):
-        """."""
-        raise NotImplementedError('Please Implement me.')
+        return True

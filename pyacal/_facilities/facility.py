@@ -10,8 +10,6 @@ class Facility:
 
     class CSDevTypes:
         PowerSupply = 'PowerSupply'
-        MagnetIndividual = 'MagnetIndividual'
-        MagnetFamily = 'MagnetFamily'
         DipoleNormal = 'DipoleNormal'
         DipoleReverse = 'DipoleReverse'
         DipoleSkew = 'DipoleSkew'
@@ -31,6 +29,7 @@ class Facility:
         RFCavity = 'RFCavity'
         TuneMeas = 'TuneMeas'
         SOFB = 'SOFB'
+        Family = 'Family'
 
     _AMAP_DEF = {
         'cs_devname': str,
@@ -187,10 +186,12 @@ class Facility:
         mapdef = self._AMAP_DEF
         if key not in mapdef:
             raise KeyError(f'Key {key} present in {alias} is not allowed.')
-        elif not isinstance(val, mapdef[key]):
-            raise ValueError(
-                f'Value of key {key} should be of type {str(mapdef[key])}.'
-            )
+        try:
+            val = mapdef.get(key)(val)
+        except ValueError as e:
+            e.args = (f'Value of key {key} '
+                      f'should be of type {str(mapdef[key])}.', )
+            raise
 
         if key == 'sim_info':
             self._check_sim_info(alias, val)
@@ -223,12 +224,20 @@ class Facility:
             raise KeyError(
                 f'Propty {propty} of {alias} does not have `name` defined.'
             )
-        elif not isinstance(val['name'], str):
+        if not isinstance(val['name'], str):
             raise TypeError(
                 f'Name of propty {propty} of {alias} should be of type str.'
             )
+        elif not isinstance(val.get('index', 0), int):
+            raise TypeError(
+                f'index of propty {propty} of {alias} should be of type int.'
+            )
+        elif not isinstance(val.get('wvalue', False), bool):
+            raise TypeError(
+                f'wvalue of propty {propty} of {alias} should be of type bool.'
+            )
 
-        all_keys = {'name', 'conv_cs2sim', 'conv_cs2phys'}
+        all_keys = {'name', 'conv_cs2sim', 'conv_cs2phys', 'index', 'wvalue'}
         extra_keys = val.keys() - all_keys
         if extra_keys:
             raise KeyError(

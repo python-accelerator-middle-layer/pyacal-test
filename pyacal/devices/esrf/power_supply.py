@@ -1,19 +1,17 @@
 """."""
 
-from .. import _get_facility
-from .base import Device
+from ... import _get_facility
+from ..base import Device
 
 
 class PowerSupply(Device):
     """."""
 
-    TINY_STRENGTH = 1e-3
+    TINY_STRENGTH = 1e-6
     PROPERTIES_DEFAULT = (
-        "pwrstate_sp",
-        "pwrstate_rb",
-        "strength_sp",
+        "state",
         "strength_rb",
-        "strength_mon",
+        "strength_sp"
     )
 
     def __init__(self, devname):
@@ -23,28 +21,22 @@ class PowerSupply(Device):
             raise ValueError(
                 f"Device name: {devname} not valid for a PowerSupply."
             )
-
         super().__init__(devname, props2init=PowerSupply.PROPERTIES_DEFAULT)
 
     @property
     def pwrstate(self):
         """."""
-        return self["pwrstate_rb"]
-
-    @pwrstate.setter
-    def pwrstate(self, value):
-        """."""
-        self["pwrstate_sp"] = value
+        return int(self["state"]) == 0
 
     @property
     def strength_mon(self):
         """."""
-        return self["strength_mon"]
+        return self["strength_rb"]
 
     @property
     def strength(self):
         """."""
-        return self["strength_rb"]
+        return self["strength_sp"]
 
     @strength.setter
     def strength(self, value):
@@ -56,5 +48,9 @@ class PowerSupply(Device):
         tol = tol or self.TINY_STRENGTH
         self.strength = value
         return self.wait(
-            "strength_rb", value, comp="isclose", abs_tol=tol, timeout=timeout
+            "strength",
+            value,
+            comp="isclose",
+            abs_tol=tol,
+            timeout=timeout,
         )

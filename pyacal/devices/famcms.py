@@ -2,9 +2,8 @@
 
 import numpy as _np
 
-from .. import _get_facility
+from .. import _get_facility, _get_devices
 from .base import DeviceSet
-from .power_supply import PowerSupply as _PowerSupply
 
 
 class FamCMs(DeviceSet):
@@ -13,10 +12,11 @@ class FamCMs(DeviceSet):
     def __init__(self, accelerator=None, cmnames=None, plane="HV"):
         """."""
         facil = _get_facility()
+        devices = _get_devices()
         self.accelerator = accelerator or facil.default_accelerator
         if cmnames is None:
             cmnames = self._get_default_cmnames(plane)
-        cmdevs = [_PowerSupply(dev) for dev in cmnames]
+        cmdevs = [devices.PowerSupply(dev) for dev in cmnames]
 
         super().__init__(cmdevs)
         self._cm_names = cmnames
@@ -37,35 +37,35 @@ class FamCMs(DeviceSet):
         return self.devices[self.nr_hcms :]
 
     @property
-    def currents_hcm(self):
+    def strengths_hcm(self):
         """."""
-        return _np.array([cm.current for cm in self.hcms])
+        return _np.array([cm.strength for cm in self.hcms])
 
     @property
-    def currents_vcm(self):
+    def strengths_vcm(self):
         """."""
-        return _np.array([cm.current for cm in self.vcms])
+        return _np.array([cm.strength for cm in self.vcms])
 
-    def get_currents(self):
+    def get_strengths(self):
         """."""
-        return _np.array([cm.current for cm in self.devices])
+        return _np.array([cm.strength for cm in self.devices])
 
-    def set_currents(self, currents):
+    def set_strengths(self, strengths):
         """."""
-        for dev, curr in zip(self.devices, currents):
-            if curr is None or _np.isnan(curr):
+        for dev, stren in zip(self.devices, strengths):
+            if stren is None or _np.isnan(stren):
                 continue
-            dev.current = curr
+            dev.strength = stren
 
-    def wait_currents(self, currents, timeout=10):
+    def wait_strengths(self, strengths, timeout=10):
         """."""
         return self.wait_devices_propty(
             self.devices,
-            'current_rb',
-            currents,
+            'strength_rb',
+            strengths,
             comp='isclose',
             timeout=timeout,
-            abs_tol=_PowerSupply.TINY_CURRENT,
+            abs_tol=_get_devices().PowerSupply.TINY_STRENGTH,
             rel_tol=0,
         )
 
