@@ -10,8 +10,6 @@ class Facility:
 
     class CSDevTypes:
         PowerSupply = 'PowerSupply'
-        MagnetIndividual = 'MagnetIndividual'
-        MagnetFamily = 'MagnetFamily'
         DipoleNormal = 'DipoleNormal'
         DipoleReverse = 'DipoleReverse'
         DipoleSkew = 'DipoleSkew'

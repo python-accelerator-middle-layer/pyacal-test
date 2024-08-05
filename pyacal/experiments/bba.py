@@ -334,14 +334,15 @@ class BBA(_BaseClass):
             {devtypes.QuadrupoleNormal, devtypes.QuadrupoleSkew},
             comp='or',
         )
-        quadnames = facil.find_aliases_from_cs_devtype(
-            devtypes.MagnetIndividual,
-            comp='or',
-            aliases=quadnames,
-        )
         quadnames = facil.find_aliases_from_accelerator(
             self.accelerator, aliases=quadnames
         )
+        famnames = facil.find_aliases_from_cs_devtype(
+            devtypes.Family,
+            comp='or',
+            aliases=quadnames,
+        )
+        quadnames = list(set(quadnames) - set(famnames))
 
         qidcs = facil.get_attribute_from_aliases('sim_info.indices', quadnames)
         bidcs = facil.get_attribute_from_aliases('sim_info.indices', bpmnames)
