@@ -137,7 +137,7 @@ def define_si(facil: Facility):
                 'cs_devname': devname,
                 'cs_devtype': {
                     CSDevTypes.DipoleNormal,
-                    CSDevTypes.MagnetFamily,
+                    CSDevTypes.Family,
                     CSDevTypes.PowerSupply,
                 },
                 'accelerator': 'SI',
@@ -204,7 +204,7 @@ def define_si(facil: Facility):
                 'cs_devname': devname,
                 'cs_devtype': {
                     name,
-                    CSDevTypes.MagnetFamily,
+                    CSDevTypes.Family,
                     CSDevTypes.PowerSupply},
                 'accelerator': 'SI',
                 'sim_info': {'indices': famdata[typ]['index']},
@@ -275,7 +275,6 @@ def define_si(facil: Facility):
                     'cs_devname': devname,
                     'cs_devtype': {
                         name,
-                        CSDevTypes.MagnetIndividual,
                         CSDevTypes.PowerSupply,
                         CSDevTypes.SOFB,
                     },
@@ -306,7 +305,6 @@ def define_si(facil: Facility):
                 'cs_devname': devname,
                 'cs_devtype': {
                     CSDevTypes.QuadrupoleSkew,
-                    CSDevTypes.MagnetIndividual,
                     CSDevTypes.PowerSupply,
                 },
                 'accelerator': 'SI',
@@ -360,7 +358,6 @@ def define_si(facil: Facility):
             'cs_devname': devname,
             'cs_devtype': {
                 CSDevTypes.QuadrupoleNormal,
-                CSDevTypes.MagnetIndividual,
                 CSDevTypes.PowerSupply,
             },
             'accelerator': 'SI',

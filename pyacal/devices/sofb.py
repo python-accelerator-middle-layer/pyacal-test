@@ -164,10 +164,7 @@ class SOFB(DeviceSet):
 
     @rfg_enbl.setter
     def rfg_enbl(self, val):
-        val = _np.asarray(val, dtype=bool)
-        if val.size != self._rfg_enbl.size:
-            raise ValueError('Wrong shape.')
-        self._rfg_enbl = val
+        self._rfg_enbl = bool(val)
 
     @property
     def respmat(self):
@@ -302,17 +299,17 @@ class SOFB(DeviceSet):
 
         idcs = _np.isclose(dcm, 0, atol=_PowerSupply.TINY_STRENGTH)
         dcm[idcs] = _np.nan
-        currs0 = self.famcms.get_strengths()
+        strens0 = self.famcms.get_strengths()
         freq = self.rfgen.frequency + drfg
 
-        self.famcms.set_strengths(currs0 + dcm)
+        self.famcms.set_strengths(strens0 + dcm)
         tini = _time.time()
         boo = self.rfgen.set_frequency(freq, timeout=timeout)
         if not boo:
             return False
         timeout = max(0, timeout - (_time.time() - tini))
-        currs0[~idcs] += dcm[~idcs]
-        return self.famcms.wait_strengths(currs0, timeout=timeout)
+        strens0[~idcs] += dcm[~idcs]
+        return self.famcms.wait_strengths(strens0, timeout=timeout)
 
     def _calc_inv_respmat(self, mat=None):
         sel_bpm = _np.r_[self.bpmx_enbl, self.bpmy_enbl]
