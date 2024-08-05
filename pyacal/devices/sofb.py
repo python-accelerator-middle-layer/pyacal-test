@@ -164,10 +164,7 @@ class SOFB(DeviceSet):
 
     @rfg_enbl.setter
     def rfg_enbl(self, val):
-        val = _np.asarray(val, dtype=bool)
-        if val.size != self._rfg_enbl.size:
-            raise ValueError('Wrong shape.')
-        self._rfg_enbl = val
+        self._rfg_enbl = bool(val)
 
     @property
     def respmat(self):
