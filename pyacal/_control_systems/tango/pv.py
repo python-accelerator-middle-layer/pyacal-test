@@ -4,8 +4,7 @@ import tango
 
 from ... import _get_facility
 
-__CONNECTED_DS = {}
-
+_CONNECTED_DS = {}
 
 class PV:
     """PV class."""
@@ -25,10 +24,10 @@ class PV:
         self.wvalue = properties.get('wvalue', False)
         self.idx = properties.get('index', None)
         try:
-            self._ds = __CONNECTED_DS[self.cs_devname]
+            self._ds = _CONNECTED_DS[self.cs_devname]
         except KeyError:
             self._ds = tango.DeviceProxy(self.cs_devname)
-            __CONNECTED_DS[self.cs_devname] = self._ds
+            _CONNECTED_DS[self.cs_devname] = self._ds
         self.config = self._ds.get_attribute_config(self.cs_propty)
         self._timestamp = None
         self._pvname = self.cs_devname + '/' + self.cs_propty
@@ -92,4 +91,4 @@ class PV:
         self._ds.write_attribute(self.cs_propty, value)
 
     def wait_for_connection(self, timeout=None):
-        pass
+        return True

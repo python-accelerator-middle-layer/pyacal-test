@@ -59,5 +59,5 @@ class RFGen(Device):
         """Set RF frequency and wait until it gets there."""
         self.frequency = value
         return self.wait(
-            "frequency_rb", value, comp='isclose', abs_tol=tol, timeout=timeout
+            "frequency", value, comp='isclose', abs_tol=tol, timeout=timeout
         )

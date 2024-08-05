@@ -7,11 +7,6 @@ from ..base import Device
 class PowerSupply(Device):
     """."""
 
-    class TANGODevState:
-        """."""
-        ON = 0
-        OFF = 1
-
     TINY_STRENGTH = 1e-6
     PROPERTIES_DEFAULT = (
         "state",
@@ -31,7 +26,7 @@ class PowerSupply(Device):
     @property
     def pwrstate(self):
         """."""
-        return self["state"] == PowerSupply.TANGODevState.ON
+        return int(self["state"]) == 0
 
     @property
     def strength_mon(self):
@@ -53,7 +48,7 @@ class PowerSupply(Device):
         tol = tol or self.TINY_STRENGTH
         self.strength = value
         return self.wait(
-            "strength_rb",
+            "strength",
             value,
             comp="isclose",
             abs_tol=tol,

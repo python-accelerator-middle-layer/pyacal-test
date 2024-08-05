@@ -8,5 +8,4 @@ from ..tune import Tune
 from ..rfgen import RFGen
 
 from .power_supply import  PowerSupply
-from .bpm import BPM
 from .fambpms import FamBPMs

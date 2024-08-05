@@ -49,8 +49,6 @@ class Facility:
         self._alias_map = {}
         self.accelerators = {}
         self.default_accelerator = ""
-        if control_system == 'tango':
-            self._CONNECTED_DS = {}
 
     def get_lookup_table(self, table_name):
         """Given a table name, this method should find and load the file.
