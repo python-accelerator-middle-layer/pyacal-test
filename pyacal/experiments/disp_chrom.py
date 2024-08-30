@@ -313,22 +313,22 @@ class DispChrom(_BaseClass):
                 continue
             elif idx == 1:  # Second coefficient, only X and not X**i
                 if coef_idx == 1:  # coef_idx = 1 does not need to be displayed
-                    res += "\delta + "
+                    res += r"\delta + "
                 elif coef_idx > 0:
-                    res += "({a} \pm {b}) \;\delta + ".format(
-                        a="{%g}" % coef_idx, b="{%g}" % err)
+                    res += r"({a} \pm {b}) \;\delta + ".format(
+                        a= r"{%g}" % coef_idx, b="{%g}" % err)
                 elif coef_idx < 0:
-                    res += "({a} \pm {b}) \;\delta + ".format(
+                    res += r"({a} \pm {b}) \;\delta + ".format(
                         a="{%g}" % coef_idx, b="{%g}" % err)
             else:
                 if coef_idx == 1:
                     # A special care needs to be addressed to put the exponent
                     # in {..} in LaTeX
-                    res += "\delta^{i} + ".format(i="{%d}" % idx)
+                    res += r"\delta^{i} + ".format(i="{%d}" % idx)
                 elif coef_idx > 0:
-                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
-                        a="{%g}" % coef_idx, b="{%g}" % err, i="{%d}" % idx)
+                    res += r"({a} \pm {b}) \;\delta^{i} + ".format(
+                        a= r"{%g}" % coef_idx, b="{%g}" % err, i="{%d}" % idx)
                 elif coef_idx < 0:
-                    res += "({a} \pm {b}) \;\delta^{i} + ".format(
+                    res += r"({a} \pm {b}) \;\delta^{i} + ".format(
                         a="{%g}" % coef_idx, b="{%g}" % err, i="{%d}" % idx)
         return "$" + res[:-3] + "$" if res else ""

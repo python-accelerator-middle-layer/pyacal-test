@@ -142,6 +142,12 @@ class Facility:
     def is_alias_in_cs_devtype(self, alias, cs_devtype):
         return cs_devtype in self._alias_map[alias]['cs_devtype']
 
+    def get_indices_from_alias(self,aliases):
+        idcs = self.get_attribute_from_aliases(
+            'sim_info.indices', aliases=aliases
+        )
+        return idcs
+
     def sort_aliases_by_model_positions(self, aliases):
         from .. import _get_simulator
 

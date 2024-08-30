@@ -12,6 +12,7 @@ _DEVTYPE = {'CH': {__CSDT.CorrectorHorizontal, __CSDT.PowerSupply, __CSDT.SOFB},
             'BPM_ALL': {__CSDT.BPM, __CSDT.Family},
             'DCCT': {__CSDT.DCCT, },
             'RFGEN': {__CSDT.RFGenerator, },
+            'Tune': {__CSDT.TuneMeas}
             }
 
 _DEVCONV = {'CH': 'hst',
@@ -38,7 +39,7 @@ def define_ebs(facil:Facility):
     facil.accelerators[accname] = ring
 
     # Add SH correctors
-    sh_idx = ring.get_uint32_index('SH*')
+    sh_idx = ring.get_uint32_index('S[FIJ]2A*')
     properties = {'strength_rb': {'name': 'Strength'},
                   'strength_sp': {'name': 'Strength', 'wvalue': True},
                   'state': {'name': 'State'}}
@@ -122,6 +123,23 @@ def define_ebs(facil:Facility):
             'accelerator': accname,
             'sim_info': {'indices': [rf_idx], },
             'cs_propties': properties,
+        }
+    )
+    # -------- Define Tune Measurement Device --------
+    properties = {'tunex': {'name': 'Qh'},
+                  'tuney': {'name': 'Qv'},
+                  }
+
+    devname = 'srdiag/beam-tune/main'
+    alias = 'Tune'
+    facil.add_2_alias_map(
+        alias,
+        {
+            'cs_devname': devname,
+            'cs_devtype': _DEVTYPE['Tune'],
+            'accelerator': accname,
+            'sim_info': {'indices': [[]]},
+            'cs_propties': properties
         }
     )
 
