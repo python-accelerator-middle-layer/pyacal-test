@@ -61,10 +61,10 @@ def define_storage_ring(facil: Facility):
         )
 
     for idx in vcorr:      
-        magnet_name = ring[idx].FamName
+        name = ring[idx].FamName
         # Get the power supply name since this is used for the PV name
-        devname = magnet_name.replace('M', 'P')
-        alias = magnet_name
+        devname = name.replace('M', 'P')
+        alias = name
         
         facil.add_2_alias_map(
             alias,
@@ -76,66 +76,33 @@ def define_storage_ring(facil: Facility):
              }
         )
 
-    # --- Add BPMs ---       
+    # --- Add BPMs ---    
     
-    # for i, idcs in enumerate(famdata['BPM']['index']):
-    #     devname = famdata['BPM']['devnames'][i]
-    #     alias = devname.dev + '-' + devname.get_nickname()
-    #     facil.add_2_alias_map(
-    #         alias,
-    #         {
-    #             'cs_devname': devname,
-    #             'cs_devtype': {CSDevTypes.BPM, CSDevTypes.SOFB},
-    #             'accelerator': 'SI',
-    #             'sim_info': {'indices': [idcs]},
-    #             'cs_propties': {
-    #                 'posx': {
-    #                     'name': ':PosX-Mon',
-    #                     'conv_cs2sim': 1e-9,  # from [nm] to [m]
-    #                     'conv_cs2phys': 1e-3,  # from [nm] to [um]
-    #                 },
-    #                 'posy': {
-    #                     'name': ':PosY-Mon',
-    #                     'conv_cs2sim': 1e-9,  # from [nm] to [m]
-    #                     'conv_cs2phys': 1e-3,  # from [nm] to [um]
-    #                 },
-    #             },
-    #         }
-    #     )
+    # Find the BPMs in the model
+    bpm = ring.get_uint32_index('BPM*')
+    
+    # Define the PV suffix we are interested in. This is used together with
+    # the device name to build up the full PV name
+    properties = {'x_pos': {'name': ':rdX'},
+                   'y_pos': {'name': ':rdY'},
+                   } 
+    
+    for idx in bpm:
+        name = ring[idx].FamName
+        devname = name
+        alias = name
         
-     
-    # # Add BPM
-    # bpm_idx = ring.get_uint32_index('BPM*')
-    # devname = 'srdiag/bpm/all'
-    # for i, idx in enumerate(bpm_idx):
-    #     properties = {'posx': {'name': 'All_SA_HPosition', 'index': i},
-    #                   'posy': {'name': 'All_SA_VPosition', 'index': i},
-    #                   }
-    #     alias = ring[idx].FamName
-    #     facil.add_2_alias_map(
-    #         alias,
-    #         {'cs_devname': devname,
-    #          'cs_devtype': _DEVTYPE['BPM'],
-    #          'accelerator': accname,
-    #          'sim_info': {'indices': [[idx]], },
-    #          'cs_propties': properties,
-    #         }
-    #     )
-    # # Add BPM Family
-    # properties = {'orbx': {'name': 'All_SA_HPosition'},
-    #               'orby': {'name': 'All_SA_VPosition'},
-    #               }
-    # facil.add_2_alias_map(
-    #     'BPM_ALL',
-    #     {'cs_devname': devname,
-    #      'cs_devtype': _DEVTYPE['BPM_ALL'],
-    #      'accelerator': accname,
-    #      'sim_info': {'indices': [bpm_idx], },
-    #      'cs_propties': properties,
-    #      }
-    # )
-
-
+        facil.add_2_alias_map(
+            alias,
+            {'cs_devname': devname,
+             'cs_devtype': _DEVTYPE['BPM'],
+             'accelerator': accname,
+             'sim_info': {'indices': [[idx]], },
+             'cs_propties': properties,
+             }
+        )            
+        
+    
     # # Add CT
     # ct_idx = ring.get_uint32_index('*CT*')
     # properties = {'current': {'name': 'Current',
