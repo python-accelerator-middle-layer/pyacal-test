@@ -15,12 +15,6 @@ _DEVTYPE = {'CH': {__CSDT.CorrectorHorizontal, __CSDT.PowerSupply, __CSDT.SOFB},
             'Tune': {__CSDT.TuneMeas}
             }
 
-#_DEVCONV = {'CH': 'hst',
-#            'CV': 'vst',
-#            'QS': 'sqp',
-#            }
-
-
 #%% Define the different machines
 
 def define_storage_ring(facil: Facility):
@@ -40,8 +34,8 @@ def define_storage_ring(facil: Facility):
     
     # Define the PV suffix we are interested in. This is used together with
     # the device name to build up the full PV name
-    properties = {'set': {'name': ':set'},
-                   'read': {'name': ':rdbk'},
+    properties = {'current_sp': {'name': ':set'},
+                   'current_rb': {'name': ':rdbk'},
                    }  
     
     for idx in hcorr:      
@@ -83,8 +77,8 @@ def define_storage_ring(facil: Facility):
     
     # Define the PV suffix we are interested in. This is used together with
     # the device name to build up the full PV name
-    properties = {'x_pos': {'name': ':rdX'},
-                   'y_pos': {'name': ':rdY'},
+    properties = {'posx': {'name': ':rdX'},
+                   'posy': {'name': ':rdY'},
                    } 
     
     for idx in bpm:
@@ -100,9 +94,9 @@ def define_storage_ring(facil: Facility):
              'sim_info': {'indices': [[idx]], },
              'cs_propties': properties,
              }
-        )            
-        
-    
+        )
+
+         
     # # Add CT
     # ct_idx = ring.get_uint32_index('*CT*')
     # properties = {'current': {'name': 'Current',

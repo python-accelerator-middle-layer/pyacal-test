@@ -10,7 +10,7 @@ import at
 import numpy as np
 import matplotlib.pyplot as plt
 import pyacal
-from pyacal.experiments.orbrespm import OrbRespm
+#from pyacal.experiments.orbrespm import OrbRespm
 
 #%% Set which machine to use 
 
@@ -21,6 +21,14 @@ pyacal.set_facility('bessy2')
 ring = at.load_lattice('./bessy2_standard_user.mat', use='THERING')
 
 pyacal.set_model('StorageRing', ring)
+
+#%%
+
+#accelerator = 'StorageRing'
+
+bpm = pyacal.devices.BPM('BPMZ42D1R')
+
+corrector = pyacal.devices.PowerSupply('S2M1D5R')
 
 #%% Set the experiment to run
 
